@@ -12,7 +12,7 @@ class AddressPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('see-all-addresses') || $user->can('see-own-addresses');
+        return $user->can('read-all-addresses') || $user->can('see-own-addresses');
     }
 
     /**
@@ -20,7 +20,7 @@ class AddressPolicy
      */
     public function view(User $user, Address $address): bool
     {
-        if ($user->can('see-all-addresses')) {
+        if ($user->can('read-all-addresses')) {
             return true;
         } elseif (!$user->can('see-own-addresses')) {
             return false;
@@ -34,7 +34,7 @@ class AddressPolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('store-address');
+        return $user->can('create-address');
     }
 
     /**
