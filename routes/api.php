@@ -153,11 +153,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('store', 'can:create,App\Models\Favorite')
         ->middlewareFor('destroy', 'can:delete,favorite');
 
-    Route::get('/cart', [CartController::class, 'index']);
-    Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty');
-    Route::post('/cart/add-order', [CartController::class, 'addOrderToCart']);
-    Route::post('/cart/items', [CartItemController::class, 'store']);
-    Route::delete('/cart/items', [CartItemController::class, 'destroy']);
+    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart');
+    Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty')->middleware('permission:delete-cart');
+    Route::post('/cart/add-order', [CartController::class, 'addOrderToCart'])->middleware('permission:create-orders');
+    Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('permission:create-cart-items');
+    Route::delete('/cart/items', [CartItemController::class, 'destroy'])->middleware('permission:delete-cart-items');
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
         ->middleware('permission:read-all-payment-methods')
@@ -174,8 +174,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:read-all-prices');
 
     // Rutas de orden
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders/pay', [OrderController::class, 'payOrder']);
+    Route::get('/orders', [OrderController::class, 'index'])->middleware('permission:read-own-orders');
+    Route::post('/orders/pay', [OrderController::class, 'payOrder'])->middleware('permission:update-orders');
 
 
     Route::middleware(['auth:sanctum', 'role:admin|superadmin|supervisor'])->group(function () {

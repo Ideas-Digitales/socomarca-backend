@@ -11,8 +11,9 @@ use App\Models\Order;
 use App\Models\OrderItem;
 
 beforeEach(function () {
-    // Crear usuario autenticado
+    // Crear usuario autenticado con permisos de cliente
     $this->user = User::factory()->create();
+    $this->user->assignRole('cliente');
     $this->actingAs($this->user, 'sanctum');
 
     // Crear datos necesarios para los productos
@@ -357,6 +358,7 @@ test('falla al eliminar item sin quantity', function () {
 test('usuarios diferentes no pueden ver items de otros carritos', function () {
     // Arrange
     $otherUser = User::factory()->create();
+    $otherUser->assignRole('cliente');
 
     CartItem::create([
         'user_id' => $this->user->id,
@@ -491,6 +493,7 @@ test('vaciar su carrito', function () {
     \App\Models\CartItem::truncate();
 
     $user = \App\Models\User::factory()->create();
+    $user->assignRole('cliente');
 
     $product = \App\Models\Product::factory()->create();
 
@@ -525,8 +528,10 @@ test('vaciar su carrito', function () {
 test('cliente no puede vaciar carros de otros', function () {
 
     $userA = \App\Models\User::factory()->create();
+    $userA->assignRole('cliente');
 
     $userB = \App\Models\User::factory()->create();
+    $userB->assignRole('cliente');
 
 
     $product = \App\Models\Product::factory()->create();
@@ -766,6 +771,7 @@ test('falla al agregar orden con order_id inexistente', function () {
 test('falla al agregar orden que no pertenece al usuario', function () {
     // Arrange
     $otherUser = User::factory()->create();
+    $otherUser->assignRole('cliente');
     $order = Order::factory()->create([
         'user_id' => $otherUser->id,
         'status' => 'completed'
