@@ -24,10 +24,8 @@ class AddressController extends Controller
 
         if ($user->can('read-all-addresses')) {
             $addresses = Address::all();
-        } elseif ($user->can('see-own-addresses')) {
-            $addresses = Address::where('user_id', $user->id)->get();
         } else {
-            abort(403, 'Forbidden');
+            $addresses = Address::where('user_id', $user->id)->get();
         }
 
         $data = new AddressCollection($addresses);
