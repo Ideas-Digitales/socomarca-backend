@@ -11,7 +11,12 @@ class DestroyRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $favorite = \App\Models\Favorite::find($this->route('id'));
+        $user = $this->user();
+
+        return $favorite
+            && $favorite->favoriteList->user_id === $user->id
+            && $user->can('delete', $favorite);
     }
 
     /**

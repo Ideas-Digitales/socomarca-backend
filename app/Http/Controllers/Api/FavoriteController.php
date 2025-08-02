@@ -40,7 +40,7 @@ class FavoriteController extends Controller
             update: []
         );
 
-        return response()->json(['message' => 'The favorite product has been added'], 201);
+        return response()->json(['message' => 'Producto agregado a favoritos'], 201);
     }
 
     public function destroy(DestroyRequest $destroyRequest, $id)
@@ -57,12 +57,12 @@ class FavoriteController extends Controller
         {
             return response()->json(
             [
-                'message' => 'Favorite product not found.',
+                'message' => 'Producto favorito no encontrado',
             ], 404);
         }
 
         $favorite->delete();
 
-        return response()->json(['message' => 'The selected favorite product has been deleted']);
+        return response()->json(['message' => 'El producto favorito seleccionado ha sido eliminado']);
     }
 }
