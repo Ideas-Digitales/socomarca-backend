@@ -12,20 +12,21 @@ use App\Http\Resources\Favorites\FavoriteResource;
 use App\Http\Resources\FavoritesList\FavoriteListCollection;
 use App\Http\Resources\FavoritesList\FavoriteListResource;
 use App\Models\FavoriteList;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class FavoriteListController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        Gate::authorize('viewAny', FavoriteList::class);
 
-        $userId = Auth::id();
+        $user = $request->user();
 
-        $favoritesList = FavoriteList::where('user_id', $userId)->get();
+        $favoritesList = FavoriteList::where('user_id', $user->id)->get();
 
-        $data = new FavoriteListCollection($favoritesList);
-
-        return $data;
+        return new FavoriteListCollection($favoritesList);
     }
 
     public function store(StoreRequest $storeRequest)
@@ -42,12 +43,18 @@ class FavoriteListController extends Controller
         return response()->json($favoriteList, 201);
     }
 
-    public function show(FavoriteList $favoriteList)
+    public function show($id)
     {
-        if ($favoriteList->user_id !== Auth::user()->id) {
-            abort(403, 'Unauthorized action');
+        
+        $favoriteList = FavoriteList::find($id);
+
+        if (!$favoriteList) {
+            return response()->json([
+                'message' => 'Lista de favoritos no encontrada.',
+            ], 404);
         }
 
+        Gate::authorize('view', $favoriteList);
         return $favoriteList->toResource(FavoriteListResource::class);
     }
 
@@ -63,7 +70,7 @@ class FavoriteListController extends Controller
         {
             return response()->json(
             [
-                'message' => 'Favorites list not found.',
+                'message' => 'Lista de favoritos no encontrada.',
             ], 404);
         }
 
@@ -72,13 +79,13 @@ class FavoriteListController extends Controller
 
         $favoriteList->save();
 
-        return response()->json(['message' => 'The selected favorites list has been updated']);
+        return response()->json(['message' => 'La lista de favoritos seleccionada ha sido actualizada']);
     }
 
     public function destroy(DestroyRequest $destroyRequest, $id)
     {
         $destroyRequest->validated();
-
+        
         $favoriteList = FavoriteList::where('id', $id)
         ->where('user_id', Auth::user()->id)
         ->first();
@@ -87,12 +94,12 @@ class FavoriteListController extends Controller
         {
             return response()->json(
             [
-                'message' => 'Favorites list not found.',
+                'message' => 'Lista de favoritos no encontrada.',
             ], 404);
         }
 
         $favoriteList->delete();
 
-        return response()->json(['message' => 'The selected favorites list has been deleted']);
+        return response()->json(['message' => 'La lista de favoritos seleccionada ha sido eliminada']);
     }
 }
