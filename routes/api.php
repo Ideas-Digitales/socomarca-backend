@@ -68,7 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
 //    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
 
     Route::resource('permissions', \App\Http\Controllers\Api\PermissionController::class, ['only' => 'index'])
-        ->middleware('permission:see-all-permissions');;
+        ->middleware('permission:see-all-permissions');
 
     Route::middleware(['role:admin|superadmin'])->group(function () {
         Route::get('/roles', [RoleController::class, 'index']);
