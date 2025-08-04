@@ -290,6 +290,43 @@ describe('User creation endpoint', function () {
             ->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
     });
+
+    it('should deny admin user creation when having only \'create-users\' permission without \'create-admin-users\'', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+        $userData['roles'] = ['admin'];
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $userData)
+            ->assertForbidden();
+    });
+
+    it('should successfully create regular user when having \'create-users\' permission', function () {
+        \Illuminate\Support\Facades\Notification::fake();
+        $permissions = ['create-users'];
+        Role::firstOrCreate(['name' => 'customer', 'guard_name' => 'web']);
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+        $userData['roles'] = ['customer'];
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $userData)
+            ->assertCreated();
+
+        $createdUser = User::where('email', $userData['email'])->first();
+        expect($createdUser->hasRole('customer'))->toBeTrue()
+            ->and($createdUser->name)->toBe($userData['name'])
+            ->and($createdUser->rut)->toBe($userData['rut']);
+    });
 });
 
 describe('User update endpoint', function () {
