@@ -25,7 +25,7 @@ class UserPolicy
 
         if (!$user->can('read-admin-users')) {
             $f = function ($query) {
-                return $query->withoutRole('admin');
+                return $query->withoutRole(['superadmin', 'admin']);
             };
             $this->service->addAuthorizationReadFilter($f);
         }
