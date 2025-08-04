@@ -23,8 +23,6 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SiteinfoController;
 use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
-use App\Http\Controllers\Api\S3Controller;
-use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -92,9 +90,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/subcategories', [SubcategoryController::class,'index'])->name('subcategories.index');
     Route::get('/subcategories/{id}', [SubcategoryController::class,'show'])->name('subcategories.show');
 
-    Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
-        Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])->name('products.image.sync');
-    });
     Route::get('/products/price-extremes', [ProductController::class, 'getPriceExtremes'])->name('products.price-extremes');
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{id}', [ProductController::class, 'show']);
@@ -146,7 +141,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     });
 
-
 });
 
 Route::get('/faq', [FaqController::class, 'index'])->name('faq.index');
@@ -182,17 +176,12 @@ Route::middleware(['auth:sanctum', 'role:editor|admin|superadmin'])->group(funct
     Route::put('/terms', [SiteinfoController::class, 'updateTerms']);
     Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy']);
     Route::post('/customer-message', [SiteinfoController::class, 'updateCustomerMessage']);
-    Route::get('/upload-settings', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings.get');
-    Route::put('/upload-settings', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings.update');
 });
 
-Route::prefix('settings')->middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
-    Route::get('/prices', [SettingsController::class, 'index']);
-    Route::put('/prices', [SettingsController::class, 'update']);
-    Route::get('/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings.get');
-    Route::put('/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings.update');
+Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
+    Route::get('/settings/prices', [SettingsController::class, 'index']);
+    Route::put('/settings/prices', [SettingsController::class, 'update']);
 });
-
 
 // Ruta catch-all al final
 Route::any('{url}', function() {

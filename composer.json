@@ -14,7 +14,6 @@
         "laravel/sanctum": "^4.0",
         "laravel/scout": "^10.15",
         "laravel/tinker": "^2.10.1",
-        "league/flysystem-aws-s3-v3": "^3.29",
         "maatwebsite/excel": "^3.1",
         "meilisearch/meilisearch-php": "^1.14",
         "spatie/laravel-permission": "^6.17",

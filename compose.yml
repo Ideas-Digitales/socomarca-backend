@@ -9,16 +9,12 @@ services:
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html:cached
-      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
     networks:
       - socomarca
     depends_on:
       - db
     expose:
       - 9000
-    environment:
-      - PHP_UPLOAD_MAX_FILESIZE=100M
-      - PHP_POST_MAX_SIZE=100M
 
   web:
     image: nginx:alpine
@@ -52,23 +48,32 @@ services:
     networks:
       - socomarca
 
-  localstack:
-    image: localstack/localstack
-    container_name: socomarca_localstack
-    ports:
-      - "4566:4566"
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    container_name: meilisearch
     environment:
-      - SERVICES=s3
-      - DEFAULT_REGION=us-east-1
+      - MEILI_MASTER_KEY=masterKey
+    ports:
+      - "7700:7700"
+    volumes:
+      - ./meili_data:/meili_data
     networks:
       - socomarca
-
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@admin.com"
+      PGADMIN_DEFAULT_PASSWORD: "admin"
+    ports:
+      - "80:80"
+    networks:
+      - socomarca
+    depends_on:
+      - db
 
 volumes:
   socomarca_data:
     name: socomarca_data
-  socomarca_s3_data:
-    name: socomarca_s3_data
 
 networks:
   socomarca:
