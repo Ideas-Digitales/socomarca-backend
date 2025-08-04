@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\Data\UserService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use App\Services\RandomApiService;
@@ -17,6 +18,9 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(RandomApiService::class, function ($app) {
             return new RandomApiService();
+        });
+        $this->app->singleton(UserService::class, function ($app) {
+            return new UserService();
         });
     }
 

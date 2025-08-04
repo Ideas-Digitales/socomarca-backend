@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Events\UserSaved;
 use App\Exports\UsersExport;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Users\DestroyRequest;
 use App\Http\Requests\Users\StoreRequest;
 use App\Http\Requests\Users\UpdateRequest;
 use App\Http\Resources\Users\ProfileResource;
 use App\Http\Resources\Users\UserCollection;
 use App\Http\Resources\Users\UserResource;
 use App\Models\User;
+use App\Services\Data\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,16 +22,14 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
+    public function __construct(private UserService $service) {}
+
     public function index(Request $request)
     {
         $perPage = request()->input('per_page', 20);
         $sort = $request->input('sort', 'name');
         $sortDirection = $request->input('sort_direction', 'asc');
-
-        $users = User::with('roles')
-            ->orderBy($sort, $sortDirection)
-            ->paginate($perPage);
-
+        $users = $this->service->getPaginatedUsers($sort, $sortDirection, $perPage);
         return new UserCollection($users);
     }
 
@@ -92,25 +90,9 @@ class UserController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(User $user)
     {
-        $authUser = request()->user();
-
-        // Permitir que el usuario vea su propio perfil
-        if ($authUser->id == $id || $authUser->can('manage-users')) {
-            $user = User::with(['billing_address', 'shipping_addresses', 'roles'])->find($id);
-
-            if (!$user) {
-                return response()->json([
-                    'message' => 'Usuario no encontrado.',
-                ], 404);
-            }
-
-            return response()->json(new UserResource($user));
-        }
-
-        // Si no es su perfil ni tiene permiso, denegar acceso
-        return response()->json(['message' => 'No autorizado.'], 403);
+        return response()->json(new UserResource($user));
     }
 
     /**
@@ -167,53 +149,19 @@ class UserController extends Controller
      * Remove the specified user from storage.
      * Requires manage-users permission.
      *
-     * @param DestroyRequest $destroyRequest
-     * @param int $id
-     * @return JsonResponse
+     * @param User $user
      */
-    public function destroy(DestroyRequest $destroyRequest, $id): JsonResponse
+    public function destroy(User $user)
     {
-        try {
-            $destroyRequest->validated();
-
-            $user = User::find($id);
-            if (!$user) {
-                return response()->json([
-                    'message' => 'Usuario no encontrado.',
-                ], 404);
-            }
-
-            // Verificar que no se pueda eliminar a sí mismo
-            $currentUser = request()->user();
-            if ($currentUser && $user->id === $currentUser->id) {
-                return response()->json([
-                    'message' => 'No puedes eliminar tu propia cuenta.',
-                ], 403);
-            }
-            $user->cartItems()->delete();
-            $user->favoritesList()->delete();
-
-            // Verificar si el usuario tiene pedidos o datos críticos
-            if ($user->cartItems()->exists() || $user->favoritesList()->exists()) {
-                return response()->json([
-                    'message' => 'No se puede eliminar el usuario porque tiene datos asociados (carrito, listas de favoritos, etc.).',
-                ], 422);
-            }
-
-            $user->delete();
-
+        // Verificar si el usuario tiene pedidos o datos críticos
+        if ($user->cartItems()->exists() || $user->favoritesList()->exists()) {
             return response()->json([
-                'message' => 'Usuario eliminado exitosamente'
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error eliminando usuario: ' . $e->getMessage());
-
-            return response()->json([
-                'message' => 'Error interno del servidor',
-                'error' => config('app.debug') ? $e->getMessage() : 'No se pudo eliminar el usuario'
-            ], 500);
+                'message' => 'No se puede eliminar el usuario porque tiene datos asociados (carrito, listas de favoritos, etc.).',
+            ], 422);
         }
+        $user->cartItems()->delete();
+        $user->favoritesList()->delete();
+        $user->delete();
     }
 
     public function profile(Request $request)
