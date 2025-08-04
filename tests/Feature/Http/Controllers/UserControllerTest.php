@@ -57,6 +57,68 @@ describe('Users read endpoint', function() {
                 'meta'
             ]);
     });
+
+    it('should return a paginated users list without admin users when having \'read-users\' permissions only', function () {
+        $permissions = ['read-users'];
+        Role::firstOrCreate(['name' => 'customer', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        // Create normal users
+        $normalUsers = User::factory()->count(2)->create();
+        foreach ($normalUsers as $user) {
+            $user->assignRole('customer');
+        }
+
+        // Create admin users
+        $adminUser = User::factory()->create();
+        $adminUser->assignRole('admin');
+        $superadminUser = User::factory()->create();
+        $superadminUser->assignRole('superadmin');
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/users')
+            ->assertStatus(200);
+
+        // Verify admin users are not included in the response
+        $userIds = collect($response->json('data'))->pluck('id')->toArray();
+        expect($userIds)->not->toContain($adminUser->id)
+            ->and($userIds)->not->toContain($superadminUser->id);
+    });
+
+    it('should return a paginated users list with all users when having \'read-admin-users\' and \'read-users\' permissions', function () {
+        $permissions = ['read-users', 'read-admin-users'];
+        Role::firstOrCreate(['name' => 'customer', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        // Create normal users
+        $normalUsers = User::factory()->count(2)->create();
+        foreach ($normalUsers as $user) {
+            $user->assignRole('customer');
+        }
+
+        // Create admin users
+        $adminUser = User::factory()->create();
+        $adminUser->assignRole('admin');
+        $superadminUser = User::factory()->create();
+        $superadminUser->assignRole('superadmin');
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/users')
+            ->assertStatus(200);
+
+        // Verify all users (including admin users) are included in the response
+        $userIds = collect($response->json('data'))->pluck('id')->toArray();
+        expect($userIds)->toContain($adminUser->id)
+            ->and($userIds)->toContain($superadminUser->id);
+    });
 });
 
 describe('User show endpoint', function () {
@@ -84,6 +146,30 @@ describe('User show endpoint', function () {
 
         $this->actingAs($admin, 'sanctum')
             ->getJson("/api/users/{$user->id}")
+            ->assertStatus(200)
+            ->assertJsonStructure([
+                'id',
+                'name',
+                'email',
+                'phone',
+                'rut',
+                'business_name',
+                'is_active',
+                'roles'
+            ]);
+    });
+
+    it('should read an admin user when having the \'read-admin-users\' permission', function () {
+        $permissions = ['read-admin-users'];
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+        $adminUser = User::factory()->create();
+        $adminUser->assignRole('admin');
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/users/{$adminUser->id}")
             ->assertStatus(200)
             ->assertJsonStructure([
                 'id',
@@ -173,6 +259,37 @@ describe('User creation endpoint', function () {
         \Illuminate\Support\Facades\Notification::assertSentTo($user, \App\Notifications\UserSavedNotification::class);
         \Illuminate\Support\Facades\Notification::assertSentTo($user, \App\Notifications\UserPasswordUpdateNotification::class);
     });
+
+    it('should fail with validation error when giving a wrong password confirmation', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        $userData = generateUserData();
+        $userData['password_confirmation'] = 'different_password';
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $userData)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
+    });
+
+    it('should fail with validation error when giving a wrong email', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+        $userData['email'] = 'invalid-email-format';
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/users', $userData)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    });
 });
 
 describe('User update endpoint', function () {
@@ -246,6 +363,26 @@ describe('User update endpoint', function () {
         });
     });
 
+    it('shouldn\'t perform an admin user update when having the permissions \'update-users\' and \'read-users\' without \'read-admin-users\'', function () {
+        $permissions = ['update-users', 'read-users'];
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+        $admin->refresh();
+
+        $adminUser = User::factory()->create();
+        $adminUser->assignRole('admin');
+
+        $updateData = [
+            'name' => fake()->firstName() . ' UpdateTest ' . fake()->lastName(),
+        ];
+
+        $this->actingAs($admin, 'sanctum')
+            ->patchJson("/api/users/{$adminUser->id}", $updateData)
+            ->assertForbidden();
+    });
+
 //    it('should fail when payload is incomplete during a full update', function() {
 //        $admin = User::factory()->create();
 //        $admin->assignRole('admin');
@@ -305,6 +442,26 @@ describe('User deletion endpoint', function () {
 
         $this->assertDatabaseHas('users', [
             'id' => $admin->id
+        ]);
+    });
+
+    it('should deny an admin user deletion when the user has \'delete-users\' permission but without having \'read-admin-users\' permission', function () {
+        $permissions = ['delete-users', 'read-users'];
+        createPermissions($permissions);
+        Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+        $admin->refresh();
+
+        $adminUser = User::factory()->create();
+        $adminUser->assignRole('admin');
+
+        $this->actingAs($admin, 'sanctum')
+            ->deleteJson("/api/users/{$adminUser->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $adminUser->id
         ]);
     });
 });
