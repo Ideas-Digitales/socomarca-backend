@@ -28,7 +28,7 @@ return [
         'read-all-products',
         'read-content-settings',
         'update-content-settings',
-        'read-all-system',
+        'read-all-system-config',
         'update-system-config',
         'update-municipalities',
         'read-all-regions',
