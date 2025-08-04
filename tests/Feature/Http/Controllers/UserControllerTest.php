@@ -8,7 +8,7 @@ use Laragear\Rut\Facades\Generator as RutGenerator;
 
 function generateUserData() {
     return [
-        'name' => fake()->firstName() . ' UserControllerTest.php' . fake()->lastName(),
+        'name' => fake()->firstName() . ' ' . fake()->lastName(),
         'email' => fake()->email,
         'password' => fake()->password(10, 12),
         'phone' => strval(fake()->numberBetween(1000000000, 2000000000)),
@@ -82,9 +82,14 @@ describe('Users read endpoint', function() {
         $response = $this->actingAs($admin, 'sanctum')
             ->getJson('/api/users')
             ->assertStatus(200);
+        $userIds = collect($response->json('data'))->pluck('id')->toArray();
+//        dd([
+//            'userIds' => $userIds,
+//            'adminUser' => $adminUser->id,
+//            'superadminUser' => $superadminUser->id,
+//        ]);
 
         // Verify admin users are not included in the response
-        $userIds = collect($response->json('data'))->pluck('id')->toArray();
         expect($userIds)->not->toContain($adminUser->id)
             ->and($userIds)->not->toContain($superadminUser->id);
     });
