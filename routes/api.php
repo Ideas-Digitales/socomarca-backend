@@ -152,14 +152,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
 });
 
-Route::get('/faq', [FaqController::class, 'index'])->name('faq.index');
-Route::post('/faq/search', [FaqController::class, 'search'])->name('faq.search');
+// Public FAQ routes (no authentication required)
+Route::get('/faq', [FaqController::class, 'index'])->middleware('can:viewAny,App\Models\Faq')->name('faq.index');
+Route::get('/faq/{faq}', [FaqController::class, 'show'])->middleware('can:view,faq')->name('faq.show');
+Route::post('/faq/search', [FaqController::class, 'search'])->middleware('can:viewAny,App\Models\Faq')->name('faq.search');
 
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/faq/{faq}', [FaqController::class, 'show'])->name('faq.show');
-    Route::post('/faq', [FaqController::class, 'store'])->name('faq.store')->middleware('permission:store-faq');
-    Route::put('/faq/{faq}', [FaqController::class, 'update'])->name('faq.update')->middleware('permission:update-faq');
-    Route::delete('/faq/{faq}', [FaqController::class, 'destroy'])->name('faq.destroy')->middleware('permission:delete-faq');
+// Protected FAQ routes (authentication required)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/faq', [FaqController::class, 'store'])->middleware('can:create,App\Models\Faq')->name('faq.store');
+    Route::put('/faq/{faq}', [FaqController::class, 'update'])->middleware('can:update,faq')->name('faq.update');
+    Route::delete('/faq/{faq}', [FaqController::class, 'destroy'])->middleware('can:delete,faq')->name('faq.destroy');
 });
 
 //Se sacan de la autenticacion porque es confirmacion de pago.

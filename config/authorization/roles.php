@@ -28,10 +28,10 @@ return [
         "delete-address",
 
         // FAQ related permissions
-        "manage-faq",
-        "store-faq",
-        "update-faq",
-        "delete-faq",
+        "read-all-faqs",
+        "create-faqs",
+        "update-faqs",
+        "delete-faqs",
 
         // List permissions names
         "see-all-permissions",
@@ -60,10 +60,10 @@ return [
         "delete-address",
 
         // FAQ related permissions
-        "manage-faq",
-        "store-faq",
-        "update-faq",
-        "delete-faq",
+        "read-all-faqs",
+        "create-faqs",
+        "update-faqs",
+        "delete-faqs",
 
         // List permissions names
         "see-all-permissions",
@@ -79,6 +79,9 @@ return [
         "see-all-products",
         "see-all-clients",
         "see-all-purchases",
+
+        // FAQ related permissions
+        "read-all-faqs",
     ],
     'editor' => [
         // Own user permissions
@@ -89,6 +92,12 @@ return [
         "see-own-purchases",
         "see-all-products",
         "edit-content",
+
+        // FAQ related permissions
+        "read-all-faqs",
+        "create-faqs",
+        "update-faqs",
+        "delete-faqs",
     ],
     'customer' => [
         // Own user permissions
@@ -100,5 +109,8 @@ return [
         "store-address",
         "update-address",
         "delete-address",
+
+        // FAQ related permissions
+        "read-all-faqs",
     ],
 ];

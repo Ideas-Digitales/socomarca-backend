@@ -29,10 +29,10 @@ return [
     "delete-address",
 
     // FAQ related permissions
-    "manage-faq",
-    "store-faq",
-    "update-faq",
-    "delete-faq",
+    "read-all-faqs",
+    "create-faqs",
+    "update-faqs",
+    "delete-faqs",
 
     // List permissions names
     "see-all-permissions",
