@@ -9,20 +9,12 @@ class FaqPolicy
 {
     public function viewAny(?User $user): bool
     {
-        if ($user === null) {
-            return true;
-        }
-
-        return $user->can('read-all-faqs');
+        return true;
     }
 
     public function view(?User $user, Faq $faq): bool
     {
-        if ($user === null) {
-            return true;
-        }
-
-        return $user->can('read-all-faqs');
+        return true;
     }
 
     public function create(User $user): bool

@@ -159,17 +159,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
 });
 
-// Rutas publicas
-Route::get('/faq', [FaqController::class, 'index'])->middleware('can:viewAny,App\Models\Faq')->name('faq.index');
-Route::get('/faq/{faq}', [FaqController::class, 'show'])->middleware('can:view,faq')->name('faq.show');
-Route::post('/faq/search', [FaqController::class, 'search'])->middleware('can:viewAny,App\Models\Faq')->name('faq.search');
+// Rutas FAQs
+Route::post('/faq/search', [FaqController::class, 'search'])->name('faq.search');
 
-// Rutas privadas
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/faq', [FaqController::class, 'store'])->middleware('can:create,App\Models\Faq')->name('faq.store');
-    Route::put('/faq/{faq}', [FaqController::class, 'update'])->middleware('can:update,faq')->name('faq.update');
-    Route::delete('/faq/{faq}', [FaqController::class, 'destroy'])->middleware('can:delete,faq')->name('faq.destroy');
-});
+Route::resource('faq', FaqController::class)
+    ->only(['index', 'store', 'show', 'update', 'destroy'])
+    ->parameters(['faq' => 'faq'])
+    ->middleware([
+        'store' => ['auth:sanctum', 'can:create,App\Models\Faq'],
+        'update' => ['auth:sanctum', 'can:update,faq'],
+        'destroy' => ['auth:sanctum', 'can:delete,faq']
+    ]);
 
 //Se sacan de la autenticacion porque es confirmacion de pago.
 //Front recibe el token y lo envia a /webpay/return  (La ruta se establece en el webpayService: linea 59)
