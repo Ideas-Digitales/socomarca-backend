@@ -11,13 +11,11 @@ use App\Models\Municipality;
 use App\Models\Region;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 
 class AddressController extends Controller
 {
     public function index(Request $request)
     {
-        Gate::authorize('viewAny', Address::class);
 
         $user = $request->user();
         $addresses = null;
@@ -36,13 +34,7 @@ class AddressController extends Controller
     public function store(StoreRequest $storeRequest)
     {
         $user = $storeRequest->user();
-
-        if (!$user->can('create-address')) {
-            return abort(403, 'Forbidden');
-        }
-
         $data = $storeRequest->validated();
-
         $data['is_default'] === true &&
             DB::table('addresses')
                 ->where('user_id', $user->id)
@@ -91,23 +83,13 @@ class AddressController extends Controller
 
     public function show(Address $address)
     {
-        if (!Gate::authorize('view', $address)) {
-            return abort(403, 'Forbidden');
-        }
-
         $data = new AddressCollection([$address]);
-
         return response()->json($data[0]);
     }
 
     public function update(UpdateRequest $updateRequest, Address $address)
     {
         $user = $updateRequest->user();
-
-        if (!Gate::authorize('update', $address)) {
-            return abort(403, 'Forbidden');
-        }
-
         $data = $updateRequest->validated();
 
         //$data['is_default'] === true &&
@@ -125,13 +107,7 @@ class AddressController extends Controller
 
     public function destroy(Address $address)
     {
-        if (!Gate::authorize('delete', $address)) {
-            return abort(403, 'Forbidden');
-        }
-
         $address->delete();
-
-        return response()->json(['message' => 'The selected address has been deleted']);
     }
 
 
