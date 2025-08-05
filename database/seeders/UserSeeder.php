@@ -33,6 +33,8 @@ class UserSeeder extends Seeder
 
             if ($i < count($roles)) {
                 $user->assignRole($roles[$i]);
+            } elseif ($i >= 6 && $i <= 24) {
+                $user->assignRole('customer');
             }
 
         }
