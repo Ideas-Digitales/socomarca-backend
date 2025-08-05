@@ -11,7 +11,8 @@ class UpdateRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $favoriteList = \App\Models\FavoriteList::find($this->route('id'));
+        return $favoriteList && $this->user()->can('update', $favoriteList);
     }
 
     /**
