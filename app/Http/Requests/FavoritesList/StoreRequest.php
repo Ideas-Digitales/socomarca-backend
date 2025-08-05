@@ -11,7 +11,7 @@ class StoreRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return $this->user() && $this->user()->can('create', \App\Models\FavoriteList::class);
     }
 
     /**
@@ -24,7 +24,6 @@ class StoreRequest extends FormRequest
         return
         [
             'name' => 'bail|required|string',
-            
         ];
     }
 }
