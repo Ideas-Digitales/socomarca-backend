@@ -27,12 +27,17 @@ return [
     'create-addresses', // [superadmin, admin, customer]
     'update-addresses', // [superadmin, admin, customer]
     'delete-addresses', // [superadmin, admin, customer]
+    'see-all-addresses', // [superadmin, admin]
+    'see-own-addresses', // [superadmin, admin, customer]
+    'store-address', // [superadmin, admin, customer]
+    'update-address', // [superadmin, admin, customer]
+    'delete-address', // [superadmin, admin, customer]
 
-    "see-all-addresses", // [DEPRECATED]
-    "see-own-addresses", // [DEPRECATED]
-    "store-address", // [DEPRECATED]
-    "update-address", // [DEPRECATED]
-    "delete-address", // [DEPRECATED]
+    // FAQ related permissions
+    "read-all-faqs",
+    "create-faqs",
+    "update-faqs",
+    "delete-faqs",
 
     // Favorites permissions
     'read-own-favorites', // [customer]
@@ -112,6 +117,7 @@ return [
 
     // Permissions
     'read-all-permissions', // [superadmin, admin]
+    'see-all-permissions', // [superadmin, admin]
 
     // Roles permissions
     'read-all-roles', // [superadmin]

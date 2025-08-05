@@ -42,22 +42,34 @@ return [
         'read-all-categories-export',
         'read-customers-export',
 
-        "see-all-addresses", // [DEPRECATED]
-        "see-own-addresses", // [DEPRECATED]
-        "store-address", // [DEPRECATED]
-        "update-address", // [DEPRECATED]
-        "delete-address", // [DEPRECATED]
-        "manage-categories", // [DEPRECATED]
-        "manage-faq", // [DEPRECATED]
-        "store-faq", // [DEPRECATED]
-        "update-faq", // [DEPRECATED]
-        "delete-faq", // [DEPRECATED]
-        "see-all-reports", // [DEPRECATED]
-        "see-all-products", // [DEPRECATED]
-        "edit-products", // [DEPRECATED]
+        "see-own-purchases",
+        "see-all-reports",
+        "see-all-products",
+        "see-all-clients",
+        "see-all-purchases",
+        "edit-content",
+        "edit-products",
+        "manage-categories",
+
+        // Address related permissions
+        "see-all-addresses",
+        "see-own-addresses",
+        "store-address",
+        "update-address",
+        "delete-address",
+
+        // FAQ related permissions
+        "read-all-faqs",
+        "create-faqs",
+        "update-faqs",
+        "delete-faqs",
+
+        // List permissions names
+        "see-all-permissions",
     ],
     'admin' => [
         'read-users',
+        'read-admin-users',
         'create-users',
         'update-users',
         'delete-users',
@@ -94,19 +106,30 @@ return [
         'read-all-categories-export',
         'read-customers-export',
 
-        "see-all-addresses", // [DEPRECATED]
-        "see-own-addresses", // [DEPRECATED]
-        "store-address", // [DEPRECATED]
-        "update-address", // [DEPRECATED]
-        "delete-address", // [DEPRECATED]
-        "manage-categories", // [DEPRECATED]
-        "manage-faq", // [DEPRECATED]
-        "store-faq", // [DEPRECATED]
-        "update-faq", // [DEPRECATED]
-        "delete-faq", // [DEPRECATED]
-        "see-all-reports", // [DEPRECATED]
-        "see-all-products", // [DEPRECATED]
-        "edit-products", // [DEPRECATED]
+        "see-own-purchases",
+        "see-all-reports",
+        "see-all-products",
+        "see-all-clients",
+        "see-all-purchases",
+        "edit-content",
+        "edit-products",
+        "manage-categories",
+
+        // Address related permissions
+        "see-all-addresses",
+        "see-own-addresses",
+        "store-address",
+        "update-address",
+        "delete-address",
+
+        // FAQ related permissions
+        "read-all-faqs",
+        "create-faqs",
+        "update-faqs",
+        "delete-faqs",
+
+        // List permissions names
+        "see-all-permissions",
     ],
     'supervisor' => [
         'read-own-profile',
@@ -120,11 +143,18 @@ return [
         'read-all-prices',
         'read-all-products',
         'read-all-regions',
-        'read-all-products-export',
-        'read-all-categories-export',
+
+        "see-own-purchases",
+        "see-all-clients",
+        "see-all-purchases",
         'read-customers-export',
         "see-all-reports", // [DEPRECATED]
         "see-all-products", // [DEPRECATED]
+
+        // FAQ related permissions
+        "read-all-faqs",
+        'read-all-products-export',
+        'read-all-categories-export',
 
     ],
     'editor' => [
@@ -145,7 +175,15 @@ return [
         'update-content-settings',
         'read-all-regions',
 
-        "edit-content", // [DEPRECATED]
+        "see-own-purchases",
+        "see-all-products",
+        "edit-content",
+
+        // FAQ related permissions
+        "read-all-faqs",
+        "create-faqs",
+        "update-faqs",
+        "delete-faqs",
     ],
     'customer' => [
         'read-own-profile',
@@ -177,11 +215,13 @@ return [
         'read-all-products',
         'read-all-regions',
 
-        "see-all-addresses", // [DEPRECATED]
-        "see-own-addresses", // [DEPRECATED]
-        "store-address", // [DEPRECATED]
-        "update-address", // [DEPRECATED]
-        "delete-address", // [DEPRECATED]
-        "see-all-products", // [DEPRECATED]
+        "see-own-purchases",
+        "see-own-addresses",
+        "store-address",
+        "update-address",
+        "delete-address",
+
+        // FAQ related permissions
+        "read-all-faqs",
     ],
 ];
