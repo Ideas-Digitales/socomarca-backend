@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Favorites\DestroyRequest;
-use App\Http\Requests\Favorites\IndexRequest;
 use App\Http\Requests\Favorites\StoreRequest;
-use App\Http\Resources\Favorites\FavoriteCollection;
+use App\Http\Resources\Favorites\FavoriteResource;
 use App\Http\Resources\FavoritesList\FavoriteListResource;
 use App\Models\Favorite;
 use App\Models\FavoriteList;
@@ -28,8 +26,7 @@ class FavoriteController extends Controller
     public function store(StoreRequest $request)
     {
         $data = $request->validated();
-
-        Favorite::upsert([
+        $favoriteId = Favorite::upsert([
                 [
                     'favorite_list_id' => $data['favorite_list_id'],
                     'product_id' => $data['product_id'],
@@ -40,29 +37,12 @@ class FavoriteController extends Controller
             update: []
         );
 
-        return response()->json(['message' => 'The favorite product has been added'], 201);
+        $favorite = Favorite::findOrFail($favoriteId);
+        return response()->json(new FavoriteResource($favorite), 201);
     }
 
-    public function destroy(DestroyRequest $destroyRequest, $id)
+    public function destroy(Favorite $favorite)
     {
-        $destroyRequest->validated();
-
-        $favorite = Favorite::where('id', $id)
-        ->whereHas('favoriteList', function ($q) {
-            $q->where('user_id', Auth::user()->id);
-        })
-        ->first();
-
-        if (!$favorite)
-        {
-            return response()->json(
-            [
-                'message' => 'Favorite product not found.',
-            ], 404);
-        }
-
         $favorite->delete();
-
-        return response()->json(['message' => 'The selected favorite product has been deleted']);
     }
 }
