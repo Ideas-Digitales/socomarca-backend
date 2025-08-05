@@ -10,14 +10,13 @@ class CustomersExport implements FromCollection, WithHeadings
 {
     public function collection()
     {
-    
-        return User::with(['address.municipality.region'])
+        return User::with(['billing_address.municipality.region'])
             ->whereHas('roles', function($q) {
                 $q->where('name', 'customer');
             })
             ->get()
             ->map(function ($user) {
-                $address = $user->address;
+                $address = $user->billing_address;
                 $municipality = $address ? $address->municipality : null;
                 $region = $municipality ? $municipality->region : null;
 
@@ -25,7 +24,7 @@ class CustomersExport implements FromCollection, WithHeadings
                     'ID' => $user->id,
                     'Nombre' => $user->name,
                     'Email' => $user->email,
-                    'Dirección' => $address ? $address->address : null,
+                    'Dirección' => $address ? $address->address_line1 : null,
                     'Comuna' => $municipality ? $municipality->name : null,
                     'Región' => $region ? $region->name : null,
                 ];
