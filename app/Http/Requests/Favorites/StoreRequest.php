@@ -11,14 +11,7 @@ class StoreRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        $favoriteListId = $this->input('favorite_list_id');
-        $user = $this->user();
-
-        $favoriteList = \App\Models\FavoriteList::find($favoriteListId);
-
-        return $favoriteList
-            && $favoriteList->user_id === $user->id
-            && $user->can('create', \App\Models\Favorite::class);
+        return true;
     }
 
     /**

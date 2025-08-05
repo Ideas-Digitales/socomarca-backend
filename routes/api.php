@@ -106,9 +106,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/favorites-list/{id}', [FavoriteListController::class, 'update'])->name('favorites-list.update');
     Route::delete('/favorites-list/{id}', [FavoriteListController::class, 'destroy'])->name('favorites-list.destroy');
 
-    Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
-    Route::post('/favorites', [FavoriteController::class, 'store'])->name('favorites.store');
-    Route::delete('/favorites/{id}', [FavoriteController::class, 'destroy'])->name('favorites.destroy');
+    Route::resource('favorites', FavoriteController::class, ['only' => ['index', 'store', 'destroy']])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Favorite')
+        ->middlewareFor('store', 'can:create,App\Models\Favorite')
+        ->middlewareFor('destroy', 'can:delete,favorite');
 
     Route::get('/cart', [CartController::class, 'index']);
     Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty');
