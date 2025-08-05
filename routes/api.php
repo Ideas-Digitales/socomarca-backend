@@ -165,11 +165,9 @@ Route::post('/faq/search', [FaqController::class, 'search'])->name('faq.search')
 Route::resource('faq', FaqController::class)
     ->only(['index', 'store', 'show', 'update', 'destroy'])
     ->parameters(['faq' => 'faq'])
-    ->middleware([
-        'store' => ['auth:sanctum', 'can:create,App\Models\Faq'],
-        'update' => ['auth:sanctum', 'can:update,faq'],
-        'destroy' => ['auth:sanctum', 'can:delete,faq']
-    ]);
+    ->middlewareFor('store', ['auth:sanctum', 'can:create,App\Models\Faq'])
+    ->middlewareFor('update', ['auth:sanctum', 'can:update,faq'])
+    ->middlewareFor('destroy', ['auth:sanctum', 'can:delete,faq']);
 
 //Se sacan de la autenticacion porque es confirmacion de pago.
 //Front recibe el token y lo envia a /webpay/return  (La ruta se establece en el webpayService: linea 59)

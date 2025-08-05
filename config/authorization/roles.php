@@ -66,6 +66,7 @@ return [
     ],
     'admin' => [
         'read-users',
+        'read-admin-users',
         'create-users',
         'update-users',
         'delete-users',
