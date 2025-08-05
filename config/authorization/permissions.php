@@ -67,7 +67,7 @@ return [
     // Categories permissions
     'read-all-categories', // [superadmin, admin, supervisor, editor, customer]
 
-    "manage-categories", // [DEPRECATED]
+    // "manage-categories", // [DEPRECATED]
 
     // Subcategory permissions
     'read-all-subcategories', // [superadmin, admin, supervisor, editor, customer]

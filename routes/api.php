@@ -92,14 +92,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])->name('addresses.regions.municipalities.status');
         Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])->name('addresses.municipalities.bulk-status');
     });
+    
+    
+    Route::get('/categories/exports', [CategoryController::class, 'export'])
+        ->middleware('permission:read-all-reports')->name('categories.export');
+    Route::resource('categories', CategoryController::class)
+        ->only(['index', 'show'])
+        ->middleware('permission:read-all-categories');
+    Route::post('/categories/search', [CategoryController::class, 'search'])
+        ->middleware('permission:read-all-categories')->name('categories.search');
 
-    Route::get('/categories/exports', [CategoryController::class, 'export'])->middleware('role:admin|superadmin|supervisor');
-    Route::get('/categories', [CategoryController::class,'index'])->name('categories.index');
-    Route::post('/categories/search', [CategoryController::class, 'search'])->name('categories.search');
-    Route::get('/categories/{id}', [CategoryController::class,'show'])->name('categories.show');
-    Route::get('/subcategories', [SubcategoryController::class,'index'])->name('subcategories.index');
-    Route::get('/subcategories/{id}', [SubcategoryController::class,'show'])->name('subcategories.show');
+    
+    Route::get('/subcategories', [SubcategoryController::class,'index'])->middleware('permission:read-all-subcategories')->name('subcategories.index');
+    Route::get('/subcategories/{id}', [SubcategoryController::class,'show'])->middleware('permission:read-all-subcategories')->name('subcategories.show');
 
+    Route::resource('subcategories', SubcategoryController::class)
+    ->only(['index', 'show'])
+    ->middlewareFor('index', 'permission:read-all-subcategories')
+    ->middlewareFor('show', 'permission:read-all-subcategories');
+    
     Route::get('/products/price-extremes', [ProductController::class, 'getPriceExtremes'])->name('products.price-extremes');
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{id}', [ProductController::class, 'show']);
@@ -130,7 +141,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
     Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update']);
 
-    Route::apiResource('brands', BrandController::class)->only(['index']);
+    Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands']);
 
     Route::apiResource('prices', PriceController::class)->only(['index']);
 
