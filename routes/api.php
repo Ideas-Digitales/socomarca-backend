@@ -85,13 +85,23 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('update', 'can:update,address')
         ->middlewareFor('destroy', 'can:delete,address');
 
-    Route::get('/regions', [AddressController::class, 'regions'])->name('addresses.regions');
-    Route::get('/regions/{regionId?}', [AddressController::class, 'municipalities'])->name('addresses.municipalities');
 
-    Route::middleware(['auth:sanctum', 'permission:see-all-reports'])->group(function () {
-        Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])->name('addresses.regions.municipalities.status');
-        Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])->name('addresses.municipalities.bulk-status');
-    });
+    Route::get('/regions', [AddressController::class, 'regions'])
+        ->middleware('permission:read-all-regions')
+        ->name('addresses.regions');
+
+    Route::get('/regions/{regionId?}', [AddressController::class, 'municipalities'])
+        ->middleware('permission:read-all-regions')
+        ->name('addresses.municipalities');
+
+    Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])
+        ->middleware('permission:update-regions')
+        ->name('addresses.regions.municipalities.status');
+
+
+    Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])
+        ->middleware('permission:update-municipalities')
+        ->name('addresses.municipalities.bulk-status');
     
     
     Route::get('/categories/exports', [CategoryController::class, 'export'])
