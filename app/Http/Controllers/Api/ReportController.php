@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
 use App\Exports\ClientsReportExport;
+use App\Exports\TopCategoriesExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
@@ -616,30 +617,39 @@ class ReportController extends Controller
 
     public function clientsExport(Request $request)
     {
-        $validated = $request->validate([
-            'start' => 'nullable|date',
-            'end' => 'nullable|date|after_or_equal:start',
-            'client' => 'nullable|string|exists:users,name',
-            'total_min' => 'nullable|numeric|min:0',
-            'total_max' => 'nullable|numeric|gte:total_min',
-        ], [
-            'end.after_or_equal' => 'La fecha final no puede ser menor que la inicial.',
-            'client.exists' => 'El cliente no existe en los registros.',
-            'total_max.gte' => 'El monto máximo no puede ser menor que el mínimo.',
-        ]);
+        $aggregate = $request->query('aggregate');
+        $fileName = $request->input('filename');
 
-        $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
-        $client = $validated['client'] ?? null;
-        $totalMin = $validated['total_min'] ?? null;
-        $totalMax = $validated['total_max'] ?? null;
+        if ($aggregate === 'sales') {
+            $fileName = $fileName ?? 'clientes_con_ventas_' . now()->format('Ymd') . '.xlsx';
 
-        $fileName = 'Reporte_cliente_' . now()->format('Ymd') . '.xlsx';
+            // Puedes pasar los filtros si tu export lo requiere
+            $validated = $request->validate([
+                'start' => 'nullable|date',
+                'end' => 'nullable|date|after_or_equal:start',
+                'client' => 'nullable|string|exists:users,name',
+                'total_min' => 'nullable|numeric|min:0',
+                'total_max' => 'nullable|numeric|gte:total_min',
+            ], [
+                'end.after_or_equal' => 'La fecha final no puede ser menor que la inicial.',
+                'client.exists' => 'El cliente no existe en los registros.',
+                'total_max.gte' => 'El monto máximo no puede ser menor que el mínimo.',
+            ]);
 
-        return Excel::download(
-            new ClientsReportExport($start, $end, $client, $totalMin, $totalMax),
-            $fileName
-        );
+            $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
+            $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+            $client = $validated['client'] ?? null;
+            $totalMin = $validated['total_min'] ?? null;
+            $totalMax = $validated['total_max'] ?? null;
+
+            return Excel::download(
+                new ClientsReportExport($start, $end, $client, $totalMin, $totalMax),
+                $fileName
+            );
+        } else {
+            $fileName = $fileName ?? 'clientes_' . now()->format('Ymd') . '.xlsx';
+            return Excel::download(new \App\Exports\CustomersExport(), $fileName);
+        }
     }
 
 
@@ -669,23 +679,37 @@ class ReportController extends Controller
 
     public function exportTopProducts(Request $request)
     {
+        $aggregate = $request->query('aggregate');
         $start = $request->input('start');
         $end = $request->input('end');
         $totalMin = $request->input('total_min');
         $totalMax = $request->input('total_max');
         $fileName = $request->input('filename') ?? 'Top_productos_ventas_' . now()->format('Ymd') . '.xlsx';
-        return Excel::download(new TopProductsExport($start, $end, $totalMin, $totalMax), $fileName);
+
+        if ($aggregate === 'sales') {
+            // Exportar productos con ventas (ya lo hace tu export actual)
+            return Excel::download(new TopProductsExport($start, $end, $totalMin, $totalMax), $fileName);
+        } else {
+            $fileName = $request->input('filename') ?? 'productos_' . now()->format('Ymd') . '.xlsx';
+            return Excel::download(new \App\Exports\ProductsExport(), $fileName);
+        }
     }
 
     public function exportTopCategories(Request $request)
     {
+        $aggregate = $request->query('aggregate');
         $start = $request->input('start');
         $end = $request->input('end');
         $totalMin = $request->input('total_min');
         $totalMax = $request->input('total_max');
-        $fileName = 'Top_categorias_ventas_' . now()->format('Ymd') . '.xlsx';
 
-        return Excel::download(new CategoriesExport($start, $end, $totalMin, $totalMax), $fileName);
+        if ($aggregate === 'sales') {
+            $fileName = $request->input('filename') ?? 'Top_categorias_ventas_' . now()->format('Ymd') . '.xlsx';
+            return Excel::download(new TopCategoriesExport($start, $end, $totalMin, $totalMax), $fileName);
+        } else {
+            $fileName = $request->input('filename') ?? 'categorias_' . now()->format('Ymd') . '.xlsx';
+            return Excel::download(new CategoriesExport(), $fileName);
+        }
     }
 
     public function ordersReportExport(Request $request)

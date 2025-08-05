@@ -123,6 +123,11 @@ return [
     'read-all-roles', // [superadmin]
     'read-user-roles', // [superadmin, admin]
 
+    // Exportar
+    'read-all-products-export',
+    'read-all-categories-export',
+    'read-customers-export',
+
     // Payment permissions
     'read-all-payment-methods', // [superadmin, admin]
     'update-payment-methods', // [superadmin, admin]

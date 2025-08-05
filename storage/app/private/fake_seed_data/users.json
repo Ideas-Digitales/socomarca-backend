@@ -28,5 +28,100 @@
         "name": "Usuario Demo",
         "email": "12312312-3@socomarca.cl",
         "rut": "12312312-3"
+    },
+    {
+        "name": "María González",
+        "email": "12345678-5@socomarca.cl",
+        "rut": "12345678-5"
+    },
+    {
+        "name": "Pedro Ramírez",
+        "email": "13579135-7@socomarca.cl",
+        "rut": "13579135-7"
+    },
+    {
+        "name": "Ana Torres",
+        "email": "14523698-2@socomarca.cl",
+        "rut": "14523698-2"
+    },
+    {
+        "name": "Carlos Soto",
+        "email": "15678901-6@socomarca.cl",
+        "rut": "15678901-6"
+    },
+    {
+        "name": "Patricia Rivas",
+        "email": "16789012-3@socomarca.cl",
+        "rut": "16789012-3"
+    },
+    {
+        "name": "Jorge Morales",
+        "email": "17890123-1@socomarca.cl",
+        "rut": "17890123-1"
+    },
+    {
+        "name": "Camila Herrera",
+        "email": "18901234-9@socomarca.cl",
+        "rut": "18901234-9"
+    },
+    {
+        "name": "Felipe Castro",
+        "email": "19012345-7@socomarca.cl",
+        "rut": "19012345-7"
+    },
+    {
+        "name": "Daniela Pizarro",
+        "email": "20123456-5@socomarca.cl",
+        "rut": "20123456-5"
+    },
+    {
+        "name": "Ricardo Salinas",
+        "email": "21234567-3@socomarca.cl",
+        "rut": "21234567-3"
+    },
+    {
+        "name": "Sofía Vargas",
+        "email": "22345678-1@socomarca.cl",
+        "rut": "22345678-1"
+    },
+    {
+        "name": "Tomás Fuentes",
+        "email": "23456789-9@socomarca.cl",
+        "rut": "23456789-9"
+    },
+    {
+        "name": "Valentina Reyes",
+        "email": "24567890-7@socomarca.cl",
+        "rut": "24567890-7"
+    },
+    {
+        "name": "Martín Silva",
+        "email": "25678901-5@socomarca.cl",
+        "rut": "25678901-5"
+    },
+    {
+        "name": "Francisca Díaz",
+        "email": "26789012-2@socomarca.cl",
+        "rut": "26789012-2"
+    },
+    {
+        "name": "Sebastián Bravo",
+        "email": "27890123-0@socomarca.cl",
+        "rut": "27890123-0"
+    },
+    {
+        "name": "Gabriela Muñoz",
+        "email": "28901234-8@socomarca.cl",
+        "rut": "28901234-8"
+    },
+    {
+        "name": "Ignacio Espinoza",
+        "email": "29012345-6@socomarca.cl",
+        "rut": "29012345-6"
+    },
+    {
+        "name": "Antonia Carrasco",
+        "email": "30123456-4@socomarca.cl",
+        "rut": "30123456-4"
     }
 ]

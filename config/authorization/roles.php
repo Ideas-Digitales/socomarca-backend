@@ -38,6 +38,9 @@ return [
         'read-user-roles',
         'read-all-payment-methods',
         'update-payment-methods',
+        'read-all-products-export',
+        'read-all-categories-export',
+        'read-customers-export',
 
         "see-own-purchases",
         "see-all-reports",
@@ -99,6 +102,9 @@ return [
         'read-all-prices',
         'read-all-products',
         'read-all-regions',
+        'read-all-products-export',
+        'read-all-categories-export',
+        'read-customers-export',
 
         "see-own-purchases",
         "see-all-reports",
@@ -139,13 +145,17 @@ return [
         'read-all-regions',
 
         "see-own-purchases",
-        "see-all-reports",
-        "see-all-products",
         "see-all-clients",
         "see-all-purchases",
+        'read-customers-export',
+        "see-all-reports", // [DEPRECATED]
+        "see-all-products", // [DEPRECATED]
 
         // FAQ related permissions
         "read-all-faqs",
+        'read-all-products-export',
+        'read-all-categories-export',
+
     ],
     'editor' => [
         'read-own-profile',
