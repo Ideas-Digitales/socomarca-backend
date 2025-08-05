@@ -17,9 +17,10 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         $fakeusers = $this->getFakeUsers();
+        $roles = ['superadmin', 'admin', 'supervisor', 'editor', 'customer'];
 
-        foreach ($fakeusers as $fu) {
-            User::create([
+        foreach ($fakeusers as $i => $fu) {
+            $user = User::create([
                 'name' => $fu->name,
                 'email' => $fu->email,
                 'password' => Hash::make('password'),
@@ -30,10 +31,14 @@ class UserSeeder extends Seeder
 
             ]);
 
+            if ($i < count($roles)) {
+                $user->assignRole($roles[$i]);
+            }
+
         }
 
         //Usuario personalizado
-        User::create([
+        $admin = User::create([
             'name' => 'Admin',
             'email' => 'admin@admin.com',
             'password' => Hash::make('password'),
@@ -43,6 +48,7 @@ class UserSeeder extends Seeder
             'is_active' => true,
             'last_login' => now(),
         ]);
+        $admin->assignRole('admin');
     }
 
     public function getFakeUsers()

@@ -38,6 +38,9 @@ return [
         'read-user-roles',
         'read-all-payment-methods',
         'update-payment-methods',
+        'read-all-products-export',
+        'read-all-categories-export',
+        'read-customers-export',
 
         "see-all-addresses", // [DEPRECATED]
         "see-own-addresses", // [DEPRECATED]
@@ -87,6 +90,9 @@ return [
         'read-all-prices',
         'read-all-products',
         'read-all-regions',
+        'read-all-products-export',
+        'read-all-categories-export',
+        'read-customers-export',
 
         "see-all-addresses", // [DEPRECATED]
         "see-own-addresses", // [DEPRECATED]
@@ -114,9 +120,12 @@ return [
         'read-all-prices',
         'read-all-products',
         'read-all-regions',
-
+        'read-all-products-export',
+        'read-all-categories-export',
+        'read-customers-export',
         "see-all-reports", // [DEPRECATED]
         "see-all-products", // [DEPRECATED]
+
     ],
     'editor' => [
         'read-own-profile',
