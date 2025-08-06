@@ -149,7 +149,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
     Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update']);
 
-    Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands']);
+    Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands'])->name('brands.index');
 
     Route::apiResource('prices', PriceController::class)->only(['index']);
 

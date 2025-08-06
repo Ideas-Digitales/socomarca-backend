@@ -1,76 +1,110 @@
 <?php
 
 use App\Models\Subcategory;
+use App\Models\User;
 
-beforeEach(function ()
-{
+beforeEach(function () {
     $this->user = createUser();
-    $this->category = createCategory();
+    $this->category = \App\Models\Category::factory()->create();
+    $this->subcategory = \App\Models\Subcategory::factory()->create([
+        'category_id' => $this->category->id,
+    ]);
 });
 
-/**
- * Prueba que valida que el token sea obligatorio.
- */
-test('validate_token', function ()
-{
-    $response = $this->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/subcategories');
+describe('Subcategory API', function () {
+    describe('Authorization', function () {
+        it('should require authentication for index', function () {
+            $response = $this->getJson(route('subcategories.index'));
+            $response->assertStatus(401);
+        });
 
-    $response->assertStatus(401);
-});
+        it('should require permission for index', function () {
+            $user = User::factory()->create();
+            $this->actingAs($user, 'sanctum');
+            $response = $this->getJson(route('subcategories.index'));
+            $response->assertStatus(403);
+        });
 
-/**
- * Prueba de respuesta exitosa.
- */
-test('validate_status_code_200', function ()
-{
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/subcategories');
+        it('should allow access to index with permission', function () {
+            $user = User::factory()->create();
+            $user->givePermissionTo('read-all-subcategories');
+            $this->actingAs($user, 'sanctum');
+            $response = $this->getJson(route('subcategories.index'));
+            $response->assertStatus(200);
+        });
 
-    $response
-        ->assertStatus(200)
-        ->assertJsonStructure(
-        [
-            'data' => array
-            (
-                [
-                    'id',
-                    'name',
-                    'description',
-                    'code',
-                    'level',
-                    'key',
-                    'category' =>
-                    [
-                        'id',
-                        'name',
-                        'description',
-                        'code',
-                        'level',
-                        'key',
-                        'created_at',
-                        'updated_at',
+        it('should require authentication for show', function () {
+            $response = $this->getJson(route('subcategories.show', ['subcategory' => $this->subcategory->id]));
+            $response->assertStatus(401);
+        });
+
+        it('should require permission for show', function () {
+            $user = User::factory()->create();
+            $this->actingAs($user, 'sanctum');
+            $response = $this->getJson(route('subcategories.show', ['subcategory' => $this->subcategory->id]));
+            $response->assertStatus(403);
+        });
+
+        it('should allow access to show with permission', function () {
+            $user = User::factory()->create();
+            $user->givePermissionTo('read-all-subcategories');
+            $this->actingAs($user, 'sanctum');
+            $response = $this->getJson(route('subcategories.show', ['subcategory' => $this->subcategory->id]));
+            $response->assertStatus(200);
+        });
+    });
+
+    describe('Functional', function () {
+        it('should return 401 if token is missing', function () {
+            $response = $this->withHeaders(['Accept' => 'application/json'])
+                ->get(route('subcategories.index'));
+            $response->assertStatus(401);
+        });
+
+        it('should return 200 and correct structure for index', function () {
+            $this->user->givePermissionTo('read-all-subcategories');
+            $response = $this->actingAs($this->user, 'sanctum')
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get(route('subcategories.index'));
+
+            $response
+                ->assertStatus(200)
+                ->assertJsonStructure([
+                    'data' => [
+                        [
+                            'id',
+                            'name',
+                            'description',
+                            'code',
+                            'level',
+                            'key',
+                            'category' => [
+                                'id',
+                                'name',
+                                'description',
+                                'code',
+                                'level',
+                                'key',
+                                'created_at',
+                                'updated_at',
+                            ],
+                            'created_at',
+                            'updated_at',
+                        ],
                     ],
-                    'created_at',
-                    'updated_at',
-                ],
-            ),
-        ]);
-});
+                ]);
+        });
 
-/**
- * Prueba que valida que el campo id en params sea válido en la tabla subcategories.
- */
-test('test_subcategory_not_found', function ()
-{
-    $id = $this->category->subCategories['0']->id;
+        it('should return 404 for non-existent subcategory', function () {
+            $this->user->givePermissionTo('read-all-subcategories');
+            $id = $this->subcategory->id;
+            Subcategory::truncate();
 
-    Subcategory::truncate();
+            $response = $this->actingAs($this->user, 'sanctum')
+                ->withHeaders(['Accept' => 'application/json'])
+                ->get(route('subcategories.show', ['subcategory' => $id]));
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/subcategories/' . $id);
-
-    $response->assertStatus(404);
+            $response->assertStatus(404);
+        });
+    });
 });
