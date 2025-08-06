@@ -102,8 +102,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])
         ->middleware('permission:update-municipalities')
         ->name('addresses.municipalities.bulk-status');
-    
-    
+
+
     Route::get('/categories/exports', [CategoryController::class, 'export'])
         ->middleware('permission:read-all-reports')->name('categories.export');
     Route::resource('categories', CategoryController::class)
@@ -112,15 +112,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/categories/search', [CategoryController::class, 'search'])
         ->middleware('permission:read-all-categories')->name('categories.search');
 
-    
-    Route::get('/subcategories', [SubcategoryController::class,'index'])->middleware('permission:read-all-subcategories')->name('subcategories.index');
-    Route::get('/subcategories/{id}', [SubcategoryController::class,'show'])->middleware('permission:read-all-subcategories')->name('subcategories.show');
 
     Route::resource('subcategories', SubcategoryController::class)
-    ->only(['index', 'show'])
-    ->middlewareFor('index', 'permission:read-all-subcategories')
-    ->middlewareFor('show', 'permission:read-all-subcategories');
-    
+        ->only(['index', 'show'])
+        ->parameters(['subcategories' => 'subcategory'])
+        ->middlewareFor('index', 'permission:read-all-subcategories')
+        ->middlewareFor('show', 'permission:read-all-subcategories');
+
     Route::get('/products/price-extremes', [ProductController::class, 'getPriceExtremes'])->name('products.price-extremes');
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{id}', [ProductController::class, 'show']);

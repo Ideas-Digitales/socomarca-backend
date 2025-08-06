@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Subcategories\ShowRequest;
 use App\Http\Resources\Subcategories\SubcategoryCollection;
+use App\Http\Resources\Subcategories\SubcategoryResource;
 use App\Models\Subcategory;
 
 class SubcategoryController extends Controller
 {
+    /**
+     * @return SubcategoryCollection
+     */
     public function index()
     {
         $subcategories = Subcategory::with('category')->get();
@@ -18,20 +21,13 @@ class SubcategoryController extends Controller
         return $data;
     }
 
-    public function show($id)
+    /**
+     * @throws \Throwable
+     */
+    public function show(Subcategory $subcategory): \Illuminate\Http\Resources\Json\JsonResource
     {
-        if (!Subcategory::find($id))
-        {
-            return response()->json(
-            [
-                'message' => 'Subcategory not found.',
-            ], 404);
-        }
-
-        $subcategories = Subcategory::with('category')->where('id', $id)->get();
-
-        $data = new SubcategoryCollection($subcategories);
-
-        return response()->json($data[0]);
+        return $subcategory
+            ->load('category')
+            ->toResource(SubcategoryResource::class);
     }
 }
