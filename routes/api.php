@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AddressController;
+use App\Http\Controllers\Api\PriceExtremesController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -103,7 +104,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:update-municipalities')
         ->name('addresses.municipalities.bulk-status');
 
-
     Route::get('/categories/exports', [CategoryController::class, 'export'])
         ->middleware('permission:read-all-reports')->name('categories.export');
     Route::resource('categories', CategoryController::class)
@@ -119,7 +119,10 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
 
-    Route::get('/products/price-extremes', [ProductController::class, 'getPriceExtremes'])->name('products.price-extremes');
+    Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
+        ->name('products.price-extremes')
+        ->middleware('permission:read-all-prices');
+
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{id}', [ProductController::class, 'show']);
     Route::post('/products/search', [ProductController::class, 'search'])->name('products.search');
@@ -151,7 +154,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands']);
 
-    Route::apiResource('prices', PriceController::class)->only(['index']);
+    Route::apiResource('prices', PriceController::class)
+        ->only(['index'])
+        ->middleware('permission:read-all-prices');
 
     // Rutas de orden
     Route::get('/orders', [OrderController::class, 'index']);
