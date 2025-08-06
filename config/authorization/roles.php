@@ -49,7 +49,6 @@ return [
         "see-all-purchases",
         "edit-content",
         "edit-products",
-        "manage-categories",
 
         // Address related permissions
         "see-all-addresses",
@@ -113,7 +112,6 @@ return [
         "see-all-purchases",
         "edit-content",
         "edit-products",
-        "manage-categories",
 
         // Address related permissions
         "see-all-addresses",
