@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Product\ShowRequest;
 use App\Http\Resources\Products\ProductCollection;
 use App\Http\Resources\Products\ProductResource;
-use App\Models\Price;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -23,22 +21,9 @@ class ProductController extends Controller
         return new ProductCollection($products);
     }
 
-    public function show($id)
+    public function show(Product $product)
     {
-        $product = Product::find($id);
-
-        if (!$product) {
-            return response()->json(
-                [
-                    'message' => 'Product not found.',
-                ],
-                404
-            );
-        }
-
-        $data = new ProductResource($product);
-
-        return $data;
+        return new ProductResource($product);
     }
 
     /**
@@ -50,7 +35,6 @@ class ProductController extends Controller
      */
     public function search(Request $request)
     {
-
         $validator = Validator::make($request->all(), [
             'filters' => 'required|array',
             'filters.price' => 'required|array',
