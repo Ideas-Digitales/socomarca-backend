@@ -139,21 +139,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders/pay', [OrderController::class, 'payOrder']);
 
 
-    Route::middleware(['auth:sanctum', 'role:admin|superadmin|supervisor'])->group(function () {
+    Route::middleware(['auth:sanctum', 'permission:read-all-reports'])->group(function () {
 
-        Route::post('/orders/reports/transactions/export', [ReportController::class, 'export']);
-        Route::post('/orders/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities']);
-        Route::post('/orders/reports/products/export', [ReportController::class, 'exportTopProducts']);
-        Route::post('/orders/reports/categories/export', [ReportController::class, 'exportTopCategories']);
-        Route::post('/orders/reports/export', [ReportController::class, 'ordersReportExport']);
+        // Export endpoints
+        Route::post('/reports/transactions/export', [ReportController::class, 'export']);
+        Route::post('/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities']);
+        Route::post('/reports/products/export', [ReportController::class, 'exportTopProducts']);
+        Route::post('/reports/categories/export', [ReportController::class, 'exportTopCategories']);
+        Route::post('/reports/customers/export', [ReportController::class, 'clientsExport']);
+        Route::post('/reports/orders/export', [ReportController::class, 'ordersReportExport']);
 
-        Route::post('/orders/reports', [ReportController::class, 'report']);
-        Route::post('/orders/reports/top-product-list', [ReportController::class, 'productsSalesList']);
-        Route::post('/orders/reports/transactions-list', [ReportController::class, 'transactionsList']);
-        Route::post('/orders/reports/clients-list', [ReportController::class, 'clientsList']);
-        Route::post('/orders/reports/clients/export', [ReportController::class, 'clientsExport']);
-        Route::post('/orders/reports/failed-transactions-list', [ReportController::class, 'failedTransactionsList']);
-        Route::get('/orders/reports/transaction/{id}', [ReportController::class, 'transactionId']);
+        // Dashboard and data endpoints
+        Route::post('/reports/dashboard', [ReportController::class, 'report']);
+        Route::post('/reports/products/top-selling', [ReportController::class, 'productsSalesList']);
+        Route::post('/reports/transactions', [ReportController::class, 'transactionsList']);
+        Route::post('/reports/customers', [ReportController::class, 'clientsList']);
+        Route::post('/reports/transactions/failed', [ReportController::class, 'failedTransactionsList']);
+        Route::get('/reports/transactions/{id}', [ReportController::class, 'transactionId']);
 
     });
 
