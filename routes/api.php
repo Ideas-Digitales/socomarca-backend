@@ -68,13 +68,14 @@ Route::middleware('auth:sanctum')->group(function () {
 //    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
 
     Route::resource('permissions', \App\Http\Controllers\Api\PermissionController::class, ['only' => 'index'])
-        ->middleware('permission:see-all-permissions');
+        ->middleware('permission:read-all-permissions');
 
-    Route::middleware(['role:admin|superadmin'])->group(function () {
-        Route::get('/roles', [RoleController::class, 'index']);
-        Route::get('/roles/users', [RoleController::class, 'rolesWithUsers']);
-        Route::get('/roles/{user}', [RoleController::class, 'userRoles']);
-    });
+    Route::get('/roles', [RoleController::class, 'index'])
+        ->middleware('permission:read-all-roles');
+    Route::get('/roles/users', [RoleController::class, 'rolesWithUsers'])
+        ->middleware('permission:read-user-roles');
+    Route::get('/roles/{user}', [RoleController::class, 'userRoles'])
+        ->middleware('permission:read-user-roles');
 
     Route::resource('addresses', AddressController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])

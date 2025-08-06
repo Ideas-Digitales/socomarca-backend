@@ -117,7 +117,6 @@ return [
 
     // Permissions
     'read-all-permissions', // [superadmin, admin]
-    'see-all-permissions', // [superadmin, admin]
 
     // Roles permissions
     'read-all-roles', // [superadmin]
