@@ -2,7 +2,7 @@
 
 use App\Exports\OrdersExport;
 use App\Exports\TopMunicipalitiesExport;
-use App\Exports\TopProductsExport;
+use App\Exports\ProductsExport;
 use App\Models\User;
 use App\Models\Category;
 use App\Models\Municipality;
@@ -39,7 +39,7 @@ test('puede exportar clientes a excel', function () {
 
     $clientes = User::factory()->count(3)->create();
     foreach ($clientes as $cliente) {
-        $cliente->assignRole('cliente');
+        $cliente->assignRole('customer');
     }
 
     $response = $this->actingAs($admin, 'sanctum')
@@ -161,7 +161,7 @@ test('puede exportar top de productos a excel', function () {
     $response->assertStatus(200);
 
     Excel::assertDownloaded('top_products.xlsx', function ($export) {
-        expect($export)->toBeInstanceOf(TopProductsExport::class);
+        expect($export)->toBeInstanceOf(ProductsExport::class);
 
         return true;
     });
