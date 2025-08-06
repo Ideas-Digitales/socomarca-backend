@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         $fakeusers = $this->getFakeUsers();
-        $roles = ['superadmin', 'admin', 'supervisor', 'editor', 'customer'];
+        $roles = ['superadmin', 'admin', 'supervisor', 'editor'];
 
         foreach ($fakeusers as $i => $fu) {
             $user = User::create([
@@ -33,6 +33,8 @@ class UserSeeder extends Seeder
 
             if ($i < count($roles)) {
                 $user->assignRole($roles[$i]);
+            } else {
+                $user->assignRole('customer');
             }
 
         }
