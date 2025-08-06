@@ -146,8 +146,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cart/items', [CartItemController::class, 'store']);
     Route::delete('/cart/items', [CartItemController::class, 'destroy']);
 
-    Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
-    Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update']);
+    Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
+        ->middleware('permission:read-all-payment-methods')
+        ->name('payment-methods.index');
+
+    Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update'])
+        ->middleware('permission:update-payment-methods')
+        ->name('payment-methods.update');
 
     Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands']);
 
