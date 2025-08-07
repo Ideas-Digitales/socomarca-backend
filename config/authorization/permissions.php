@@ -95,9 +95,6 @@ return [
     // Products permissions
     'read-all-products', // [superadmin, admin, supervisor, editor, customer]
 
-    "see-all-products", // [DEPRECATED]
-    "edit-products", // [DEPRECATED]
-
     // Content edition permissions
     'read-content-settings', //[superadmin, admin, editor]
     'update-content-settings', //[superadmin, admin, editor]

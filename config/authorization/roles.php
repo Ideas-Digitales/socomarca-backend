@@ -44,10 +44,10 @@ return [
 
         "see-own-purchases",
         "see-all-reports",
-        "see-all-products",
         "see-all-clients",
         "see-all-purchases",
         "edit-products",
+        "edit-content",
 
         // Address related permissions
         "see-all-addresses",
@@ -106,10 +106,10 @@ return [
 
         "see-own-purchases",
         "see-all-reports",
-        "see-all-products",
         "see-all-clients",
         "see-all-purchases",
         "edit-products",
+        "edit-content",
 
         // Address related permissions
         "see-all-addresses",
@@ -145,7 +145,6 @@ return [
         "see-all-purchases",
         'read-customers-export',
         "see-all-reports", // [DEPRECATED]
-        "see-all-products", // [DEPRECATED]
 
         // FAQ related permissions
         "read-all-faqs",
@@ -173,6 +172,7 @@ return [
 
         "see-own-purchases",
         "see-all-products",
+        "edit-content",
 
         // FAQ related permissions
         "read-all-faqs",
