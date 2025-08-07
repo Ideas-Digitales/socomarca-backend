@@ -202,10 +202,12 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])->group(fu
 });
 
 // Configuraciones de contenido - lectura con permiso
-Route::get('/siteinfo', [SiteinfoController::class, 'show'])->middleware(['auth:sanctum', 'permission:read-content-settings']);
-Route::get('/terms', [SiteinfoController::class, 'terms'])->middleware(['auth:sanctum', 'permission:read-content-settings']);
-Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy'])->middleware(['auth:sanctum', 'permission:read-content-settings']);
-Route::get('/customer-message', [SiteinfoController::class, 'customerMessage'])->middleware(['auth:sanctum', 'permission:read-content-settings']);
+Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
+    Route::get('/siteinfo', [SiteinfoController::class, 'show']);
+    Route::get('/terms', [SiteinfoController::class, 'terms']);
+    Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy']);
+    Route::get('/customer-message', [SiteinfoController::class, 'customerMessage']);
+});
 
 // Configuraciones de contenido - actualización
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
@@ -219,6 +221,7 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
 });
+
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
 });
