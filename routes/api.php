@@ -71,9 +71,9 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:see-all-permissions');
 
     Route::middleware(['role:admin|superadmin'])->group(function () {
-        Route::get('/roles', [RoleController::class, 'index']);
-        Route::get('/roles/users', [RoleController::class, 'rolesWithUsers']);
-        Route::get('/roles/{user}', [RoleController::class, 'userRoles']);
+        Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+        Route::get('/roles/users', [RoleController::class, 'rolesWithUsers'])->name('roles.users');
+        Route::get('/roles/{user}', [RoleController::class, 'userRoles'])->name('roles.user');
     });
 
     Route::resource('addresses', AddressController::class)
