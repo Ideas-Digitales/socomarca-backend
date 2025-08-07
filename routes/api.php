@@ -229,11 +229,9 @@ Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () 
     Route::put('/settings/prices', [SettingsController::class, 'update']);
 });
 
-Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
-    Route::post('/notifications', [NotificationController::class, 'store'])
-        ->middleware('permission:create-notifications')
-        ->name('notifications.store');
-});
+Route::post('/notifications', [NotificationController::class, 'store'])
+    ->middleware(['auth:sanctum','role:admin|superadmin','permission:create-notifications'])
+    ->name('notifications.store');
 
 // Ruta catch-all al final
 Route::any('{url}', function() {

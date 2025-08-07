@@ -4,10 +4,12 @@ use App\Mail\NotificationMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    
     $this->admin = User::factory()->create();
     $this->admin->assignRole('admin');
     $this->admin->givePermissionTo('create-notifications');
@@ -47,11 +49,13 @@ describe('Notification API', function () {
 
         it('should allow access to store with permission', function () {
             Mail::fake();
-            
+            \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'create-notifications']);
             $user = User::factory()->create();
+            $user->assignRole('admin');
             $user->givePermissionTo('create-notifications');
             $this->actingAs($user, 'sanctum');
-            
+            $user->refresh();
+
             $response = $this->postJson(route('notifications.store'), [
                 'title' => 'Test notification',
                 'message' => 'Test message'
