@@ -3,6 +3,7 @@
 use App\Exports\OrdersExport;
 use App\Exports\TopMunicipalitiesExport;
 use App\Exports\TopProductsExport;
+use App\Exports\ProductsExport;
 use App\Models\User;
 use App\Models\Category;
 use App\Models\Municipality;
@@ -323,7 +324,7 @@ describe('Legacy Export Endpoints', function () {
         
     });
 
-    describe('Categories Export (Legacy)', function () {
+    describe('Categories Export', function () {
         
         it('puede exportar categorías a excel', function () {
             Excel::fake();
@@ -342,7 +343,7 @@ describe('Legacy Export Endpoints', function () {
         
     });
 
-    describe('Users Export (Legacy)', function () {
+    describe('Users Export', function () {
         
         it('puede exportar clientes a excel', function () {
             Excel::fake();

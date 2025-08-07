@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AddressController;
+use App\Http\Controllers\Api\PriceExtremesController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -85,22 +86,43 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('update', 'can:update,address')
         ->middlewareFor('destroy', 'can:delete,address');
 
-    Route::get('/regions', [AddressController::class, 'regions'])->name('addresses.regions');
-    Route::get('/regions/{regionId?}', [AddressController::class, 'municipalities'])->name('addresses.municipalities');
 
-    Route::middleware(['auth:sanctum', 'permission:see-all-reports'])->group(function () {
-        Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])->name('addresses.regions.municipalities.status');
-        Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])->name('addresses.municipalities.bulk-status');
-    });
+    Route::get('/regions', [AddressController::class, 'regions'])
+        ->middleware('permission:read-all-regions')
+        ->name('addresses.regions');
 
-    Route::get('/categories/exports', [CategoryController::class, 'export'])->middleware('role:admin|superadmin|supervisor');
-    Route::get('/categories', [CategoryController::class,'index'])->name('categories.index');
-    Route::post('/categories/search', [CategoryController::class, 'search'])->name('categories.search');
-    Route::get('/categories/{id}', [CategoryController::class,'show'])->name('categories.show');
-    Route::get('/subcategories', [SubcategoryController::class,'index'])->name('subcategories.index');
-    Route::get('/subcategories/{id}', [SubcategoryController::class,'show'])->name('subcategories.show');
+    Route::get('/regions/{regionId?}', [AddressController::class, 'municipalities'])
+        ->middleware('permission:read-all-regions')
+        ->name('addresses.municipalities');
 
-    Route::get('/products/price-extremes', [ProductController::class, 'getPriceExtremes'])->name('products.price-extremes');
+    Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])
+        ->middleware('permission:update-regions')
+        ->name('addresses.regions.municipalities.status');
+
+
+    Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])
+        ->middleware('permission:update-municipalities')
+        ->name('addresses.municipalities.bulk-status');
+
+    Route::get('/categories/exports', [CategoryController::class, 'export'])
+        ->middleware('permission:read-all-reports')->name('categories.export');
+    Route::resource('categories', CategoryController::class)
+        ->only(['index', 'show'])
+        ->middleware('permission:read-all-categories');
+    Route::post('/categories/search', [CategoryController::class, 'search'])
+        ->middleware('permission:read-all-categories')->name('categories.search');
+
+
+    Route::resource('subcategories', SubcategoryController::class)
+        ->only(['index', 'show'])
+        ->parameters(['subcategories' => 'subcategory'])
+        ->middlewareFor('index', 'permission:read-all-subcategories')
+        ->middlewareFor('show', 'permission:read-all-subcategories');
+
+    Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
+        ->name('products.price-extremes')
+        ->middleware('permission:read-all-prices');
+
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{id}', [ProductController::class, 'show']);
     Route::post('/products/search', [ProductController::class, 'search'])->name('products.search');
@@ -127,12 +149,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cart/items', [CartItemController::class, 'store']);
     Route::delete('/cart/items', [CartItemController::class, 'destroy']);
 
-    Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
-    Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update']);
+    Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
+        ->middleware('permission:read-all-payment-methods')
+        ->name('payment-methods.index');
 
-    Route::apiResource('brands', BrandController::class)->only(['index']);
+    Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update'])
+        ->middleware('permission:update-payment-methods')
+        ->name('payment-methods.update');
 
-    Route::apiResource('prices', PriceController::class)->only(['index']);
+    Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands'])->name('brands.index');
+
+    Route::apiResource('prices', PriceController::class)
+        ->only(['index'])
+        ->middleware('permission:read-all-prices');
 
     // Rutas de orden
     Route::get('/orders', [OrderController::class, 'index']);
