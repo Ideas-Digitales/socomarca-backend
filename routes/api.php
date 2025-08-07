@@ -123,9 +123,15 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('products.price-extremes')
         ->middleware('permission:read-all-prices');
 
-    Route::get('products', [ProductController::class, 'index']);
-    Route::get('products/{id}', [ProductController::class, 'show']);
-    Route::post('/products/search', [ProductController::class, 'search'])->name('products.search');
+    Route::resource('products', ProductController::class)
+        ->only(['index', 'show'])
+        ->parameters(['products' => 'product'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Product')
+        ->middlewareFor('show', 'can:view,product');
+
+    Route::post('/products/search', [ProductController::class, 'search'])
+        ->name('products.search')
+        ->middleware('can:viewAny,App\Models\Product');
 
     Route::resource(
         'favorites-list', FavoriteListController::class,
