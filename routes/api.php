@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SiteinfoController;
 use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -226,6 +227,12 @@ Route::middleware(['auth:sanctum', 'role:editor|admin|superadmin'])->group(funct
 Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
     Route::put('/settings/prices', [SettingsController::class, 'update']);
+});
+
+Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
+    Route::post('/notifications', [NotificationController::class, 'store'])
+        ->middleware('permission:create-notifications')
+        ->name('notifications.store');
 });
 
 // Ruta catch-all al final

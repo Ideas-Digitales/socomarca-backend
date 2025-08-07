@@ -65,6 +65,8 @@ return [
 
         // List permissions names
         "see-all-permissions",
+        // Notification related permissions
+        "create-notifications",
     ],
     'admin' => [
         'read-users',
@@ -128,6 +130,9 @@ return [
 
         // List permissions names
         "see-all-permissions",
+
+        // Notification related permissions
+        "create-notifications",
     ],
     'supervisor' => [
         'read-own-profile',

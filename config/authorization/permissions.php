@@ -131,4 +131,7 @@ return [
     // Payment permissions
     'read-all-payment-methods', // [superadmin, admin]
     'update-payment-methods', // [superadmin, admin]
+
+    // Notification permissions
+    'create-notifications', // [superadmin, admin]
 ];
