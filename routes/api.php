@@ -71,11 +71,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:read-all-permissions');
 
     Route::get('/roles', [RoleController::class, 'index'])
-        ->middleware('permission:read-all-roles');
+        ->middleware('permission:read-all-roles')
+        ->name('roles.index');
     Route::get('/roles/users', [RoleController::class, 'rolesWithUsers'])
-        ->middleware('permission:read-user-roles');
+        ->middleware('permission:read-user-roles')
+        ->name('roles.users');
     Route::get('/roles/{user}', [RoleController::class, 'userRoles'])
-        ->middleware('permission:read-user-roles');
+        ->middleware('permission:read-user-roles')
+        ->name('roles.user');
 
     Route::resource('addresses', AddressController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
