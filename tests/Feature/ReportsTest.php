@@ -34,7 +34,7 @@ test('puede filtrar ventas por monto mínimo y máximo', function () {
 
 test('puede filtrar ventas por cliente', function () {
     $cliente = User::factory()->create(['name' => 'Cliente Uno']);
-    $cliente->assignRole('cliente');
+    $cliente->assignRole('customer');
     Order::factory()->create(['user_id' => $cliente->id, 'amount' => 10000, 'status' => 'completed', 'created_at' => now()]);
     Order::factory()->create(['amount' => 20000, 'status' => 'completed', 'created_at' => now()]);
 
@@ -142,7 +142,7 @@ test('puede obtener transacciones fallidas con filtro de monto', function () {
 
 test('puede filtrar ventas por todos los filtros opcionales', function () {
     $cliente = User::factory()->create(['name' => 'Juan Perez']);
-    $cliente->assignRole('cliente');
+    $cliente->assignRole('customer');
     Order::factory()->create([
         'user_id' => $cliente->id,
         'amount' => 4000000,

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use App\Models\User;
 
 beforeEach(function ()
 {
@@ -37,254 +38,260 @@ beforeEach(function ()
     ];
 });
 
-test('requiere autenticacion con token', function ()
-{
-    $response = $this->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/categories');
+describe('Category API', function () {
+    it('should require authentication for index', function () {
+        $response = $this->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
+        $response->assertStatus(401);
+    });
 
-    $response->assertStatus(401);
-});
+    it('should return categories with correct structure', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
 
-test('retorna categorias con estructura correcta', function ()
-{
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/categories');
-
-    $response
-        ->assertStatus(200)
-        ->assertJsonStructure([
-            'data' => [
-                [
-                    'id',
-                    'name',
-                    'description',
-                    'code',
-                    'level',
-                    'key',
-                    'subcategories_count',
-                    'products_count',
-                    'created_at',
-                    'updated_at',
+        $response
+            ->assertStatus(200)
+            ->assertJsonStructure([
+                'data' => [
+                    [
+                        'id',
+                        'name',
+                        'description',
+                        'code',
+                        'level',
+                        'key',
+                        'subcategories_count',
+                        'products_count',
+                        'created_at',
+                        'updated_at',
+                    ],
                 ],
-            ],
-        ]);
-});
+            ]);
+    });
 
-test('retorna 404 para categoria inexistente', function ()
-{
-    $id = $this->category->id;
+    it('should return 404 for non-existent category', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        $id = $this->category->id;
+        Category::truncate();
 
-    Category::truncate();
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.show', ['category' => $id]));
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/categories/' . $id);
+        $response->assertStatus(404);
+    });
 
-    $response->assertStatus(404);
-});
+    it('should require authentication for category search', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        $response = $this->withHeaders(['Accept' => 'application/json'])
+            ->postJson(route('categories.search'));
+        $response->assertStatus(401);
+    });
 
-test('requiere autenticacion para busqueda de categorias', function () {
-    $response = $this->withHeaders(['Accept' => 'application/json'])
-        ->postJson('/api/categories/search');
+    it('should return correct structure for category search', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
+        Category::factory()->count(5)->create();
 
-    $response->assertStatus(401);
-});
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->postJson(route('categories.search'));
 
-test('retorna estructura correcta para busqueda de categorias', function () {
-    Category::truncate();
-    Category::factory()->count(5)->create();
+        expect($response->json('data'))->toHaveCount(5);
+        $response
+            ->assertStatus(200)
+            ->assertJsonStructure($this->categoryListJsonStructure);
+    });
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->withHeaders(['Accept' => 'application/json'])
-        ->postJson('/api/categories/search');
+    it('should filter categories by exact name', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    expect($response->json('data'))->toHaveCount(5);
-    $response
-        ->assertStatus(200)
-        ->assertJsonStructure($this->categoryListJsonStructure);
-});
+        Category::factory()->create(['name' => 'Dairy and Derivatives']);
+        Category::factory()->create(['name' => 'Drinks']);
+        Category::factory()->create(['name' => 'Meats and Fish']);
 
-test('filtra categorias por nombre exacto', function () {
-    Category::truncate();
-    
-    Category::factory()->create(['name' => 'Lácteos y Derivados']);
-    Category::factory()->create(['name' => 'Bebidas']);
-    Category::factory()->create(['name' => 'Carnes y Pescados']);
-
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'filters' => [
-                [
-                    'field' => 'name',
-                    'operator' => '=',
-                    'value' => 'Lácteos y Derivados',
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'name',
+                        'operator' => '=',
+                        'value' => 'Dairy and Derivatives',
+                    ]
                 ]
-            ]
-        ]);
+            ]);
 
-    expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data')[0]['name'])->toBe('Lácteos y Derivados');
-    $response->assertStatus(200);
-});
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['name'])->toBe('Dairy and Derivatives');
+        $response->assertStatus(200);
+    });
 
-test('filtra categorias por nombre parcial', function () {
-    Category::truncate();
-    
-    Category::factory()->create(['name' => 'Productos Lácteos']);
-    Category::factory()->create(['name' => 'Lácteos Sin Lactosa']);
-    Category::factory()->create(['name' => 'Bebidas']);
+    it('should filter categories by partial name', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'filters' => [
-                [
-                    'field' => 'name',
-                    'operator' => 'ILIKE',
-                    'value' => '%lácteos%',
+        Category::factory()->create(['name' => 'Dairy Products']);
+        Category::factory()->create(['name' => 'Lactose Free Dairy']);
+        Category::factory()->create(['name' => 'Drinks']);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+        ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'name',
+                        'operator' => 'ILIKE',
+                        'value' => '%dairy%',
+                    ]
                 ]
-            ]
-        ]);
+            ]);
 
-    expect($response->json('data'))->toHaveCount(2);
-    foreach ($response->json('data') as $category) {
-        expect(stripos($category['name'], 'lácteos'))->not->toBeFalse();
-    }
-    $response->assertStatus(200);
-});
+        expect($response->json('data'))->toHaveCount(2);
+        foreach ($response->json('data') as $category) {
+            expect(stripos($category['name'], 'dairy'))->not->toBeFalse();
+        }
+        $response->assertStatus(200);
+    });
 
-test('filtra categorias por descripcion', function () {
-    Category::truncate();
-    
-    Category::factory()->create(['name' => 'Lácteos', 'description' => 'Productos lácteos y derivados']);
-    Category::factory()->create(['name' => 'Bebidas', 'description' => 'Bebidas sin alcohol']);
-    Category::factory()->create(['name' => 'Carnes', 'description' => 'Carnes rojas y blancas']);
+    it('should filter categories by description', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'filters' => [
-                [
-                    'field' => 'description',
-                    'operator' => 'ILIKE',
-                    'value' => '%lácteos%',
+        Category::factory()->create(['name' => 'Dairy', 'description' => 'Dairy products and derivatives']);
+        Category::factory()->create(['name' => 'Drinks', 'description' => 'Non-alcoholic drinks']);
+        Category::factory()->create(['name' => 'Meats', 'description' => 'Red and white meats']);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'description',
+                        'operator' => 'ILIKE',
+                        'value' => '%dairy%',
+                    ]
                 ]
-            ]
-        ]);
+            ]);
 
-    expect($response->json('data'))->toHaveCount(1);
-    expect($response->json('data')[0]['description'])->toContain('lácteos');
-    $response->assertStatus(200);
-});
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data')[0]['description'])->toMatch('/dairy/i');
+        $response->assertStatus(200);
+    });
 
-test('ordena categorias por nombre', function () {
-    Category::truncate();
-    
-    Category::factory()->create(['name' => 'Zebra']);
-    Category::factory()->create(['name' => 'Alfa']);
-    Category::factory()->create(['name' => 'Beta']);
+    it('should sort categories by name', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'filters' => [
-                [
-                    'field' => 'name',
-                    'operator' => 'ILIKE',
-                    'value' => '%',
-                    'sort' => 'ASC'
+        Category::factory()->create(['name' => 'Zebra']);
+        Category::factory()->create(['name' => 'Alpha']);
+        Category::factory()->create(['name' => 'Beta']);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'name',
+                        'operator' => 'ILIKE',
+                        'value' => '%',
+                        'sort' => 'ASC'
+                    ]
                 ]
-            ]
-        ]);
+            ]);
 
-    $data = $response->json('data');
-    expect($data)->toHaveCount(3);
-    expect($data[0]['name'])->toBe('Alfa');
-    expect($data[1]['name'])->toBe('Beta');
-    expect($data[2]['name'])->toBe('Zebra');
-    $response->assertStatus(200);
-});
+        $data = $response->json('data');
+        expect($data)->toHaveCount(3);
+        expect($data[0]['name'])->toBe('Alpha');
+        expect($data[1]['name'])->toBe('Beta');
+        expect($data[2]['name'])->toBe('Zebra');
+        $response->assertStatus(200);
+    });
 
-test('filtra categorias por nivel', function () {
-    Category::truncate();
-    
-    Category::factory()->create(['level' => 1]);
-    Category::factory()->create(['level' => 2]);
-    Category::factory()->create(['level' => 1]);
+    it('should filter categories by level', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'filters' => [
-                [
-                    'field' => 'level',
-                    'operator' => '=',
-                    'value' => 1,
+        Category::factory()->create(['level' => 1]);
+        Category::factory()->create(['level' => 2]);
+        Category::factory()->create(['level' => 1]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'level',
+                        'operator' => '=',
+                        'value' => 1,
+                    ]
                 ]
-            ]
-        ]);
+            ]);
 
-    expect($response->json('data'))->toHaveCount(2);
-    foreach ($response->json('data') as $category) {
-        expect($category['level'])->toBe(1);
-    }
-    $response->assertStatus(200);
-});
+        expect($response->json('data'))->toHaveCount(2);
+        foreach ($response->json('data') as $category) {
+            expect($category['level'])->toBe(1);
+        }
+        $response->assertStatus(200);
+    });
 
-test('ordena categorias por id ascendente y descendente', function () {
-    Category::truncate();
+    it('should sort categories by id ascending and descending', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    $catA = Category::factory()->create(['name' => 'Primera']);
-    $catB = Category::factory()->create(['name' => 'Segunda']);
-    $catC = Category::factory()->create(['name' => 'Tercera']);
+        $catA = Category::factory()->create(['name' => 'First']);
+        $catB = Category::factory()->create(['name' => 'Second']);
+        $catC = Category::factory()->create(['name' => 'Third']);
 
-    // Orden ascendente
-    $responseAsc = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'sort' => 'id',
-            'sort_direction' => 'asc'
-        ]);
-    $idsAsc = array_column($responseAsc->json('data'), 'id');
-    expect($idsAsc)->toBe([min($catA->id, $catB->id, $catC->id), ...array_diff([$catA->id, $catB->id, $catC->id], [min($catA->id, $catB->id, $catC->id), max($catA->id, $catB->id, $catC->id)]), max($catA->id, $catB->id, $catC->id)]);
+        // Ascending order
+        $responseAsc = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'sort' => 'id',
+                'sort_direction' => 'asc'
+            ]);
+        $idsAsc = array_column($responseAsc->json('data'), 'id');
+        expect($idsAsc)->toBe([min($catA->id, $catB->id, $catC->id), ...array_diff([$catA->id, $catB->id, $catC->id], [min($catA->id, $catB->id, $catC->id), max($catA->id, $catB->id, $catC->id)]), max($catA->id, $catB->id, $catC->id)]);
 
-    // Orden descendente
-    $responseDesc = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'sort' => 'id',
-            'sort_direction' => 'desc'
-        ]);
-    $idsDesc = array_column($responseDesc->json('data'), 'id');
-    expect($idsDesc)->toBe([max($catA->id, $catB->id, $catC->id), ...array_diff([$catA->id, $catB->id, $catC->id], [min($catA->id, $catB->id, $catC->id), max($catA->id, $catB->id, $catC->id)]), min($catA->id, $catB->id, $catC->id)]);
-});
+        // Descending order
+        $responseDesc = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/categories/search', [
+                'sort' => 'id',
+                'sort_direction' => 'desc'
+            ]);
+        $idsDesc = array_column($responseDesc->json('data'), 'id');
+        expect($idsDesc)->toBe([max($catA->id, $catB->id, $catC->id), ...array_diff([$catA->id, $catB->id, $catC->id], [min($catA->id, $catB->id, $catC->id), max($catA->id, $catB->id, $catC->id)]), min($catA->id, $catB->id, $catC->id)]);
+    });
 
-test('filtra y ordena categorias por nombre y id', function () {
-    Category::truncate();
+    it('should filter and sort categories by name and id', function () {
+        $this->user->givePermissionTo('read-all-categories');
+        Category::truncate();
 
-    $catA = Category::factory()->create(['name' => 'Alimentos']);
-    $catB = Category::factory()->create(['name' => 'Bebidas']);
-    $catC = Category::factory()->create(['name' => 'Carnes']);
+        $catA = Category::factory()->create(['name' => 'Food']);
+        $catB = Category::factory()->create(['name' => 'Drinks']);
+        $catC = Category::factory()->create(['name' => 'Meats']);
 
-    // Filtrar por nombre parcial y ordenar por id descendente
-    $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson('/api/categories/search', [
-            'filters' => [
-                [
-                    'field' => 'name',
-                    'operator' => 'ILIKE',
-                    'value' => '%a%',
-                ]
-            ],
-            'sort' => 'id',
-            'sort_direction' => 'desc'
-        ]);
+        // Filter by partial name and sort by id descending
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'name',
+                        'operator' => 'ILIKE',
+                        'value' => '%a%',
+                    ]
+                ],
+                'sort' => 'id',
+                'sort_direction' => 'desc'
+            ]);
 
-    $data = $response->json('data');
-    // Debe traer solo las categorías cuyo nombre contiene "a" (no sensible a mayúsculas)
-    $expected = collect([$catA, $catB, $catC])
-        ->filter(fn($cat) => stripos($cat->name, 'a') !== false)
-        ->sortByDesc('id')
-        ->pluck('id')
-        ->values()
-        ->all();
+        $data = $response->json('data');
+        $expected = collect([$catA, $catB, $catC])
+            ->filter(fn($cat) => stripos($cat->name, 'a') !== false)
+            ->sortByDesc('id')
+            ->pluck('id')
+            ->values()
+            ->all();
 
-    $ids = array_column($data, 'id');
-    expect($ids)->toBe($expected);
-    $response->assertStatus(200);
+        $ids = array_column($data, 'id');
+        expect($ids)->toBe($expected);
+        $response->assertStatus(200);
+    });
 });
