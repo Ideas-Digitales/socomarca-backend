@@ -8,18 +8,50 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 
 uses(RefreshDatabase::class);
 
-// Prepara los roles necesarios antes de cada test
+// Prepara los roles y permisos necesarios antes de cada test
 beforeEach(function () {
+    // Crear permisos
+    Permission::firstOrCreate(['name' => 'read-content-settings']);
+    Permission::firstOrCreate(['name' => 'update-content-settings']);
+    Permission::firstOrCreate(['name' => 'read-all-system-config']);
+    Permission::firstOrCreate(['name' => 'update-system-config']);
+    
+    // Crear roles
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'editor', 'guard_name' => 'web']);
     Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
+    
+    // Asignar permisos a roles
+    $adminRole = Role::findByName('admin');
+    $adminRole->givePermissionTo(['read-content-settings', 'update-content-settings', 'read-all-system-config', 'update-system-config']);
+    
+    $editorRole = Role::findByName('editor');
+    $editorRole->givePermissionTo(['read-content-settings', 'update-content-settings']);
+    
+    $superadminRole = Role::findByName('superadmin');
+    $superadminRole->givePermissionTo(['read-content-settings', 'update-content-settings', 'read-all-system-config', 'update-system-config']);
+});
+
+test('show endpoint requires authentication', function () {
+    $this->getJson('/api/siteinfo')->assertUnauthorized();
+});
+
+test('show endpoint requires read-content-settings permission', function () {
+    $user = User::factory()->create(); // User without permission
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/siteinfo')
+        ->assertForbidden();
 });
 
 test('show endpoint returns default structure when database is empty', function () {
-    $this->getJson('/api/siteinfo')
+    $user = User::factory()->create()->assignRole('admin');
+    
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/siteinfo')
         ->assertOk()
         ->assertJsonStructure([
             'header' => ['contact_phone', 'contact_email'],
@@ -29,11 +61,13 @@ test('show endpoint returns default structure when database is empty', function 
 });
 
 test('show endpoint returns saved values from database', function () {
+    $user = User::factory()->create()->assignRole('admin');
     Siteinfo::create(['key' => 'header', 'value' => ['contact_phone' => '123', 'contact_email' => 'a@b.com']]);
     Siteinfo::create(['key' => 'footer', 'value' => ['contact_phone' => '456', 'contact_email' => 'c@d.com']]);
     Siteinfo::create(['key' => 'social_media', 'value' => [['label' => 'fb', 'link' => 'fb.com']]]);
 
-    $this->getJson('/api/siteinfo')
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/siteinfo')
         ->assertOk()
         ->assertJson([
             'header' => ['contact_phone' => '123', 'contact_email' => 'a@b.com'],
@@ -42,7 +76,7 @@ test('show endpoint returns saved values from database', function () {
         ]);
 });
 
-test('update endpoint requires authentication and correct role', function () {
+test('update endpoint requires authentication and correct permission', function () {
     $this->putJson('/api/siteinfo', [])->assertUnauthorized();
 
     $user = User::factory()->create();
@@ -69,15 +103,33 @@ test('an admin can update siteinfo', function () {
     $this->assertDatabaseHas('siteinfo', ['key' => 'social_media']);
 });
 
+test('terms and privacy policy endpoints require authentication', function () {
+    $this->getJson('/api/terms')->assertUnauthorized();
+    $this->getJson('/api/privacy-policy')->assertUnauthorized();
+});
+
+test('terms and privacy policy endpoints require read-content-settings permission', function () {
+    $user = User::factory()->create(); // User without permission
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/terms')
+        ->assertForbidden();
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/privacy-policy')
+        ->assertForbidden();
+});
+
 test('terms and privacy policy endpoints return correct content', function () {
+    $user = User::factory()->create()->assignRole('admin');
     Siteinfo::create(['key' => 'terms', 'content' => '<h1>Terms</h1>']);
     Siteinfo::create(['key' => 'privacy_policy', 'content' => '<h1>Policy</h1>']);
 
-    $this->getJson('/api/terms')
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/terms')
         ->assertOk()
         ->assertJson(['content' => '<h1>Terms</h1>']);
 
-    $this->getJson('/api/privacy-policy')
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/privacy-policy')
         ->assertOk()
         ->assertJson(['content' => '<h1>Policy</h1>']);
 });
@@ -99,8 +151,22 @@ test('an editor can update terms and privacy policy', function () {
     $this->assertDatabaseHas('siteinfo', ['key' => 'privacy_policy', 'content' => '<h1>New Policy</h1>']);
 });
 
+test('customer message endpoint requires authentication', function () {
+    $this->getJson('/api/customer-message')->assertUnauthorized();
+});
+
+test('customer message endpoint requires read-content-settings permission', function () {
+    $user = User::factory()->create(); // User without permission
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/customer-message')
+        ->assertForbidden();
+});
+
 test('customer message endpoint returns default structure', function () {
-    $this->getJson('/api/customer-message')
+    $user = User::factory()->create()->assignRole('admin');
+    
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/customer-message')
         ->assertOk()
         ->assertJsonStructure([
             'header' => ['color', 'content'],
@@ -120,7 +186,7 @@ test('a superadmin can update customer message without header_content', function
     ];
 
     $this->actingAs($user, 'sanctum')
-        ->postJson('/api/customer-message', $payload)
+        ->putJson('/api/customer-message', $payload)
         ->assertOk()
         ->assertJson(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
 
@@ -153,7 +219,7 @@ test('a superadmin can update customer message with images', function () {
     ];
 
     $this->actingAs($user, 'sanctum')
-        ->postJson('/api/customer-message', $payload)
+        ->putJson('/api/customer-message', $payload)
         ->assertOk()
         ->assertJson(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
 
@@ -181,7 +247,7 @@ test('a superadmin can update customer message without images', function () {
     ];
 
     $this->actingAs($user, 'sanctum')
-        ->postJson('/api/customer-message', $payload)
+        ->putJson('/api/customer-message', $payload)
         ->assertOk()
         ->assertJson(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
 
@@ -201,8 +267,22 @@ test('a superadmin can update customer message without images', function () {
 
 // Webpay tests
 
+test('webpay config endpoint requires authentication', function () {
+    $this->getJson('/api/webpay/config')->assertUnauthorized();
+});
+
+test('webpay config endpoint requires read-all-system-config permission', function () {
+    $user = User::factory()->create(); // User without permission
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/webpay/config')
+        ->assertForbidden();
+});
+
 test('webpay config endpoint returns default structure when database is empty', function () {
-    $this->getJson('/api/webpay/config')
+    $user = User::factory()->create()->assignRole('admin');
+    
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/webpay/config')
         ->assertStatus(404)
         ->assertJson([
             'message' => 'No se encontró la configuración de Webpay',
@@ -211,6 +291,7 @@ test('webpay config endpoint returns default structure when database is empty', 
 });
 
 test('webpay config endpoint returns stored values', function () {
+    $user = User::factory()->create()->assignRole('admin');
     $stored = [
         'WEBPAY_COMMERCE_CODE' => '123456',
         'WEBPAY_API_KEY' => 'SOMEKEY',
@@ -223,12 +304,13 @@ test('webpay config endpoint returns stored values', function () {
         'content' => 'Informacion de entorno webpay',
     ]);
 
-    $this->getJson('/api/webpay/config')
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/webpay/config')
         ->assertOk()
         ->assertJson($stored);
 });
 
-test('update webpay config requires authentication and superadmin role', function () {
+test('update webpay config requires authentication and update-system-config permission', function () {
     $payload = [
         'WEBPAY_COMMERCE_CODE' => '111',
         'WEBPAY_API_KEY' => 'KEY',
@@ -239,14 +321,14 @@ test('update webpay config requires authentication and superadmin role', functio
     // Unauthenticated
     $this->putJson('/api/webpay/config', $payload)->assertUnauthorized();
 
-    // Authenticated but not superadmin
-    $user = User::factory()->create()->assignRole('admin');
+    // Authenticated but without permission (editor doesn't have system config permission)
+    $user = User::factory()->create()->assignRole('editor');
     $this->actingAs($user, 'sanctum');
     $this->putJson('/api/webpay/config', $payload)->assertForbidden();
 });
 
-test('a superadmin can update webpay config', function () {
-    $user = User::factory()->create()->assignRole('superadmin');
+test('a user with update-system-config permission can update webpay config', function () {
+    $user = User::factory()->create()->assignRole('admin');
 
     $payload = [
         'WEBPAY_COMMERCE_CODE' => '7654321',

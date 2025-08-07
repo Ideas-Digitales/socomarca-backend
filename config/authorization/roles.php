@@ -47,7 +47,6 @@ return [
         "see-all-products",
         "see-all-clients",
         "see-all-purchases",
-        "edit-content",
         "edit-products",
 
         // Address related permissions
@@ -110,7 +109,6 @@ return [
         "see-all-products",
         "see-all-clients",
         "see-all-purchases",
-        "edit-content",
         "edit-products",
 
         // Address related permissions
@@ -175,7 +173,6 @@ return [
 
         "see-own-purchases",
         "see-all-products",
-        "edit-content",
 
         // FAQ related permissions
         "read-all-faqs",
