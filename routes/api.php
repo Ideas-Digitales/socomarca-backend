@@ -124,11 +124,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
 
-    
+
     Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
         ->middleware(['permission:sync-product-images'])
         ->name('products.image.sync');
-    
+
 
     Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
         ->name('products.price-extremes')
@@ -243,7 +243,7 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/siteinfo', [SiteinfoController::class, 'update'])->name('siteinfo.update');
     Route::put('/terms', [SiteinfoController::class, 'updateTerms'])->name('siteinfo.terms.update');
     Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
-    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update'); 
+    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
 });
 
 
