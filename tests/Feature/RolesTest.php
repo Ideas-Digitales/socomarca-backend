@@ -25,7 +25,7 @@ describe('read-all-roles permission', function () {
         $user->givePermissionTo('read-all-roles');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/roles');
+            ->getJson(route('roles.index'));
 
         $response->assertStatus(200);
     });
@@ -35,13 +35,13 @@ describe('read-all-roles permission', function () {
         // No se asigna el permiso
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/roles');
+            ->getJson(route('roles.index'));
 
         $response->assertStatus(403);
     });
 
     test('unauthenticated users cannot access roles index', function () {
-        $response = $this->getJson('/api/roles');
+        $response = $this->getJson(route('roles.index'));
 
         $response->assertStatus(401);
     });
@@ -55,7 +55,7 @@ describe('read-all-roles permission', function () {
         $role->givePermissionTo(['read-all-reports']);
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/roles');
+            ->getJson(route('roles.index'));
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -91,7 +91,7 @@ describe('read-user-roles permission', function () {
         $user->givePermissionTo('read-user-roles');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/roles/users');
+            ->getJson(route('roles.users'));
 
         $response->assertStatus(200);
     });
@@ -101,7 +101,7 @@ describe('read-user-roles permission', function () {
         // No se asigna el permiso
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/roles/users');
+            ->getJson(route('roles.users'));
 
         $response->assertStatus(403);
     });
@@ -114,7 +114,7 @@ describe('read-user-roles permission', function () {
         $targetUser->assignRole('customer');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson("/api/roles/{$targetUser->id}");
+            ->getJson(route('roles.user', $targetUser->id));
 
         $response->assertStatus(200);
     });
@@ -127,7 +127,7 @@ describe('read-user-roles permission', function () {
         $targetUser->assignRole('customer');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson("/api/roles/{$targetUser->id}");
+            ->getJson(route('roles.user', $targetUser->id));
 
         $response->assertStatus(403);
     });
@@ -141,7 +141,7 @@ describe('read-user-roles permission', function () {
         $testUser->assignRole('customer');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/roles/users');
+            ->getJson(route('roles.users'));
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -166,7 +166,7 @@ describe('read-user-roles permission', function () {
         $targetUser->assignRole('customer');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson("/api/roles/{$targetUser->id}");
+            ->getJson(route('roles.user', $targetUser->id));
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -184,7 +184,7 @@ describe('read-user-roles permission', function () {
     });
 
     test('unauthenticated users cannot access roles with users', function () {
-        $response = $this->getJson('/api/roles/users');
+        $response = $this->getJson(route('roles.users'));
 
         $response->assertStatus(401);
     });
@@ -192,7 +192,7 @@ describe('read-user-roles permission', function () {
     test('unauthenticated users cannot access specific user roles', function () {
         $targetUser = User::factory()->create();
         
-        $response = $this->getJson("/api/roles/{$targetUser->id}");
+        $response = $this->getJson(route('roles.user', $targetUser->id));
 
         $response->assertStatus(401);
     });
@@ -204,7 +204,7 @@ describe('read-all-reports permission', function () {
         $user->givePermissionTo('read-all-reports');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->postJson('/api/reports/dashboard', [
+            ->postJson(route('reports.dashboard'), [
                 'start_date' => '2024-01-01',
                 'end_date' => '2024-12-31'
             ]);
@@ -217,7 +217,7 @@ describe('read-all-reports permission', function () {
         $user->givePermissionTo('read-all-reports');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->postJson('/api/reports/transactions', [
+            ->postJson(route('reports.transactions'), [
                 'start_date' => '2024-01-01',
                 'end_date' => '2024-12-31'
             ]);
@@ -230,7 +230,7 @@ describe('read-all-reports permission', function () {
         $user->givePermissionTo('read-all-reports');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->postJson('/api/reports/transactions/export', [
+            ->postJson(route('reports.transactions.export'), [
                 'start_date' => '2024-01-01',
                 'end_date' => '2024-12-31'
             ]);
@@ -243,7 +243,7 @@ describe('read-all-reports permission', function () {
         // No se asigna el permiso
 
         $response = $this->actingAs($user, 'sanctum')
-            ->postJson('/api/reports/dashboard', [
+            ->postJson(route('reports.dashboard'), [
                 'start_date' => '2024-01-01',
                 'end_date' => '2024-12-31'
             ]);
@@ -256,7 +256,7 @@ describe('read-all-reports permission', function () {
         // No se asigna el permiso
 
         $response = $this->actingAs($user, 'sanctum')
-            ->postJson('/api/reports/transactions', [
+            ->postJson(route('reports.transactions'), [
                 'start_date' => '2024-01-01',
                 'end_date' => '2024-12-31'
             ]);
@@ -269,7 +269,7 @@ describe('read-all-reports permission', function () {
         // No se asigna el permiso
 
         $response = $this->actingAs($user, 'sanctum')
-            ->postJson('/api/reports/transactions/export', [
+            ->postJson(route('reports.transactions.export'), [
                 'start_date' => '2024-01-01',
                 'end_date' => '2024-12-31'
             ]);
@@ -282,31 +282,31 @@ describe('read-all-reports permission', function () {
         // No se asigna el permiso
 
         // Test multiple endpoints
-        $endpoints = [
-            '/api/reports/transactions',
-            '/api/reports/customers',
-            '/api/reports/products/top-selling',
-            '/api/reports/transactions/failed',
-            '/api/reports/municipalities/export',
-            '/api/reports/products/export',
-            '/api/reports/categories/export',
-            '/api/reports/customers/export',
-            '/api/reports/orders/export'
+        $routes = [
+            'reports.transactions',
+            'reports.customers',
+            'reports.products.top-selling',
+            'reports.transactions.failed',
+            'reports.municipalities.export',
+            'reports.products.export',
+            'reports.categories.export',
+            'reports.customers.export',
+            'reports.orders.export'
         ];
 
-        foreach ($endpoints as $endpoint) {
+        foreach ($routes as $routeName) {
             $response = $this->actingAs($user, 'sanctum')
-                ->postJson($endpoint, [
+                ->postJson(route($routeName), [
                     'start_date' => '2024-01-01',
                     'end_date' => '2024-12-31'
                 ]);
 
-            expect($response->getStatusCode())->toBe(403, "Endpoint {$endpoint} should return 403 for users without read-all-reports permission");
+            expect($response->getStatusCode())->toBe(403, "Route {$routeName} should return 403 for users without read-all-reports permission");
         }
     });
 
     test('unauthenticated users cannot access reports', function () {
-        $response = $this->postJson('/api/reports/dashboard', [
+        $response = $this->postJson(route('reports.dashboard'), [
             'start_date' => '2024-01-01',
             'end_date' => '2024-12-31'
         ]);
@@ -321,7 +321,7 @@ describe('read-all-permissions permission', function () {
         $user->givePermissionTo('read-all-permissions');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/permissions');
+            ->getJson(route('permissions.index'));
 
         $response->assertStatus(200);
     });
@@ -331,13 +331,13 @@ describe('read-all-permissions permission', function () {
         // No se asigna el permiso
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson('/api/permissions');
+            ->getJson(route('permissions.index'));
 
         $response->assertStatus(403);
     });
 
     test('unauthenticated users cannot access permissions index', function () {
-        $response = $this->getJson('/api/permissions');
+        $response = $this->getJson(route('permissions.index'));
 
         $response->assertStatus(401);
     });
