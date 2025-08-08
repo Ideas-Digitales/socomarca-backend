@@ -99,8 +99,6 @@ return [
     'read-content-settings', //[superadmin, admin, editor]
     'update-content-settings', //[superadmin, admin, editor]
 
-    "edit-content", // [DEPRECATED]
-
     // System settings permissions
     'read-all-system-config', // [superadmin, admin]
     'update-system-config', //[superadmin, admin]
