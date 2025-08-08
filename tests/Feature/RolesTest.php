@@ -202,3 +202,162 @@ test('user roles returns correct data structure', function () {
     expect($data['permissions'])->toBeArray();
 });
 
+    test('unauthenticated users cannot access roles with users', function () {
+        $response = $this->getJson(route('roles.users'));
+
+        $response->assertStatus(401);
+    });
+
+    test('unauthenticated users cannot access specific user roles', function () {
+        $targetUser = User::factory()->create();
+
+        $response = $this->getJson(route('roles.user', $targetUser->id));
+
+        $response->assertStatus(401);
+    });
+});
+
+describe('read-all-reports permission', function () {
+    test('users with read-all-reports permission can access reports dashboard', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo('read-all-reports');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('reports.dashboard'), [
+                'start_date' => '2024-01-01',
+                'end_date' => '2024-12-31'
+            ]);
+
+        $response->assertStatus(200);
+    });
+
+    test('users with read-all-reports permission can access reports transactions', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo('read-all-reports');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('reports.transactions'), [
+                'start_date' => '2024-01-01',
+                'end_date' => '2024-12-31'
+            ]);
+
+        $response->assertStatus(200);
+    });
+
+    test('users with read-all-reports permission can export reports', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo('read-all-reports');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('reports.transactions.export'), [
+                'start_date' => '2024-01-01',
+                'end_date' => '2024-12-31'
+            ]);
+
+        $response->assertStatus(200);
+    });
+
+    test('users without read-all-reports permission cannot access reports dashboard', function () {
+        $user = User::factory()->create();
+        // No se asigna el permiso
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('reports.dashboard'), [
+                'start_date' => '2024-01-01',
+                'end_date' => '2024-12-31'
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('users without read-all-reports permission cannot access reports transactions', function () {
+        $user = User::factory()->create();
+        // No se asigna el permiso
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('reports.transactions'), [
+                'start_date' => '2024-01-01',
+                'end_date' => '2024-12-31'
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('users without read-all-reports permission cannot export reports', function () {
+        $user = User::factory()->create();
+        // No se asigna el permiso
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('reports.transactions.export'), [
+                'start_date' => '2024-01-01',
+                'end_date' => '2024-12-31'
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    test('users without read-all-reports permission cannot access multiple report endpoints', function () {
+        $user = User::factory()->create();
+        // No se asigna el permiso
+
+        // Test multiple endpoints
+        $routes = [
+            'reports.transactions',
+            'reports.customers',
+            'reports.products.top-selling',
+            'reports.transactions.failed',
+            'reports.municipalities.export',
+            'reports.products.export',
+            'reports.categories.export',
+            'reports.customers.export',
+            'reports.orders.export'
+        ];
+
+        foreach ($routes as $routeName) {
+            $response = $this->actingAs($user, 'sanctum')
+                ->postJson(route($routeName), [
+                    'start_date' => '2024-01-01',
+                    'end_date' => '2024-12-31'
+                ]);
+
+            expect($response->getStatusCode())->toBe(403, "Route {$routeName} should return 403 for users without read-all-reports permission");
+        }
+    });
+
+    test('unauthenticated users cannot access reports', function () {
+        $response = $this->postJson(route('reports.dashboard'), [
+            'start_date' => '2024-01-01',
+            'end_date' => '2024-12-31'
+        ]);
+
+        $response->assertStatus(401);
+    });
+});
+
+describe('read-all-permissions permission', function () {
+    test('users with read-all-permissions permission can access permissions index', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo('read-all-permissions');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('permissions.index'));
+
+        $response->assertStatus(200);
+    });
+
+    test('users without read-all-permissions permission cannot access permissions index', function () {
+        $user = User::factory()->create();
+        // No se asigna el permiso
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('permissions.index'));
+
+        $response->assertStatus(403);
+    });
+
+    test('unauthenticated users cannot access permissions index', function () {
+        $response = $this->getJson(route('permissions.index'));
+
+        $response->assertStatus(401);
+    });
+});
