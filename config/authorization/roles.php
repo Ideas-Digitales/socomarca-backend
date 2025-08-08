@@ -62,8 +62,6 @@ return [
         "update-faqs",
         "delete-faqs",
 
-        // List permissions names
-        "see-all-permissions",
     ],
     'admin' => [
         'read-users',
@@ -124,8 +122,6 @@ return [
         "update-faqs",
         "delete-faqs",
 
-        // List permissions names
-        "see-all-permissions",
     ],
     'supervisor' => [
         'read-own-profile',
