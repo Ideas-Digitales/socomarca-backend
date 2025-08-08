@@ -69,13 +69,17 @@ Route::middleware('auth:sanctum')->group(function () {
 //    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
 
     Route::resource('permissions', \App\Http\Controllers\Api\PermissionController::class, ['only' => 'index'])
-        ->middleware('permission:see-all-permissions');
+        ->middleware('permission:read-all-permissions');
 
-    Route::middleware(['role:admin|superadmin'])->group(function () {
-        Route::get('/roles', [RoleController::class, 'index']);
-        Route::get('/roles/users', [RoleController::class, 'rolesWithUsers']);
-        Route::get('/roles/{user}', [RoleController::class, 'userRoles']);
-    });
+    Route::get('/roles', [RoleController::class, 'index'])
+        ->middleware('permission:read-all-roles')
+        ->name('roles.index');
+    Route::get('/roles/users', [RoleController::class, 'rolesWithUsers'])
+        ->middleware('permission:read-user-roles')
+        ->name('roles.users');
+    Route::get('/roles/{user}', [RoleController::class, 'userRoles'])
+        ->middleware('permission:read-user-roles')
+        ->name('roles.user');
 
     Route::resource('addresses', AddressController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
@@ -123,9 +127,15 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('products.price-extremes')
         ->middleware('permission:read-all-prices');
 
-    Route::get('products', [ProductController::class, 'index']);
-    Route::get('products/{id}', [ProductController::class, 'show']);
-    Route::post('/products/search', [ProductController::class, 'search'])->name('products.search');
+    Route::resource('products', ProductController::class)
+        ->only(['index', 'show'])
+        ->parameters(['products' => 'product'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Product')
+        ->middlewareFor('show', 'can:view,product');
+
+    Route::post('/products/search', [ProductController::class, 'search'])
+        ->name('products.search')
+        ->middleware('can:viewAny,App\Models\Product');
 
     Route::resource(
         'favorites-list', FavoriteListController::class,
@@ -207,26 +217,34 @@ Route::get('/webpay/return', [WebpayController::class, 'return'])->name('webpay.
 Route::get('/webpay/status', [WebpayController::class, 'status']);
 Route::post('/webpay/refund', [WebpayController::class, 'refund']);
 
-// Configuraciones de Webpay - Solo superadmin puede editarlas
-Route::get('/webpay/config', [SiteinfoController::class, 'webpayConfig']);
-Route::middleware(['auth:sanctum', 'role:superadmin'])->group(function () {
-    Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig']);
+// Configuraciones de Webpay
+Route::get('/webpay/config', [SiteinfoController::class, 'webpayConfig'])->middleware(['auth:sanctum', 'permission:read-all-system-config'])->name('webpay.config');
+Route::middleware(['auth:sanctum', 'permission:update-system-config'])->group(function () {
+    Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig'])->name('webpay.config.update');
 });
 
-Route::get('/siteinfo', [SiteinfoController::class, 'show']);
-Route::get('/terms', [SiteinfoController::class, 'terms']);
-Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy']);
-Route::get('/customer-message', [SiteinfoController::class, 'customerMessage']);
-
-Route::middleware(['auth:sanctum', 'role:editor|admin|superadmin'])->group(function () {
-    Route::put('/siteinfo', [SiteinfoController::class, 'update']);
-    Route::put('/terms', [SiteinfoController::class, 'updateTerms']);
-    Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy']);
-    Route::post('/customer-message', [SiteinfoController::class, 'updateCustomerMessage']);
+// Configuraciones de contenido - lectura con permiso
+Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
+    Route::get('/siteinfo', [SiteinfoController::class, 'show'])->name('siteinfo.show');
+    Route::get('/terms', [SiteinfoController::class, 'terms'])->name('siteinfo.terms');
+    Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy'])->name('siteinfo.privacy-policy');
+    Route::get('/customer-message', [SiteinfoController::class, 'customerMessage'])->name('siteinfo.customer-message');
 });
 
-Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
+// Configuraciones de contenido - actualización
+Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
+    Route::put('/siteinfo', [SiteinfoController::class, 'update'])->name('siteinfo.update');
+    Route::put('/terms', [SiteinfoController::class, 'updateTerms'])->name('siteinfo.terms.update');
+    Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
+    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
+});
+
+// Configuración de precios
+Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
+});
+
+Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
 });
 

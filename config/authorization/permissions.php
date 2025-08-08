@@ -95,14 +95,9 @@ return [
     // Products permissions
     'read-all-products', // [superadmin, admin, supervisor, editor, customer]
 
-    "see-all-products", // [DEPRECATED]
-    "edit-products", // [DEPRECATED]
-
     // Content edition permissions
     'read-content-settings', //[superadmin, admin, editor]
     'update-content-settings', //[superadmin, admin, editor]
-
-    "edit-content", // [DEPRECATED]
 
     // System settings permissions
     'read-all-system-config', // [superadmin, admin]
@@ -117,7 +112,6 @@ return [
 
     // Permissions
     'read-all-permissions', // [superadmin, admin]
-    'see-all-permissions', // [superadmin, admin]
 
     // Roles permissions
     'read-all-roles', // [superadmin]

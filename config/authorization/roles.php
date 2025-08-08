@@ -44,11 +44,10 @@ return [
 
         "see-own-purchases",
         "see-all-reports",
-        "see-all-products",
         "see-all-clients",
         "see-all-purchases",
-        "edit-content",
         "edit-products",
+        "edit-content",
 
         // Address related permissions
         "see-all-addresses",
@@ -63,8 +62,6 @@ return [
         "update-faqs",
         "delete-faqs",
 
-        // List permissions names
-        "see-all-permissions",
     ],
     'admin' => [
         'read-users',
@@ -107,11 +104,10 @@ return [
 
         "see-own-purchases",
         "see-all-reports",
-        "see-all-products",
         "see-all-clients",
         "see-all-purchases",
-        "edit-content",
         "edit-products",
+        "edit-content",
 
         // Address related permissions
         "see-all-addresses",
@@ -126,8 +122,6 @@ return [
         "update-faqs",
         "delete-faqs",
 
-        // List permissions names
-        "see-all-permissions",
     ],
     'supervisor' => [
         'read-own-profile',
@@ -147,7 +141,6 @@ return [
         "see-all-purchases",
         'read-customers-export',
         "see-all-reports", // [DEPRECATED]
-        "see-all-products", // [DEPRECATED]
 
         // FAQ related permissions
         "read-all-faqs",
