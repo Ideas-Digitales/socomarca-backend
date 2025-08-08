@@ -230,7 +230,7 @@ Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () 
 });
 
 Route::post('/notifications', [NotificationController::class, 'store'])
-    ->middleware(['auth:sanctum','role:admin|superadmin','permission:create-notifications'])
+    ->middleware(['auth:sanctum','permission:create-notifications'])
     ->name('notifications.store');
 
 // Ruta catch-all al final
