@@ -47,9 +47,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
 
-    Route::get('/users/exports', [UserController::class, 'export'])->middleware('role:admin|superadmin|supervisor');
+    Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
-    Route::post('/users/search', [UserController::class, 'search'])->middleware('permission:manage-users');
+    Route::post('/users/search', [UserController::class, 'search']);
 
     Route::resource('/users', UserController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
