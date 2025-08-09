@@ -13,6 +13,8 @@ class NotificationController extends Controller
         $validated = $request->validated();
 
         $recipients_count = \App\Models\User::role('customer')->count();
+        
+        $createdAt = $validated['created_at'] ?? now()->toISOString();
 
         // Despacha el Job para enviar los correos en segundo plano
         SendBulkNotification::dispatch($validated['title'], $validated['message']);
@@ -21,7 +23,7 @@ class NotificationController extends Controller
             'title' => $validated['title'],
             'message' => $validated['message'],
             'recipients_count' => $recipients_count,
-            'created_at' => now()->toISOString(),
+            'created_at' => $createdAt,
         ], 201);
     }
 }

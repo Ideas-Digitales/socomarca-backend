@@ -8,7 +8,7 @@ class StoreNotificationRequest extends FormRequest
 {
     public function authorize()
     {
-        return true; // O ajusta según tu lógica de autorización
+        return true;
     }
 
     public function rules()
@@ -16,6 +16,7 @@ class StoreNotificationRequest extends FormRequest
         return [
             'title' => 'required|string|max:255',
             'message' => 'required|string|max:1000',
+            'created_at' => 'nullable|date',
         ];
     }
 }
