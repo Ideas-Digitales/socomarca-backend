@@ -13,7 +13,25 @@ class StoreRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('manage-users');
+        $user = $this->user();
+        
+        // If no user is authenticated, deny access
+        if (!$user) {
+            return false;
+        }
+        
+        // Check if trying to create admin users (admin or superadmin roles)
+        $roles = $this->input('roles', []);
+        $adminRoles = ['admin', 'superadmin'];
+        $isCreatingAdminUser = !empty(array_intersect($roles, $adminRoles));
+        
+        if ($isCreatingAdminUser) {
+            // Creating admin users requires create-admin-users permission
+            return $user->can('create-admin-users');
+        }
+        
+        // Creating regular users requires create-users permission
+        return $user->can('create-users');
     }
 
     /**

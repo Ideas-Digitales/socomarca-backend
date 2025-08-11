@@ -11,7 +11,8 @@ class UpdateRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $favoriteList = \App\Models\FavoriteList::find($this->route('id'));
+        return $favoriteList && $this->user()->can('update', $favoriteList);
     }
 
     /**
@@ -23,17 +24,7 @@ class UpdateRequest extends FormRequest
     {
         return
         [
-            'id' => 'bail|integer|exists:favorites_list,id',
             'name' => 'bail|required|string',
-
         ];
-    }
-
-    protected function prepareForValidation()
-    {
-        $this->merge(
-        [
-            'id' => $this->route('id'),
-        ]);
     }
 }

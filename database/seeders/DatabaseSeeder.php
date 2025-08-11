@@ -13,11 +13,11 @@ class DatabaseSeeder extends Seeder
         if (app()->environment(['local', 'qa','testing'])) {
             $this->call([
                 RegionSeeder::class,
+                RolesAndPermissionsSeeder::class,
                 UserSeeder::class,
                 AddressSeeder::class,
                 ProductSeeder::class,
                 PaymentMethodSeeder::class,
-                RolesAndPermissionsSeeder::class,
                 SiteInfoSeeder::class,
                 OrderSeeder::class,
                 CartItemSeeder::class,

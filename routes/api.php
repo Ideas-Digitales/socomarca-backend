@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AddressController;
+use App\Http\Controllers\Api\PriceExtremesController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -46,64 +47,111 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
 
-    Route::get('/users/exports', [UserController::class, 'export'])->middleware('role:admin|superadmin|supervisor');
-    Route::get('/users', [UserController::class, 'index'])->middleware('permission:manage-users');
+    Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
-    Route::post('/users', [UserController::class, 'store'])
-        ->middleware('permission:manage-users')
-        ->name('users.store');
-    Route::post('/users/search', [UserController::class, 'search'])->middleware('permission:manage-users');
-    Route::get('/users/{id}', [UserController::class, 'show'])->middleware('permission:manage-users');
-    Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])
-        ->middleware('permission:manage-users')->name('users.update');
-    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
+    Route::post('/users/search', [UserController::class, 'search']);
+
+    Route::resource('/users', UserController::class)
+        ->only(['index', 'store', 'show', 'update', 'destroy'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\User')
+        ->middlewareFor('store', 'can:create,App\Models\User')
+        ->middlewareFor('show', 'can:view,user')
+        ->middlewareFor('update', 'can:update,user')
+        ->middlewareFor('destroy', 'can:delete,user');
+
+//    Route::get('/users', [UserController::class, 'index'])->middleware('permission:manage-users');
+//    Route::post('/users', [UserController::class, 'store'])
+//        ->middleware('permission:manage-users')
+//        ->name('users.store');
+//    Route::get('/users/{id}', [UserController::class, 'show'])->middleware('permission:manage-users');
+//    Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])
+//        ->middleware('permission:manage-users')->name('users.update');
+//    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
 
     Route::resource('permissions', \App\Http\Controllers\Api\PermissionController::class, ['only' => 'index'])
-        ->middleware('permission:see-all-permissions');;
+        ->middleware('permission:read-all-permissions');
 
-    Route::middleware(['role:admin|superadmin'])->group(function () {
-        Route::get('/roles', [RoleController::class, 'index']);
-        Route::get('/roles/users', [RoleController::class, 'rolesWithUsers']);
-        Route::get('/roles/{user}', [RoleController::class, 'userRoles']);
-    });
+    Route::get('/roles', [RoleController::class, 'index'])
+        ->middleware('permission:read-all-roles')
+        ->name('roles.index');
+    Route::get('/roles/users', [RoleController::class, 'rolesWithUsers'])
+        ->middleware('permission:read-user-roles')
+        ->name('roles.users');
+    Route::get('/roles/{user}', [RoleController::class, 'userRoles'])
+        ->middleware('permission:read-user-roles')
+        ->name('roles.user');
+
+    Route::resource('addresses', AddressController::class)
+        ->only(['index', 'store', 'show', 'update', 'destroy'])
+        ->parameters(['addresses' => 'address'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Address')
+        ->middlewareFor('store', 'can:create,App\Models\Address')
+        ->middlewareFor('show', 'can:view,address')
+        ->middlewareFor('update', 'can:update,address')
+        ->middlewareFor('destroy', 'can:delete,address');
 
 
+    Route::get('/regions', [AddressController::class, 'regions'])
+        ->middleware('permission:read-all-regions')
+        ->name('addresses.regions');
 
-    Route::get('/addresses', [AddressController::class, 'index'])->name('addresses.index');
-    Route::post('/addresses', [AddressController::class, 'store'])->name('addresses.store');
-    Route::get('/addresses/{address}', [AddressController::class, 'show'])->name('addresses.show');
-    Route::match(['put', 'patch'], '/addresses/{address}', [AddressController::class, 'update'])->name('addresses.update');
-    Route::delete('/addresses/{address}', [AddressController::class, 'destroy'])->name('addresses.destroy');
+    Route::get('/regions/{regionId?}', [AddressController::class, 'municipalities'])
+        ->middleware('permission:read-all-regions')
+        ->name('addresses.municipalities');
 
-    Route::get('/regions', [AddressController::class, 'regions'])->name('addresses.regions');
-    Route::get('/regions/{regionId?}', [AddressController::class, 'municipalities'])->name('addresses.municipalities');
+    Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])
+        ->middleware('permission:update-regions')
+        ->name('addresses.regions.municipalities.status');
 
-    Route::middleware(['auth:sanctum', 'permission:see-all-reports'])->group(function () {
-        Route::patch('/regions/{region}/municipalities/status', [AddressController::class, 'updateRegionMunicipalitiesStatus'])->name('addresses.regions.municipalities.status');
-        Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])->name('addresses.municipalities.bulk-status');
-    });
 
-    Route::get('/categories/exports', [CategoryController::class, 'export'])->middleware('role:admin|superadmin|supervisor');
-    Route::get('/categories', [CategoryController::class,'index'])->name('categories.index');
-    Route::post('/categories/search', [CategoryController::class, 'search'])->name('categories.search');
-    Route::get('/categories/{id}', [CategoryController::class,'show'])->name('categories.show');
-    Route::get('/subcategories', [SubcategoryController::class,'index'])->name('subcategories.index');
-    Route::get('/subcategories/{id}', [SubcategoryController::class,'show'])->name('subcategories.show');
+    Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])
+        ->middleware('permission:update-municipalities')
+        ->name('addresses.municipalities.bulk-status');
 
-    Route::get('/products/price-extremes', [ProductController::class, 'getPriceExtremes'])->name('products.price-extremes');
-    Route::get('products', [ProductController::class, 'index']);
-    Route::get('products/{id}', [ProductController::class, 'show']);
-    Route::post('/products/search', [ProductController::class, 'search'])->name('products.search');
+    Route::get('/categories/exports', [CategoryController::class, 'export'])
+        ->middleware('permission:read-all-reports')->name('categories.export');
+    Route::resource('categories', CategoryController::class)
+        ->only(['index', 'show'])
+        ->middleware('permission:read-all-categories');
+    Route::post('/categories/search', [CategoryController::class, 'search'])
+        ->middleware('permission:read-all-categories')->name('categories.search');
 
-    Route::get('/favorites-list', [FavoriteListController::class, 'index'])->name('favorites-list.index');
-    Route::post('/favorites-list', [FavoriteListController::class, 'store'])->name('favorites-list.store');
-    Route::get('/favorites-list/{favoriteList}', [FavoriteListController::class, 'show'])->name('favorites-list.show');
-    Route::put('/favorites-list/{id}', [FavoriteListController::class, 'update'])->name('favorites-list.update');
-    Route::delete('/favorites-list/{id}', [FavoriteListController::class, 'destroy'])->name('favorites-list.destroy');
 
-    Route::get('/favorites', [FavoriteController::class, 'index'])->name('favorites.index');
-    Route::post('/favorites', [FavoriteController::class, 'store'])->name('favorites.store');
-    Route::delete('/favorites/{id}', [FavoriteController::class, 'destroy'])->name('favorites.destroy');
+    Route::resource('subcategories', SubcategoryController::class)
+        ->only(['index', 'show'])
+        ->parameters(['subcategories' => 'subcategory'])
+        ->middlewareFor('index', 'permission:read-all-subcategories')
+        ->middlewareFor('show', 'permission:read-all-subcategories');
+
+    Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
+        ->name('products.price-extremes')
+        ->middleware('permission:read-all-prices');
+
+    Route::resource('products', ProductController::class)
+        ->only(['index', 'show'])
+        ->parameters(['products' => 'product'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Product')
+        ->middlewareFor('show', 'can:view,product');
+
+    Route::post('/products/search', [ProductController::class, 'search'])
+        ->name('products.search')
+        ->middleware('can:viewAny,App\Models\Product');
+
+    Route::resource(
+        'favorites-list', FavoriteListController::class,
+        ['only' => ['index', 'store', 'show', 'update', 'destroy']]
+    )
+        ->parameters(['favorites-list' => 'favoriteList'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\FavoriteList')
+        ->middlewareFor('store', 'can:create,App\Models\FavoriteList')
+        ->middlewareFor('show', 'can:view,favoriteList')
+        ->middlewareFor('update', 'can:update,favoriteList')
+        ->middlewareFor('destroy', 'can:delete,favoriteList');
+
+    Route::resource('favorites', FavoriteController::class, ['only' => ['index', 'store', 'destroy']])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Favorite')
+        ->middlewareFor('store', 'can:create,App\Models\Favorite')
+        ->middlewareFor('destroy', 'can:delete,favorite');
 
     Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart')->name('cart.index');
     Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty')->middleware('permission:delete-cart');
@@ -111,19 +159,26 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('permission:create-cart-items');
     Route::delete('/cart/items', [CartItemController::class, 'destroy'])->middleware('permission:delete-cart-items');
 
-    Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
-    Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update']);
+    Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
+        ->middleware('permission:read-all-payment-methods')
+        ->name('payment-methods.index');
 
-    Route::apiResource('brands', BrandController::class)->only(['index']);
+    Route::put('/payment-methods/{id}', [PaymentMethodController::class, 'update'])
+        ->middleware('permission:update-payment-methods')
+        ->name('payment-methods.update');
 
-    Route::apiResource('prices', PriceController::class)->only(['index']);
+    Route::get('/brands', [BrandController::class, 'index'])->middleware(['permission:read-all-brands'])->name('brands.index');
+
+    Route::apiResource('prices', PriceController::class)
+        ->only(['index'])
+        ->middleware('permission:read-all-prices');
 
     // Rutas de orden
     Route::get('/orders', [OrderController::class, 'index'])->middleware('permission:read-own-orders');
     Route::post('/orders/pay', [OrderController::class, 'payOrder'])->middleware('permission:update-orders');
 
 
-    Route::middleware(['auth:sanctum', 'permission:see-all-reports','role:admin|superadmin|supervisor'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin|superadmin|supervisor'])->group(function () {
 
         Route::post('/orders/reports/transactions/export', [ReportController::class, 'export']);
         Route::post('/orders/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities']);
@@ -143,15 +198,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
 });
 
-Route::get('/faq', [FaqController::class, 'index'])->name('faq.index');
+// Rutas FAQs
 Route::post('/faq/search', [FaqController::class, 'search'])->name('faq.search');
 
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/faq/{faq}', [FaqController::class, 'show'])->name('faq.show');
-    Route::post('/faq', [FaqController::class, 'store'])->name('faq.store')->middleware('permission:store-faq');
-    Route::put('/faq/{faq}', [FaqController::class, 'update'])->name('faq.update')->middleware('permission:update-faq');
-    Route::delete('/faq/{faq}', [FaqController::class, 'destroy'])->name('faq.destroy')->middleware('permission:delete-faq');
-});
+Route::resource('faq', FaqController::class)
+    ->only(['index', 'store', 'show', 'update', 'destroy'])
+    ->parameters(['faq' => 'faq'])
+    ->middlewareFor('store', ['auth:sanctum', 'can:create,App\Models\Faq'])
+    ->middlewareFor('update', ['auth:sanctum', 'can:update,faq'])
+    ->middlewareFor('destroy', ['auth:sanctum', 'can:delete,faq']);
 
 //Se sacan de la autenticacion porque es confirmacion de pago.
 //Front recibe el token y lo envia a /webpay/return  (La ruta se establece en el webpayService: linea 59)
@@ -160,26 +215,34 @@ Route::get('/webpay/return', [WebpayController::class, 'return'])->name('webpay.
 Route::get('/webpay/status', [WebpayController::class, 'status']);
 Route::post('/webpay/refund', [WebpayController::class, 'refund']);
 
-// Configuraciones de Webpay - Solo superadmin puede editarlas
-Route::get('/webpay/config', [SiteinfoController::class, 'webpayConfig']);
-Route::middleware(['auth:sanctum', 'role:superadmin'])->group(function () {
-    Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig']);
+// Configuraciones de Webpay
+Route::get('/webpay/config', [SiteinfoController::class, 'webpayConfig'])->middleware(['auth:sanctum', 'permission:read-all-system-config'])->name('webpay.config');
+Route::middleware(['auth:sanctum', 'permission:update-system-config'])->group(function () {
+    Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig'])->name('webpay.config.update');
 });
 
-Route::get('/siteinfo', [SiteinfoController::class, 'show']);
-Route::get('/terms', [SiteinfoController::class, 'terms']);
-Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy']);
-Route::get('/customer-message', [SiteinfoController::class, 'customerMessage']);
-
-Route::middleware(['auth:sanctum', 'role:editor|admin|superadmin'])->group(function () {
-    Route::put('/siteinfo', [SiteinfoController::class, 'update']);
-    Route::put('/terms', [SiteinfoController::class, 'updateTerms']);
-    Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy']);
-    Route::post('/customer-message', [SiteinfoController::class, 'updateCustomerMessage']);
+// Configuraciones de contenido - lectura con permiso
+Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
+    Route::get('/siteinfo', [SiteinfoController::class, 'show'])->name('siteinfo.show');
+    Route::get('/terms', [SiteinfoController::class, 'terms'])->name('siteinfo.terms');
+    Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy'])->name('siteinfo.privacy-policy');
+    Route::get('/customer-message', [SiteinfoController::class, 'customerMessage'])->name('siteinfo.customer-message');
 });
 
-Route::middleware(['auth:sanctum', 'role:admin|superadmin'])->group(function () {
+// Configuraciones de contenido - actualización
+Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
+    Route::put('/siteinfo', [SiteinfoController::class, 'update'])->name('siteinfo.update');
+    Route::put('/terms', [SiteinfoController::class, 'updateTerms'])->name('siteinfo.terms.update');
+    Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
+    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
+});
+
+// Configuración de precios
+Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
+});
+
+Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
 });
 

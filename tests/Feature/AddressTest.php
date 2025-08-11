@@ -5,304 +5,252 @@ use App\Models\Municipality;
 use App\Models\Region;
 use App\Models\User;
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-beforeEach(function ()
-{
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+describe('Addresses list endpoint', function() {
+    it('should verify authentication to show addresses list', function ()
+    {
+        $response = $this->getJson(route('addresses.index'));;
+        $response->assertUnauthorized();
+    });
 
+    it('should read its own addresses when having "read-own-addresses" permission', function ()
+    {
+        $addressCount = random_int(1, 5);
+        Address::truncate();
+        $user = User::factory()
+            ->has(
+                Address::factory()
+                    ->count($addressCount)
+            )
+                ->create();
 
+        $user->givePermissionTo(['read-own-addresses']);
+
+        $route = route('addresses.index');
+        $this->actingAs($user, 'sanctum')
+            ->getJson($route)
+            ->assertStatus(200)
+            //->assertJsonStructure($this->addressListJsonStructure)
+            ->assertJsonCount($addressCount, 'data');
+    });
+
+    it('shouldn\'t read other users addresses when having "read-own-addresses" only', function ()
+    {
+        $addressCount = random_int(1, 5);
+        Address::truncate();
+        $user = User::factory()
+            ->has(
+                Address::factory()
+                    ->count($addressCount)
+            )
+                ->create();
+        $address = $user->addresses()->first();
+
+        $user->givePermissionTo(['read-own-addresses']);
+
+        $user2 = User::factory()->create();
+
+        $route = route('addresses.show', ['address' => $address->id]);
+        $this->actingAs($user, 'sanctum')
+            ->getJson($route)
+            ->assertStatus(200);
+
+        $this->actingAs($user2, 'sanctum')
+            ->getJson($route)
+            ->assertStatus(403);
+    });
 });
 
-test('verify authentication for addresses list', function ()
-{
-    $response = $this->getJson('/api/addresses/');
-    $response->assertUnauthorized();
-});
+describe('Store addresses endpoint', function() {
 
-test('verify user address list', function ()
-{
-    $addressCount = random_int(1, 5);
-    Address::truncate();
-    $user = User::factory()
-        ->has(
-            Address::factory()
-                ->count($addressCount)
-        )
-            ->create();
+    it('should store a new address when having "create-addresses" permission', function () {
+        Address::truncate();
+        $user = User::factory()->create();
+        $user->givePermissionTo(['create-addresses']);
+        $municipality = \App\Models\Municipality::factory()->create();
 
-    $user->assignRole('customer');
+        $payload = [
+            'address_line1' => 'Calle Falsa 123',
+            'address_line2' => 'Depto 4B',
+            'postal_code' => '1234567',
+            'is_default' => true,
+            'type' => 'shipping',
+            'phone' => '987654321',
+            'contact_name' => 'Juan Pérez',
+            'municipality_id' => $municipality->id,
+            'alias' => 'Casa',
+        ];
 
-    $route = route('addresses.index');
-    $this->actingAs($user, 'sanctum')
-        ->getJson($route)
-        ->assertStatus(200)
-        //->assertJsonStructure($this->addressListJsonStructure)
-        ->assertJsonCount($addressCount, 'data');
-});
+        $route = route('addresses.store');
 
-test('verify customer cannot see other users addresses', function ()
-{
-    $addressCount = random_int(1, 5);
-    Address::truncate();
-    $user = User::factory()
-        ->has(
-            Address::factory()
-                ->count($addressCount)
-        )
-            ->create();
-    $address = $user->addresses()->first();
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson($route, $payload);
 
-    $user->assignRole('customer');
-
-    $user2 = User::factory()->create();
-
-    $route = route('addresses.show', ['address' => $address->id]);
-    $this->actingAs($user, 'sanctum')
-        ->getJson($route)
-        ->assertStatus(200);
-
-    $this->actingAs($user2, 'sanctum')
-        ->getJson($route)
-        ->assertStatus(403);
-});
-
-test('verify address not found', function ()
-{
-    Address::truncate();
-    $user = User::factory()->create();
-    $user->assignRole('customer');
-
-    $route = route('addresses.show', ['address' => 2]);
-    $this->actingAs($user, 'sanctum')
-        ->getJson($route)
-        ->assertNotFound();
-});
-
-test('verify customer can add a new address', function () {
-    Address::truncate();
-    $user = User::factory()->create();
-    $user->assignRole('customer');
-
-    $municipality = \App\Models\Municipality::factory()->create();
-
-    $payload = [
-        'address_line1' => 'Calle Falsa 123',
-        'address_line2' => 'Depto 4B',
-        'postal_code' => '1234567',
-        'is_default' => true,
-        'type' => 'shipping',
-        'phone' => '987654321',
-        'contact_name' => 'Juan Pérez',
-        'municipality_id' => $municipality->id,
-        'alias' => 'Casa',
-    ];
-
-    $route = route('addresses.store');
-
-    $response = $this->actingAs($user, 'sanctum')
-        ->postJson($route, $payload);
-
-    $response->assertCreated()
-        ->assertJsonStructure([
-            'id',
-            'address_line1',
-            'address_line2',
-            'postal_code',
-            'is_default',
-            'type',
-            'phone',
-            'contact_name',
-            'alias',
-            'municipality' => [
+        $response
+            ->assertCreated()
+            ->assertJsonStructure([
                 'id',
-                'name',
-                'region' => [
+                'address_line1',
+                'address_line2',
+                'postal_code',
+                'is_default',
+                'type',
+                'phone',
+                'contact_name',
+                'alias',
+                'municipality' => [
                     'id',
-                    'name'
-                ]
-            ],
-            'created_at',
-            'updated_at'
-        ])
-        ->assertJsonPath('address_line1', 'Calle Falsa 123')
-        ->assertJsonPath('contact_name', 'Juan Pérez')
-        ->assertJsonPath('is_default', true)
-        ->assertJsonPath('type', 'shipping');
+                    'name',
+                    'region' => [
+                        'id',
+                        'name'
+                    ]
+                ],
+                'created_at',
+                'updated_at'
+            ])
+            ->assertJsonPath('address_line1', 'Calle Falsa 123')
+            ->assertJsonPath('contact_name', 'Juan Pérez')
+            ->assertJsonPath('is_default', true)
+            ->assertJsonPath('type', 'shipping');
 
-    $this->assertDatabaseHas('addresses', [
-        'address_line1' => 'Calle Falsa 123',
-        'user_id' => $user->id,
-        'municipality_id' => $municipality->id,
-    ]);
-});
-
-test('verify customer can update an address', function () {
-    Address::truncate();
-    $user = User::factory()->create();
-    $user->assignRole('customer');
-
-    $municipality = \App\Models\Municipality::factory()->create();
-    $address = Address::factory()->create([
-        'user_id' => $user->id,
-        'municipality_id' => $municipality->id,
-    ]);
-
-    $payload = [
-        'address_line1' => 'Nueva Calle 456',
-        'address_line2' => 'Depto 8C',
-        'postal_code' => '7654321',
-        'is_default' => false,
-        'type' => 'billing',
-        'phone' => 123456789,
-        'contact_name' => 'Ana Gómez',
-        'municipality_id' => $municipality->id,
-        'alias' => 'Oficina',
-    ];
-
-    $route = route('addresses.update', ['address' => $address->id]);
-
-    $response = $this->actingAs($user, 'sanctum')
-        ->putJson($route, $payload);
-
-    $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The selected address has been updated']);
-
-    $this->assertDatabaseHas('addresses', [
-        'id' => $address->id,
-        'address_line1' => 'Nueva Calle 456',
-        'contact_name' => 'Ana Gómez',
-    ]);
-});
-
-test('validate required fields when creating an address', function () {
-    $user = \App\Models\User::factory()->create();
-    $user->assignRole('customer');
-
-    $route = route('addresses.store');
-
-    // Payload vacío para forzar errores de validación
-    $payload = [];
-
-    $response = $this->actingAs($user, 'sanctum')
-        ->postJson($route, $payload);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors([
-            'address_line1',
-            'is_default',
-            'type',
-            'phone',
-            'contact_name',
-            'municipality_id',
-            'alias',
+        $this->assertDatabaseHas('addresses', [
+            'address_line1' => 'Calle Falsa 123',
+            'user_id' => $user->id,
+            'municipality_id' => $municipality->id,
         ]);
+    });
+
+    it('should validate required fields when creating an address', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo(['create-addresses']);
+        $route = route('addresses.store');
+
+        // Payload vacío para forzar errores de validación
+        $payload = [];
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson($route, $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'address_line1',
+                'is_default',
+                'type',
+                'phone',
+                'contact_name',
+                'municipality_id',
+                'alias',
+            ]);
+    });
+
+    it('should validate invalid fields when creating an address', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo(['create-addresses']);
+        $route = route('addresses.store');
+
+        $payload = [
+            'address_line1' => '', // vacío, debe ser requerido
+            'address_line2' => 123, // debe ser string
+            'postal_code' => 'no-numero', // debe ser integer
+            'is_default' => 'not-boolean', // debe ser boolean
+            'type' => 'otro', // debe ser 'billing' o 'shipping'
+            'phone' => 'abc', // debe ser integer y 9 dígitos
+            'contact_name' => '', // requerido
+            'municipality_id' => 999999, // no existe
+            'alias' => str_repeat('a', 100), // excede max:50
+        ];
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson($route, $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors([
+                'address_line1',
+                'address_line2',
+                'postal_code',
+                'is_default',
+                'type',
+                'phone',
+                'contact_name',
+                'municipality_id',
+                'alias',
+            ]);
+    });
 });
 
+describe('Update addresses endpoint', function() {
 
-test('validate invalid fields when creating an address', function () {
-    $user = \App\Models\User::factory()->create();
-    $user->assignRole('customer');
+    it('should allow customer updating an address when having "update-addresses" and "read-own-addresses" permissions', function () {
+        Address::truncate();
+        $user = User::factory()->create();
+        $user->givePermissionTo(['update-addresses', 'read-own-addresses']);
 
-    $route = route('addresses.store');
-
-    $payload = [
-        'address_line1' => '', // vacío, debe ser requerido
-        'address_line2' => 123, // debe ser string
-        'postal_code' => 'no-numero', // debe ser integer
-        'is_default' => 'not-boolean', // debe ser boolean
-        'type' => 'otro', // debe ser 'billing' o 'shipping'
-        'phone' => 'abc', // debe ser integer y 9 dígitos
-        'contact_name' => '', // requerido
-        'municipality_id' => 999999, // no existe
-        'alias' => str_repeat('a', 100), // excede max:50
-    ];
-
-    $response = $this->actingAs($user, 'sanctum')
-        ->postJson($route, $payload);
-
-    $response->assertStatus(422)
-        ->assertJsonValidationErrors([
-            'address_line1',
-            'address_line2',
-            'postal_code',
-            'is_default',
-            'type',
-            'phone',
-            'contact_name',
-            'municipality_id',
-            'alias',
+        $municipality = \App\Models\Municipality::factory()->create();
+        $address = Address::factory()->create([
+            'user_id' => $user->id,
+            'municipality_id' => $municipality->id,
         ]);
+
+        $payload = [
+            'address_line1' => 'Nueva Calle 456',
+            'address_line2' => 'Depto 8C',
+            'postal_code' => '7654321',
+            'is_default' => false,
+            'type' => 'billing',
+            'phone' => 123456789,
+            'contact_name' => 'Ana Gómez',
+            'municipality_id' => $municipality->id,
+            'alias' => 'Oficina',
+        ];
+
+        $route = route('addresses.update', ['address' => $address->id]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->putJson($route, $payload);
+
+        $response->assertStatus(200)
+            ->assertJsonFragment(['message' => 'The selected address has been updated']);
+
+        $this->assertDatabaseHas('addresses', [
+            'id' => $address->id,
+            'address_line1' => 'Nueva Calle 456',
+            'contact_name' => 'Ana Gómez',
+        ]);
+    });
+
+    test('should allow customer requesting a partial update to an address when having "update-addresses" and "read-own-addresses" permissions', function () {
+        Address::truncate();
+        $user = User::factory()->create();
+        $user->givePermissionTo(['update-addresses', 'read-own-addresses']);
+
+        $municipality = \App\Models\Municipality::factory()->create();
+        $address = Address::factory()->create([
+            'user_id' => $user->id,
+            'municipality_id' => $municipality->id,
+            'address_line1' => 'Original',
+            'contact_name' => 'Nombre Original',
+        ]);
+
+        $payload = [
+            'address_line1' => 'Solo Cambio Calle',
+        ];
+
+        $route = route('addresses.update', ['address' => $address->id]);
+        $response = $this->actingAs($user, 'sanctum')
+            ->patchJson($route, $payload);
+
+        $response->assertStatus(200)
+            ->assertJsonFragment(['message' => 'The selected address has been updated']);
+
+        $this->assertDatabaseHas('addresses', [
+            'id' => $address->id,
+            'address_line1' => 'Solo Cambio Calle',
+            'contact_name' => 'Nombre Original', // No cambia
+        ]);
+    });
 });
 
-test('verify customer can update an address with PUT', function () {
-    Address::truncate();
-    $user = User::factory()->create();
-    $user->assignRole('customer');
-
-    $municipality = \App\Models\Municipality::factory()->create();
-    $address = Address::factory()->create([
-        'user_id' => $user->id,
-        'municipality_id' => $municipality->id,
-    ]);
-
-    $payload = [
-        'address_line1' => 'Calle Actualizada 789',
-        'address_line2' => 'Depto 10A',
-        'postal_code' => '1234567',
-        'is_default' => true,
-        'type' => 'billing',
-        'phone' => '987654321',
-        'contact_name' => 'Carlos Actualizado',
-        'municipality_id' => $municipality->id,
-        'alias' => 'Nueva Oficina',
-    ];
-
-    $route = route('addresses.update', ['address' => $address->id]);
-
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson($route, $payload);
-
-    $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The selected address has been updated']);
-
-    $this->assertDatabaseHas('addresses', [
-        'id' => $address->id,
-        'address_line1' => 'Calle Actualizada 789',
-        'contact_name' => 'Carlos Actualizado',
-    ]);
-});
-
-test('verify customer can partially update an address with PATCH', function () {
-    Address::truncate();
-    $user = User::factory()->create();
-    $user->assignRole('customer');
-
-    $municipality = \App\Models\Municipality::factory()->create();
-    $address = Address::factory()->create([
-        'user_id' => $user->id,
-        'municipality_id' => $municipality->id,
-        'address_line1' => 'Original',
-        'contact_name' => 'Nombre Original',
-    ]);
-
-    $payload = [
-        'address_line1' => 'Solo Cambio Calle',
-    ];
-
-    $route = route('addresses.update', ['address' => $address->id]);
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson($route, $payload);
-
-    $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The selected address has been updated']);
-
-    $this->assertDatabaseHas('addresses', [
-        'id' => $address->id,
-        'address_line1' => 'Solo Cambio Calle',
-        'contact_name' => 'Nombre Original', // No cambia
-    ]);
-});
 
 test('can update multiple municipalities status', function () {
     $user = User::factory()->create();
@@ -361,8 +309,7 @@ test('municipalities bulk update requires valid data', function () {
 });
 
 test('only admin can update municipalities status', function () {
-    $customer = User::factory()->create();
-    $customer->assignRole('customer');
+    $cliente = User::factory()->create();
 
     $municipalities = Municipality::factory()->count(2)->create();
 

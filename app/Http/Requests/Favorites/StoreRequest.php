@@ -11,7 +11,7 @@ class StoreRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->checkFavoriteListsOwnership();
+        return true;
     }
 
     /**
@@ -32,18 +32,5 @@ class StoreRequest extends FormRequest
             ],
         ];
     }
-
-    public function checkFavoriteListsOwnership(): bool
-    {
-        if (!$this->has('favorite_list_id')) return false;
-
-        $favoriteListId = $this->input('favorite_list_id');
-        $userId = $this->user()->id;
-
-        return \App\Models\FavoriteList::where('id', $favoriteListId)
-            ->where('user_id', $userId)
-            ->exists();
-    }
-
 
 }

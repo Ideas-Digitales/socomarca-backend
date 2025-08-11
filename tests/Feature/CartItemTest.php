@@ -41,7 +41,7 @@ beforeEach(function () {
     ]);
 });
 
-test('puede agregar un item al carrito', function () {
+test('can add an item to cart', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -74,7 +74,7 @@ test('puede agregar un item al carrito', function () {
     ]);
 });
 
-test('puede incrementar cantidad si item ya existe en carrito', function () {
+test('can increment quantity if item already exists in cart', function () {
 
     //Clear cart items
     CartItem::where('user_id', $this->user->id)->delete();
@@ -113,7 +113,7 @@ test('puede incrementar cantidad si item ya existe en carrito', function () {
         ->count())->toBe(1);
 });
 
-test('falla al agregar item sin product_id', function () {
+test('fails to add item without product_id', function () {
     // Arrange
     $data = [
         'quantity' => 2,
@@ -128,7 +128,7 @@ test('falla al agregar item sin product_id', function () {
         ->assertJsonValidationErrors(['product_id']);
 });
 
-test('falla al agregar item con product_id inexistente', function () {
+test('fails to add item with non-existent product_id', function () {
     // Arrange
     $data = [
         'product_id' => 99999,
@@ -144,7 +144,7 @@ test('falla al agregar item con product_id inexistente', function () {
         ->assertJsonValidationErrors(['product_id']);
 });
 
-test('falla al agregar item sin quantity', function () {
+test('fails to add item without quantity', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -159,7 +159,7 @@ test('falla al agregar item sin quantity', function () {
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al agregar item con quantity menor a 1', function () {
+test('fails to add item with quantity less than 1', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -175,7 +175,7 @@ test('falla al agregar item con quantity menor a 1', function () {
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al agregar item con quantity mayor a 99', function () {
+test('fails to add item with quantity greater than 99', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -191,7 +191,7 @@ test('falla al agregar item con quantity mayor a 99', function () {
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al agregar item sin unit', function () {
+test('fails to add item without unit', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -206,7 +206,7 @@ test('falla al agregar item sin unit', function () {
         ->assertJsonValidationErrors(['unit']);
 });
 
-test('puede eliminar cantidad parcial de item del carrito', function () {
+test('can remove partial quantity of item from cart', function () {
     // Arrange
     CartItem::create([
         'user_id' => $this->user->id,
@@ -238,7 +238,7 @@ test('puede eliminar cantidad parcial de item del carrito', function () {
     ]);
 });
 
-test('puede eliminar item completo del carrito cuando quantity llega a cero', function () {
+test('can remove complete item from cart when quantity reaches zero', function () {
     // Arrange
     CartItem::create([
         'user_id' => $this->user->id,
@@ -269,7 +269,7 @@ test('puede eliminar item completo del carrito cuando quantity llega a cero', fu
     ]);
 });
 
-test('retorna mensaje cuando item no existe para eliminar', function () {
+test('returns message when item does not exist for removal', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -287,7 +287,7 @@ test('retorna mensaje cuando item no existe para eliminar', function () {
         ]);
 });
 
-test('falla al eliminar mas cantidad de la disponible', function () {
+test('fails to remove more quantity than available', function () {
     // Arrange
     CartItem::create([
         'user_id' => $this->user->id,
@@ -310,7 +310,7 @@ test('falla al eliminar mas cantidad de la disponible', function () {
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al eliminar item sin product_id', function () {
+test('fails to remove item without product_id', function () {
     // Arrange
     $data = [
         'quantity' => 1,
@@ -325,7 +325,7 @@ test('falla al eliminar item sin product_id', function () {
         ->assertJsonValidationErrors(['product_id']);
 });
 
-test('falla al eliminar item sin unit', function () {
+test('fails to remove item without unit', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -340,7 +340,7 @@ test('falla al eliminar item sin unit', function () {
         ->assertJsonValidationErrors(['unit']);
 });
 
-test('falla al eliminar item sin quantity', function () {
+test('fails to remove item without quantity', function () {
     // Arrange
     $data = [
         'product_id' => $this->product->id,
@@ -355,7 +355,7 @@ test('falla al eliminar item sin quantity', function () {
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('usuarios diferentes no pueden ver items de otros carritos', function () {
+test('different users cannot see items from other carts', function () {
     // Arrange
     $otherUser = User::factory()->create();
     $otherUser->assignRole('customer');
@@ -403,7 +403,7 @@ test('usuarios diferentes no pueden ver items de otros carritos', function () {
     ]);
 });
 
-test('puede manejar diferentes unidades del mismo producto', function () {
+test('can handle different units of the same product', function () {
     // Arrange
     Price::factory()->create([
         'product_id' => $this->product->id,
@@ -454,7 +454,7 @@ test('puede manejar diferentes unidades del mismo producto', function () {
         ->count())->toBe(2);
 });
 
-test('requiere autenticacion para agregar items', function () {
+test('requires authentication to add items', function () {
     // Arrange
     $this->app['auth']->forgetUser();
 
@@ -471,7 +471,7 @@ test('requiere autenticacion para agregar items', function () {
     $response->assertStatus(401);
 });
 
-test('requiere autenticacion para eliminar items', function () {
+test('requires authentication to remove items', function () {
     // Arrange
     $this->app['auth']->forgetUser();
 
@@ -488,7 +488,7 @@ test('requiere autenticacion para eliminar items', function () {
     $response->assertStatus(401);
 });
 
-test('vaciar su carrito', function () {
+test('can empty their cart', function () {
 
     \App\Models\CartItem::truncate();
 
@@ -525,7 +525,7 @@ test('vaciar su carrito', function () {
     ]);
 });
 
-test('customer no puede vaciar carros de otros', function () {
+test('customer cannot empty other users carts', function () {
 
     $userA = \App\Models\User::factory()->create();
     $userA->assignRole('customer');
@@ -559,7 +559,7 @@ test('customer no puede vaciar carros de otros', function () {
     ]);
 });
 
-test('puede agregar productos de una orden al carrito vacío', function () {
+test('can add products from an order to empty cart', function () {
     // Arrange
     CartItem::where('user_id', $this->user->id)->delete();
 
@@ -625,7 +625,7 @@ test('puede agregar productos de una orden al carrito vacío', function () {
     ]);
 });
 
-test('puede sumar cantidades cuando el producto ya existe en el carrito', function () {
+test('can sum quantities when product already exists in cart', function () {
     // Arrange
     CartItem::where('user_id', $this->user->id)->delete();
 
@@ -675,7 +675,7 @@ test('puede sumar cantidades cuando el producto ya existe en el carrito', functi
         ->count())->toBe(1);
 });
 
-test('puede manejar productos existentes y nuevos en la misma operación', function () {
+test('can handle existing and new products in same operation', function () {
     // Arrange
     CartItem::where('user_id', $this->user->id)->delete();
 
@@ -748,7 +748,7 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
     ]);
 });
 
-test('falla al agregar orden sin order_id', function () {
+test('fails to add order without order_id', function () {
     // Act
     $response = $this->postJson('/api/cart/add-order', []);
 
@@ -757,7 +757,7 @@ test('falla al agregar orden sin order_id', function () {
         ->assertJsonValidationErrors(['order_id']);
 });
 
-test('falla al agregar orden con order_id inexistente', function () {
+test('fails to add order with non-existent order_id', function () {
     // Act
     $response = $this->postJson('/api/cart/add-order', [
         'order_id' => 99999
@@ -768,7 +768,7 @@ test('falla al agregar orden con order_id inexistente', function () {
         ->assertJsonValidationErrors(['order_id']);
 });
 
-test('falla al agregar orden que no pertenece al usuario', function () {
+test('fails to add order that does not belong to user', function () {
     // Arrange
     $otherUser = User::factory()->create();
     $otherUser->assignRole('customer');
@@ -786,7 +786,7 @@ test('falla al agregar orden que no pertenece al usuario', function () {
     $response->assertStatus(403);
 });
 
-test('requiere autenticación para agregar orden al carrito', function () {
+test('requires authentication to add order to cart', function () {
     // Arrange
     $this->app['auth']->forgetUser();
 
@@ -804,7 +804,7 @@ test('requiere autenticación para agregar orden al carrito', function () {
     $response->assertStatus(401);
 });
 
-test('maneja orden sin items correctamente', function () {
+test('handles order without items correctly', function () {
     // Arrange
     $order = Order::factory()->create([
         'user_id' => $this->user->id,
@@ -825,7 +825,7 @@ test('maneja orden sin items correctamente', function () {
         ]);
 });
 
-test('respeta diferentes unidades del mismo producto de la orden', function () {
+test('respects different units of same product from order', function () {
     // Arrange
     CartItem::where('user_id', $this->user->id)->delete();
 
