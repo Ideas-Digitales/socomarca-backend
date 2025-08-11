@@ -153,7 +153,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('store', 'can:create,App\Models\Favorite')
         ->middlewareFor('destroy', 'can:delete,favorite');
 
-    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart');
+    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart')->name('cart.index');
     Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty')->middleware('permission:delete-cart');
     Route::post('/cart/add-order', [CartController::class, 'addOrderToCart'])->middleware('permission:create-orders');
     Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('permission:create-cart-items');

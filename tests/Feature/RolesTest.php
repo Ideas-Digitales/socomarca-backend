@@ -9,18 +9,18 @@ beforeEach(function () {
     Role::firstOrCreate(['name' => 'customer']);
     Role::firstOrCreate(['name' => 'supervisor']);
     Role::firstOrCreate(['name' => 'editor']);
-    
+
     // Crear permisos relevantes para testing
     Permission::firstOrCreate(['name' => 'read-all-roles']);
     Permission::firstOrCreate(['name' => 'read-user-roles']);
     Permission::firstOrCreate(['name' => 'see-all-reports']);
     Permission::firstOrCreate(['name' => 'manage-users']);
     Permission::firstOrCreate(['name' => 'see-own-purchases']);
-    
+
     // Asignar permisos a roles
     $superadmin = Role::findByName('superadmin');
     $admin = Role::findByName('admin');
-    
+
     $superadmin->givePermissionTo(['read-all-roles', 'read-user-roles']);
     $admin->givePermissionTo(['read-user-roles']);
 });
@@ -143,7 +143,7 @@ test('unauthenticated user cannot access roles with users', function () {
 test('superadmin can access user roles with read-user-roles permission', function () {
     $superadmin = User::factory()->create();
     $superadmin->assignRole('superadmin');
-    
+
     $targetUser = User::factory()->create();
     $targetUser->assignRole('customer');
 
@@ -156,7 +156,7 @@ test('superadmin can access user roles with read-user-roles permission', functio
 test('admin can access user roles with read-user-roles permission', function () {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
-    
+
     $targetUser = User::factory()->create();
     $targetUser->assignRole('customer');
 
@@ -169,7 +169,7 @@ test('admin can access user roles with read-user-roles permission', function () 
 test('supervisor cannot access user roles without permission', function () {
     $supervisor = User::factory()->create();
     $supervisor->assignRole('supervisor');
-    
+
     $targetUser = User::factory()->create();
     $targetUser->assignRole('customer');
 
@@ -182,7 +182,7 @@ test('supervisor cannot access user roles without permission', function () {
 test('editor cannot access user roles without permission', function () {
     $editor = User::factory()->create();
     $editor->assignRole('editor');
-    
+
     $targetUser = User::factory()->create();
     $targetUser->assignRole('customer');
 
@@ -195,7 +195,7 @@ test('editor cannot access user roles without permission', function () {
 test('customer cannot access user roles without permission', function () {
     $customer = User::factory()->create();
     $customer->assignRole('customer');
-    
+
     $targetUser = User::factory()->create();
     $targetUser->assignRole('customer');
 
@@ -207,7 +207,7 @@ test('customer cannot access user roles without permission', function () {
 
 test('unauthenticated user cannot access user roles', function () {
     $targetUser = User::factory()->create();
-    
+
     $response = $this->getJson("/api/roles/{$targetUser->id}");
 
     $response->assertStatus(401);
@@ -235,7 +235,7 @@ test('roles index returns correct data structure', function () {
     // Verificar que devuelve al menos los roles básicos
     $data = $response->json();
     $roleNames = array_column($data, 'name');
-    
+
     expect($roleNames)->toContain('admin');
     expect($roleNames)->toContain('customer');
     expect($roleNames)->toContain('superadmin');
@@ -246,7 +246,7 @@ test('roles index returns correct data structure', function () {
 test('roles with users returns correct data structure', function () {
     $superadmin = User::factory()->create();
     $superadmin->assignRole('superadmin');
-    
+
     // Crear usuario con rol para verificar estructura
     $testUser = User::factory()->create();
     $testUser->assignRole('customer');
@@ -272,7 +272,7 @@ test('roles with users returns correct data structure', function () {
 test('user roles returns correct data structure', function () {
     $superadmin = User::factory()->create();
     $superadmin->assignRole('superadmin');
-    
+
     $targetUser = User::factory()->create();
     $targetUser->assignRole('customer');
 
@@ -288,7 +288,7 @@ test('user roles returns correct data structure', function () {
         ])
         ->assertJsonPath('user_id', $targetUser->id)
         ->assertJsonPath('user_name', $targetUser->name);
-        
+
     $data = $response->json();
     expect($data['roles'])->toBeArray();
     expect($data['permissions'])->toBeArray();

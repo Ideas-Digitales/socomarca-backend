@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
-    $this->user->assignRole('cliente');
+    $this->user->assignRole('customer');
     $this->actingAs($this->user);
 });
 
@@ -67,7 +67,7 @@ describe('OrderController', function () {
 
             // Crear órdenes de otro usuario para verificar que no se incluyan
             $otherUser = User::factory()->create();
-            $otherUser->assignRole('cliente');
+            $otherUser->assignRole('customer');
             Order::factory()->count(2)->create([
                 'user_id' => $otherUser->id
             ]);
@@ -195,7 +195,7 @@ describe('OrderController', function () {
             // Arrange
             createProductCart();
             $otroUsuario = User::factory()->create();
-            $otroUsuario->assignRole('cliente');
+            $otroUsuario->assignRole('customer');
             $address = Address::factory()->create([
                 'user_id' => $otroUsuario->id
             ]);
