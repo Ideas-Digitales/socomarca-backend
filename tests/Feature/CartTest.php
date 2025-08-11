@@ -9,9 +9,9 @@ use App\Models\Subcategory;
 use App\Models\User;
 
 beforeEach(function () {
-    // Crear usuario autenticado con permisos de cliente
+    // Crear usuario autenticado con permisos de customer
     $this->user = User::factory()->create();
-    $this->user->assignRole('cliente');
+    $this->user->assignRole('customer');
     $this->actingAs($this->user, 'sanctum');
 
     // Crear datos necesarios para los productos
@@ -49,7 +49,7 @@ test('puede ver su carrito', function () {
     ]);
 
     // Act
-    $response = $this->getJson('/api/cart');
+    $response = $this->getJson(route('cart.index'));
 
     // Assert
     $response->assertOk();
@@ -68,7 +68,7 @@ test('requiere autenticación para ver el carrito', function () {
     $this->app['auth']->forgetUser();
 
     // Act
-    $response = $this->getJson('/api/cart');
+    $response = $this->getJson(route('cart.index'));
 
     // Assert
     $response->assertUnauthorized();
@@ -80,7 +80,7 @@ test('requiere permisos para ver el carrito', function () {
     $this->actingAs($userWithoutPermissions, 'sanctum');
 
     // Act
-    $response = $this->getJson('/api/cart');
+    $response = $this->getJson(route('cart.index'));
 
     // Assert
     $response->assertForbidden();
@@ -89,7 +89,7 @@ test('requiere permisos para ver el carrito', function () {
 test('solo muestra items del carrito del usuario autenticado', function () {
     // Arrange
     $otherUser = User::factory()->create();
-    $otherUser->assignRole('cliente');
+    $otherUser->assignRole('customer');
 
     CartItem::create([
         'user_id' => $this->user->id,
@@ -106,7 +106,7 @@ test('solo muestra items del carrito del usuario autenticado', function () {
     ]);
 
     // Act
-    $response = $this->getJson('/api/cart');
+    $response = $this->getJson(route('cart.index'));
 
     // Assert
     $response->assertOk()

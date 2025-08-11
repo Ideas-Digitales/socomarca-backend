@@ -142,7 +142,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 "see-all-products",
                 "edit-content"
             ],
-            'cliente' => [
+            'customer' => [
                 "see-own-addresses",
                 "store-address",
                 "update-address",
@@ -196,10 +196,10 @@ class RolesAndPermissionsSeeder extends Seeder
             $editor->assignRole('editor');
         }
 
-        $cliente = User::find(5);
-        if ($cliente) {
-            $cliente->assignRole('cliente');
-            $cliente->givePermissionTo([
+        $customer = User::find(5);
+        if ($customer) {
+            $customer->assignRole('customer');
+            $customer->givePermissionTo([
                 "store-address",
                 "update-address",
                 "delete-address",

@@ -105,7 +105,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/favorites', [FavoriteController::class, 'store'])->name('favorites.store');
     Route::delete('/favorites/{id}', [FavoriteController::class, 'destroy'])->name('favorites.destroy');
 
-    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart');
+    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart')->name('cart.index');
     Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty')->middleware('permission:delete-cart');
     Route::post('/cart/add-order', [CartController::class, 'addOrderToCart'])->middleware('permission:create-orders');
     Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('permission:create-cart-items');

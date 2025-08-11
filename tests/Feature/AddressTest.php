@@ -31,7 +31,7 @@ test('verify user address list', function ()
         )
             ->create();
 
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $route = route('addresses.index');
     $this->actingAs($user, 'sanctum')
@@ -53,7 +53,7 @@ test('verify customer cannot see other users addresses', function ()
             ->create();
     $address = $user->addresses()->first();
 
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $user2 = User::factory()->create();
 
@@ -71,7 +71,7 @@ test('verify address not found', function ()
 {
     Address::truncate();
     $user = User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $route = route('addresses.show', ['address' => 2]);
     $this->actingAs($user, 'sanctum')
@@ -82,7 +82,7 @@ test('verify address not found', function ()
 test('verify customer can add a new address', function () {
     Address::truncate();
     $user = User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $municipality = \App\Models\Municipality::factory()->create();
 
@@ -140,7 +140,7 @@ test('verify customer can add a new address', function () {
 test('verify customer can update an address', function () {
     Address::truncate();
     $user = User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $municipality = \App\Models\Municipality::factory()->create();
     $address = Address::factory()->create([
@@ -177,7 +177,7 @@ test('verify customer can update an address', function () {
 
 test('validate required fields when creating an address', function () {
     $user = \App\Models\User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $route = route('addresses.store');
 
@@ -202,7 +202,7 @@ test('validate required fields when creating an address', function () {
 
 test('validate invalid fields when creating an address', function () {
     $user = \App\Models\User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $route = route('addresses.store');
 
@@ -238,7 +238,7 @@ test('validate invalid fields when creating an address', function () {
 test('verify customer can update an address with PUT', function () {
     Address::truncate();
     $user = User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $municipality = \App\Models\Municipality::factory()->create();
     $address = Address::factory()->create([
@@ -276,7 +276,7 @@ test('verify customer can update an address with PUT', function () {
 test('verify customer can partially update an address with PATCH', function () {
     Address::truncate();
     $user = User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $municipality = \App\Models\Municipality::factory()->create();
     $address = Address::factory()->create([
@@ -361,12 +361,12 @@ test('municipalities bulk update requires valid data', function () {
 });
 
 test('only admin can update municipalities status', function () {
-    $cliente = User::factory()->create();
-    $cliente->assignRole('cliente');
+    $customer = User::factory()->create();
+    $customer->assignRole('customer');
 
     $municipalities = Municipality::factory()->count(2)->create();
 
-    $response = $this->actingAs($cliente, 'sanctum')
+    $response = $this->actingAs($customer, 'sanctum')
         ->patchJson('/api/municipalities/status', [
             'municipality_ids' => $municipalities->pluck('id')->toArray(),
             'status' => true

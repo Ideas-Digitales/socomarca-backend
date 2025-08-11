@@ -6,7 +6,7 @@ use Spatie\Permission\Models\Permission;
 beforeEach(function () {
     Role::firstOrCreate(['name' => 'admin']);
     Role::firstOrCreate(['name' => 'superadmin']);
-    Role::firstOrCreate(['name' => 'cliente']);
+    Role::firstOrCreate(['name' => 'customer']);
     Role::firstOrCreate(['name' => 'supervisor']);
     Role::firstOrCreate(['name' => 'editor']);
     
@@ -38,7 +38,7 @@ test('admin and superadmin can list roles and permissions', function () {
 
 test('other users cannot list roles and permissions', function () {
     $user = User::factory()->create();
-    $user->assignRole('cliente'); 
+    $user->assignRole('customer'); 
 
     $route = '/api/roles/users';
 
@@ -70,7 +70,7 @@ test('admin can get all roles without pagination', function () {
     $roleNames = array_column($data, 'name');
     
     expect($roleNames)->toContain('admin');
-    expect($roleNames)->toContain('cliente');
+    expect($roleNames)->toContain('customer');
     expect($roleNames)->toContain('superadmin');
 });
 
@@ -102,7 +102,7 @@ test('superadmin can get all roles without pagination', function () {
 
 test('non-admin users cannot get roles list', function () {
     $user = User::factory()->create();
-    $user->assignRole('cliente');
+    $user->assignRole('customer');
 
     $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles');
