@@ -167,6 +167,12 @@ return [
         'attribute-name' => [
             'rule-name' => 'mensaje-personalizado',
         ],
+        'sync_file' => [
+        'max' => 'El archivo no puede ser mayor a :max MB.',
+        'required' => 'El archivo es requerido.',
+        'file' => 'Debe ser un archivo válido.',
+        'mimes' => 'El archivo debe ser de tipo ZIP.',
+        ],
     ],
 
     /*
@@ -230,6 +236,7 @@ return [
         'stock' => 'stock',
         'subcategory_id' => 'id subcategoría',
         'subtotal' => 'subtotal',
+        'sync_file' => 'archivo sincronización',
         'token' => 'token',
         'type' => 'tipo',
         'unit' => 'unidad',

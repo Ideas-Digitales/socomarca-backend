@@ -121,6 +121,22 @@ docker compose exec workcontainer php artisan test tests/Feature/SyncProductInte
 docker compose exec workcontainer php artisan test tests/Feature/SyncProductMonitoringTest.php --env=testing --filter="registra logs correctos" 
 ```
 
+# Lolcalstack S3
 
+### Crear el bucket
 
+instalar awscli2
+
+con el comando aws crea el bucket
+```bash
+aws --endpoint-url=http://localhost:4566/ s3 mb s3://socomarca-bucket
+```
+listar los bucket
+```bash
+aws --endpoint-url=http://localhost:4566/ s3 ls
+```
+listar el contenido 
+```bash
+ aws --endpoint-url=http://localhost:4566/ s3 ls s3://socomarca-bucket/products/
+```
 

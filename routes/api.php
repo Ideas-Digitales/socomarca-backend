@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SiteinfoController;
 use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
+use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -122,6 +123,12 @@ Route::middleware('auth:sanctum')->group(function () {
         ->parameters(['subcategories' => 'subcategory'])
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
+
+    
+    Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
+        ->middleware(['permission:sync-product-images'])
+        ->name('products.image.sync');
+    
 
     Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
         ->name('products.price-extremes')
@@ -234,16 +241,20 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/siteinfo', [SiteinfoController::class, 'update'])->name('siteinfo.update');
     Route::put('/terms', [SiteinfoController::class, 'updateTerms'])->name('siteinfo.terms.update');
     Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
-    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
+    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update'); 
 });
 
-// Configuración de precios
+
+
+// Settings
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
+    Route::get('/settings/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings-upload-files.get');
 });
 
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
+    Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
 });
 
 // Ruta catch-all al final
