@@ -19,7 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
-    $this->user->assignRole('customer');
+    $this->user->givePermissionTo(['read-own-orders', 'create-orders', 'update-orders', 'create-cart-items']);
     $this->actingAs($this->user);
 });
 
@@ -67,7 +67,7 @@ describe('OrderController', function () {
 
             // Crear órdenes de otro usuario para verificar que no se incluyan
             $otherUser = User::factory()->create();
-            $otherUser->assignRole('customer');
+            $otherUser->givePermissionTo(['read-own-orders', 'create-orders']);
             Order::factory()->count(2)->create([
                 'user_id' => $otherUser->id
             ]);
@@ -195,7 +195,7 @@ describe('OrderController', function () {
             // Arrange
             createProductCart();
             $otroUsuario = User::factory()->create();
-            $otroUsuario->assignRole('customer');
+            $otroUsuario->givePermissionTo(['read-own-orders', 'create-orders']);
             $address = Address::factory()->create([
                 'user_id' => $otroUsuario->id
             ]);

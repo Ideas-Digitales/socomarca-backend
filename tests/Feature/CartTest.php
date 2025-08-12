@@ -11,7 +11,7 @@ use App\Models\User;
 beforeEach(function () {
     // Crear usuario autenticado con permisos de customer
     $this->user = User::factory()->create();
-    $this->user->assignRole('customer');
+    $this->user->givePermissionTo('read-own-cart');
     $this->actingAs($this->user, 'sanctum');
 
     // Crear datos necesarios para los productos
@@ -74,7 +74,7 @@ test('requires authentication to view cart', function () {
     $response->assertUnauthorized();
 });
 
-test('requires permissions to view cart', function () {
+test('requires "read-own-cart" permission to view cart', function () {
     // Arrange - Usuario sin permisos
     $userWithoutPermissions = User::factory()->create();
     $this->actingAs($userWithoutPermissions, 'sanctum');
@@ -89,7 +89,7 @@ test('requires permissions to view cart', function () {
 test('only shows cart items from authenticated user', function () {
     // Arrange
     $otherUser = User::factory()->create();
-    $otherUser->assignRole('customer');
+    $otherUser->givePermissionTo('read-own-cart');
 
     CartItem::create([
         'user_id' => $this->user->id,

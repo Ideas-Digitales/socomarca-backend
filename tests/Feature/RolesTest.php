@@ -26,19 +26,18 @@ beforeEach(function () {
 });
 
 // Tests para ruta GET /api/roles - Requiere permiso 'read-all-roles'
-test('superadmin can access roles index with read-all-roles permission', function () {
-    $superadmin = User::factory()->create();
-    $superadmin->assignRole('superadmin');
+test('user with "read-all-roles" permission can access roles index', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('read-all-roles');
 
-    $response = $this->actingAs($superadmin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles');
 
     $response->assertStatus(200);
 });
 
-test('other users cannot list roles and permissions', function () {
+test('users without "read-user-roles" permission cannot list roles and permissions', function () {
     $user = User::factory()->create();
-    $user->assignRole('customer'); 
 
     $route = '/api/roles/users';
 
@@ -47,45 +46,16 @@ test('other users cannot list roles and permissions', function () {
         ->assertStatus(403); 
 });
 
-test('admin cannot access roles index without read-all-roles permission', function () {
-    $admin = User::factory()->create();
-    $admin->assignRole('admin');
+test('users without "read-all-roles" permission cannot access roles index', function () {
+    $user = User::factory()->create();
+    // User has no permissions
 
-    $response = $this->actingAs($admin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles');
 
     $response->assertStatus(403);
 });
 
-test('supervisor cannot access roles index', function () {
-    $supervisor = User::factory()->create();
-    $supervisor->assignRole('supervisor');
-
-    $response = $this->actingAs($supervisor, 'sanctum')
-        ->getJson('/api/roles');
-
-    $response->assertStatus(403);
-});
-
-test('editor cannot access roles index', function () {
-    $editor = User::factory()->create();
-    $editor->assignRole('editor');
-
-    $response = $this->actingAs($editor, 'sanctum')
-        ->getJson('/api/roles');
-
-    $response->assertStatus(403);
-});
-
-test('customer cannot access roles index', function () {
-    $customer = User::factory()->create();
-    $customer->assignRole('customer');
-
-    $response = $this->actingAs($customer, 'sanctum')
-        ->getJson('/api/roles');
-
-    $response->assertStatus(403);
-});
 
 test('unauthenticated user cannot access roles index', function () {
     $response = $this->getJson('/api/roles');
@@ -94,51 +64,21 @@ test('unauthenticated user cannot access roles index', function () {
 });
 
 // Tests para ruta GET /api/roles/users - Requiere permiso 'read-user-roles'
-test('superadmin can access roles with users with read-user-roles permission', function () {
-    $superadmin = User::factory()->create();
-    $superadmin->assignRole('superadmin');
+test('users with "read-user-roles" permission can access roles with users', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('read-user-roles');
 
-    $response = $this->actingAs($superadmin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles/users');
 
     $response->assertStatus(200);
 });
 
-test('admin can access roles with users with read-user-roles permission', function () {
-    $admin = User::factory()->create();
-    $admin->assignRole('admin');
+test('users without "read-user-roles" permission cannot access roles with users', function () {
+    $user = User::factory()->create();
+    // User has no permissions
 
-    $response = $this->actingAs($admin, 'sanctum')
-        ->getJson('/api/roles/users');
-
-    $response->assertStatus(200);
-});
-
-test('supervisor cannot access roles with users without permission', function () {
-    $supervisor = User::factory()->create();
-    $supervisor->assignRole('supervisor');
-
-    $response = $this->actingAs($supervisor, 'sanctum')
-        ->getJson('/api/roles/users');
-
-    $response->assertStatus(403);
-});
-
-test('editor cannot access roles with users without permission', function () {
-    $editor = User::factory()->create();
-    $editor->assignRole('editor');
-
-    $response = $this->actingAs($editor, 'sanctum')
-        ->getJson('/api/roles/users');
-
-    $response->assertStatus(403);
-});
-
-test('customer cannot access roles with users without permission', function () {
-    $customer = User::factory()->create();
-    $customer->assignRole('customer');
-
-    $response = $this->actingAs($customer, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles/users');
 
     $response->assertStatus(403);
@@ -151,66 +91,25 @@ test('unauthenticated user cannot access roles with users', function () {
 });
 
 // Tests para ruta GET /api/roles/{user} - Requiere permiso 'read-user-roles'
-test('superadmin can access user roles with read-user-roles permission', function () {
-    $superadmin = User::factory()->create();
-    $superadmin->assignRole('superadmin');
+test('users with "read-user-roles" permission can access user roles', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo('read-user-roles');
     
     $targetUser = User::factory()->create();
-    $targetUser->assignRole('customer');
 
-    $response = $this->actingAs($superadmin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson("/api/roles/{$targetUser->id}");
 
     $response->assertStatus(200);
 });
 
-test('admin can access user roles with read-user-roles permission', function () {
-    $admin = User::factory()->create();
-    $admin->assignRole('admin');
+test('users without "read-user-roles" permission cannot access user roles', function () {
+    $user = User::factory()->create();
+    // User has no permissions
     
     $targetUser = User::factory()->create();
-    $targetUser->assignRole('customer');
 
-    $response = $this->actingAs($admin, 'sanctum')
-        ->getJson("/api/roles/{$targetUser->id}");
-
-    $response->assertStatus(200);
-});
-
-test('supervisor cannot access user roles without permission', function () {
-    $supervisor = User::factory()->create();
-    $supervisor->assignRole('supervisor');
-    
-    $targetUser = User::factory()->create();
-    $targetUser->assignRole('customer');
-
-    $response = $this->actingAs($supervisor, 'sanctum')
-        ->getJson("/api/roles/{$targetUser->id}");
-
-    $response->assertStatus(403);
-});
-
-test('editor cannot access user roles without permission', function () {
-    $editor = User::factory()->create();
-    $editor->assignRole('editor');
-    
-    $targetUser = User::factory()->create();
-    $targetUser->assignRole('customer');
-
-    $response = $this->actingAs($editor, 'sanctum')
-        ->getJson("/api/roles/{$targetUser->id}");
-
-    $response->assertStatus(403);
-});
-
-test('customer cannot access user roles without permission', function () {
-    $customer = User::factory()->create();
-    $customer->assignRole('customer');
-    
-    $targetUser = User::factory()->create();
-    $targetUser->assignRole('customer');
-
-    $response = $this->actingAs($customer, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson("/api/roles/{$targetUser->id}");
 
     $response->assertStatus(403);
@@ -226,10 +125,10 @@ test('unauthenticated user cannot access user roles', function () {
 
 // Tests de estructura de respuestas
 test('roles index returns correct data structure', function () {
-    $superadmin = User::factory()->create();
-    $superadmin->assignRole('superadmin');
+    $user = User::factory()->create();
+    $user->givePermissionTo('read-all-roles');
 
-    $response = $this->actingAs($superadmin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles');
 
     $response->assertStatus(200)
@@ -255,14 +154,13 @@ test('roles index returns correct data structure', function () {
 });
 
 test('roles with users returns correct data structure', function () {
-    $superadmin = User::factory()->create();
-    $superadmin->assignRole('superadmin');
+    $user = User::factory()->create();
+    $user->givePermissionTo('read-user-roles');
     
     // Crear usuario con rol para verificar estructura
     $testUser = User::factory()->create();
-    $testUser->assignRole('customer');
 
-    $response = $this->actingAs($superadmin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson('/api/roles/users');
 
     $response->assertStatus(200)
@@ -281,13 +179,12 @@ test('roles with users returns correct data structure', function () {
 });
 
 test('user roles returns correct data structure', function () {
-    $superadmin = User::factory()->create();
-    $superadmin->assignRole('superadmin');
+    $user = User::factory()->create();
+    $user->givePermissionTo('read-user-roles');
     
     $targetUser = User::factory()->create();
-    $targetUser->assignRole('customer');
 
-    $response = $this->actingAs($superadmin, 'sanctum')
+    $response = $this->actingAs($user, 'sanctum')
         ->getJson("/api/roles/{$targetUser->id}");
 
     $response->assertStatus(200)

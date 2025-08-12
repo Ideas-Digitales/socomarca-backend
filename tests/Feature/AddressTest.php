@@ -252,9 +252,9 @@ describe('Update addresses endpoint', function() {
 });
 
 
-test('can update multiple municipalities status', function () {
+test('can update multiple municipalities status when having "update-municipalities" permission', function () {
     $user = User::factory()->create();
-    $user->assignRole('admin');
+    $user->givePermissionTo('update-municipalities');
 
     $municipalities = Municipality::factory()->count(3)->create();
 
@@ -274,9 +274,9 @@ test('can update multiple municipalities status', function () {
         ]);
 });
 
-test('can update region and all its municipalities status', function () {
+test('can update region and all its municipalities status when having "update-regions" permission', function () {
     $user = User::factory()->create();
-    $user->assignRole('admin');
+    $user->givePermissionTo('update-regions');
 
     $region = Region::factory()->create();
     $municipalities = Municipality::factory()->count(3)->create([
@@ -297,9 +297,9 @@ test('can update region and all its municipalities status', function () {
         ]);
 });
 
-test('municipalities bulk update requires valid data', function () {
+test('municipalities bulk update requires valid data when having "update-municipalities" permission', function () {
     $user = User::factory()->create();
-    $user->assignRole('admin');
+    $user->givePermissionTo('update-municipalities');
 
     $response = $this->actingAs($user, 'sanctum')
         ->patchJson('/api/municipalities/status', []);
@@ -308,12 +308,12 @@ test('municipalities bulk update requires valid data', function () {
         ->assertJsonValidationErrors(['municipality_ids', 'status']);
 });
 
-test('only admin can update municipalities status', function () {
-    $cliente = User::factory()->create();
+test('only users with "update-municipalities" permission can update municipalities status', function () {
+    $userWithoutPermission = User::factory()->create();
 
     $municipalities = Municipality::factory()->count(2)->create();
 
-    $response = $this->actingAs($customer, 'sanctum')
+    $response = $this->actingAs($userWithoutPermission, 'sanctum')
         ->patchJson('/api/municipalities/status', [
             'municipality_ids' => $municipalities->pluck('id')->toArray(),
             'status' => true
@@ -322,9 +322,9 @@ test('only admin can update municipalities status', function () {
     $response->assertStatus(403);
 });
 
-test('bulk update fails with non-existent municipality ids', function () {
+test('bulk update fails with non-existent municipality ids when having "update-municipalities" permission', function () {
     $user = User::factory()->create();
-    $user->assignRole('admin');
+    $user->givePermissionTo('update-municipalities');
 
     $response = $this->actingAs($user, 'sanctum')
         ->patchJson('/api/municipalities/status', [
@@ -335,9 +335,9 @@ test('bulk update fails with non-existent municipality ids', function () {
     $response->assertStatus(422);
 });
 
-test('region municipalities update fails with non-existent region', function () {
+test('region municipalities update fails with non-existent region when having "update-regions" permission', function () {
     $user = User::factory()->create();
-    $user->assignRole('admin');
+    $user->givePermissionTo('update-regions');
 
     $response = $this->actingAs($user, 'sanctum')
         ->patchJson('/api/regions/999/municipalities/status', [

@@ -13,7 +13,7 @@ use App\Models\OrderItem;
 beforeEach(function () {
     // Crear usuario autenticado con permisos de customer
     $this->user = User::factory()->create();
-    $this->user->assignRole('customer');
+    $this->user->givePermissionTo(['create-cart-items', 'delete-cart-items', 'create-orders']);
     $this->actingAs($this->user, 'sanctum');
 
     // Crear datos necesarios para los productos
@@ -358,7 +358,7 @@ test('fails to remove item without quantity', function () {
 test('different users cannot see items from other carts', function () {
     // Arrange
     $otherUser = User::factory()->create();
-    $otherUser->assignRole('customer');
+    $otherUser->givePermissionTo(['create-cart-items', 'delete-cart-items']);
 
     CartItem::create([
         'user_id' => $this->user->id,
@@ -493,7 +493,7 @@ test('can empty their cart', function () {
     \App\Models\CartItem::truncate();
 
     $user = \App\Models\User::factory()->create();
-    $user->assignRole('customer');
+    $user->givePermissionTo('delete-cart');
 
     $product = \App\Models\Product::factory()->create();
 
@@ -528,10 +528,10 @@ test('can empty their cart', function () {
 test('customer cannot empty other users carts', function () {
 
     $userA = \App\Models\User::factory()->create();
-    $userA->assignRole('customer');
+    $userA->givePermissionTo('delete-cart');
 
     $userB = \App\Models\User::factory()->create();
-    $userB->assignRole('customer');
+    $userB->givePermissionTo('delete-cart');
 
 
     $product = \App\Models\Product::factory()->create();
@@ -771,7 +771,7 @@ test('fails to add order with non-existent order_id', function () {
 test('fails to add order that does not belong to user', function () {
     // Arrange
     $otherUser = User::factory()->create();
-    $otherUser->assignRole('customer');
+    $otherUser->givePermissionTo(['create-orders', 'read-own-orders']);
     $order = Order::factory()->create([
         'user_id' => $otherUser->id,
         'status' => 'completed'
