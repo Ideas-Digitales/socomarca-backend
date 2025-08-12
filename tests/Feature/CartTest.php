@@ -11,7 +11,7 @@ use App\Models\User;
 beforeEach(function () {
     // Crear usuario autenticado con permisos de customer
     $this->user = User::factory()->create();
-    $this->user->assignRole('customer');
+    $this->user->givePermissionTo('read-own-cart');
     $this->actingAs($this->user, 'sanctum');
 
     // Crear datos necesarios para los productos
@@ -39,7 +39,7 @@ beforeEach(function () {
     ]);
 });
 
-test('puede ver su carrito', function () {
+test('can view their own cart', function () {
     // Arrange
     CartItem::create([
         'user_id' => $this->user->id,
@@ -53,7 +53,7 @@ test('puede ver su carrito', function () {
 
     // Assert
     $response->assertOk();
-    
+
     // Should have cart structure
     $data = $response->json();
     expect($data)->toHaveKey('data');
@@ -63,7 +63,7 @@ test('puede ver su carrito', function () {
     expect($data['data']['items'][0]['quantity'])->toBe(2);
 });
 
-test('requiere autenticación para ver el carrito', function () {
+test('requires authentication to view cart', function () {
     // Arrange
     $this->app['auth']->forgetUser();
 
@@ -74,7 +74,7 @@ test('requiere autenticación para ver el carrito', function () {
     $response->assertUnauthorized();
 });
 
-test('requiere permisos para ver el carrito', function () {
+test('requires "read-own-cart" permission to view cart', function () {
     // Arrange - Usuario sin permisos
     $userWithoutPermissions = User::factory()->create();
     $this->actingAs($userWithoutPermissions, 'sanctum');
@@ -86,10 +86,10 @@ test('requiere permisos para ver el carrito', function () {
     $response->assertForbidden();
 });
 
-test('solo muestra items del carrito del usuario autenticado', function () {
+test('only shows cart items from authenticated user', function () {
     // Arrange
     $otherUser = User::factory()->create();
-    $otherUser->assignRole('customer');
+    $otherUser->givePermissionTo('read-own-cart');
 
     CartItem::create([
         'user_id' => $this->user->id,
@@ -111,7 +111,7 @@ test('solo muestra items del carrito del usuario autenticado', function () {
     // Assert
     $response->assertOk()
         ->assertJsonCount(1, 'data.items');
-    
+
     $data = $response->json('data.items');
     expect($data[0]['quantity'])->toBe(2);
 });
