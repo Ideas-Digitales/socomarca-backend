@@ -106,7 +106,7 @@ describe('Product list endpoint', function () {
                     'price' => ['min' => 1000, 'max' => 10000], // Rango obligatorio
                     'category_id' => $category->id,
                     'subcategory_id' => $subcategory->id,
-                    'brand_id' => $brand->id,
+                    'brand_id' => [$brand->id],
                     'name' => 'Estrella', // Búsqueda parcial por nombre
                 ]
             ]);
@@ -228,5 +228,21 @@ describe('Product search endpoint', function () {
 
         $response->assertStatus(422)
                  ->assertJsonValidationErrorFor('filters.price');
+    });
+
+    it('should fail validation if brand_id is not an array', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        $brand = Brand::factory()->create();
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 0, 'max' => 20000],
+                    'brand_id' => $brand->id,
+                ]
+            ]);
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['filters.brand_id']);
     });
 });

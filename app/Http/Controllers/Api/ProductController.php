@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Products\ProductCollection;
 use App\Http\Resources\Products\ProductResource;
+use App\Models\Brand;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -43,7 +44,8 @@ class ProductController extends Controller
             'filters.price.unit' => 'sometimes|string|max:10',
             'filters.category_id' => 'sometimes|integer|exists:categories,id',
             'filters.subcategory_id' => 'sometimes|integer|exists:subcategories,id',
-            'filters.brand_id' => 'sometimes|integer|exists:brands,id',
+            'filters.brand_id' => 'sometimes|array',
+            'filters.brand_id.*' => 'integer|exists:brands,id',
             'filters.name' => 'sometimes|string|max:255',
             'filters.is_favorite' => 'sometimes|boolean',
             'filters.sort' => 'sometimes|string|in:price,stock,category_name,id,name,created_at,updated_at',
