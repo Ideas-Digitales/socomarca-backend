@@ -187,5 +187,7 @@ return [
 
         // FAQ related permissions
         "read-all-faqs",
+        // Siteinfo authorization
+        'read-content-settings',
     ],
 ];
