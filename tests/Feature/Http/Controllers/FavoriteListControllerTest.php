@@ -87,7 +87,7 @@ describe('FavoriteList Endpoints', function() {
         });
     });
 
-    describe('PUT /api/favorites-list/{id}', function () {
+    describe('PUT /api/favorites-list/{favoriteList}', function () {
         it('should successfully update favorite list', function () {
             $user = User::factory()->has(FavoriteList::factory(), 'favoritesList')
                 ->create();
