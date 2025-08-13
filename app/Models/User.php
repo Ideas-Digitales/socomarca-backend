@@ -34,6 +34,7 @@ class User extends Authenticatable
         'is_active',
         'last_login',
         'password_changed_at',
+        'fcm_token',
     ];
 
     /**
@@ -255,5 +256,10 @@ class User extends Authenticatable
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    public function routeNotificationForFcm()
+    {
+        return $this->fcm_token;
     }
 }
