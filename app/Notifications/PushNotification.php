@@ -4,6 +4,7 @@ namespace App\Notifications;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\Fcm\FcmChannel;
 use NotificationChannels\Fcm\FcmMessage;
+use NotificationChannels\Fcm\Resources\Notification as FcmNotification;
 
 class PushNotification extends Notification
 {
@@ -24,13 +25,13 @@ class PushNotification extends Notification
     public function toFcm($notifiable)
     {
         return FcmMessage::create()
-            ->setData([
+            ->data([
                 'title' => $this->title,
                 'body' => $this->body,
             ])
-            ->notification([
-                'title' => $this->title,
-                'body' => $this->body,
-            ]);
+            ->notification(
+                FcmNotification::create($this->title)
+                    ->body($this->body)
+            );
     }
 }

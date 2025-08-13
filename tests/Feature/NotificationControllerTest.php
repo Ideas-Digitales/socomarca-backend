@@ -6,6 +6,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\PushNotification;
 use Kreait\Firebase\Contract\Messaging;
+use Kreait\Firebase\Messaging\MulticastSendReport;
+
 
 
 uses(RefreshDatabase::class);
@@ -14,24 +16,33 @@ beforeEach(function () {
     $this->admin = User::factory()->create();
     $this->admin->givePermissionTo('create-notifications');
 
-    $this->customer1 = User::factory()->create();
-    $this->customer1->fcm_token = 'token1';
+    $this->customer1 = User::factory()->create([
+        'fcm_token' => 'token1',
+        'is_active' => true,
+    ]);
+    
     $this->customer1->assignRole('customer');
     $this->customer1->save(); 
 
-    $this->customer2 = User::factory()->create();
-    $this->customer2->fcm_token = 'token2';
+    $this->customer2 = User::factory()->create([
+        'fcm_token' => 'token2',
+        'is_active' => true,
+    ]);
     $this->customer2->assignRole('customer');
     $this->customer2->save(); 
 
-    $this->customer3 = User::factory()->create();
-    $this->customer3->fcm_token = 'token3';
+    $this->customer3 = User::factory()->create([
+        'fcm_token' => 'token3',
+        'is_active' => true,
+    ]);
     $this->customer3->assignRole('customer');
     $this->customer3->save(); 
 
     $this->mock(Messaging::class, function ($mock) {
         $mock->shouldReceive('send')->andReturn('msg-id-123');
         $mock->shouldReceive('sendAll')->andReturnNull();
+        $report = (new \ReflectionClass(MulticastSendReport::class))->newInstanceWithoutConstructor();
+        $mock->shouldReceive('sendMulticast')->andReturn($report);
     });
 });
 
