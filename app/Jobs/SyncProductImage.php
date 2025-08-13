@@ -158,4 +158,19 @@ class SyncProductImage implements ShouldQueue
             'extractPath' => $extractPath
         ]);
     }
+
+    /**
+     * Se ejecuta automáticamente si el Job falla.
+     */
+    public function failed(\Throwable $exception)
+    {
+        // Elimina el ZIP de S3 si existe
+        if (Storage::disk('s3')->exists($this->zipPath)) {
+            Storage::disk('s3')->delete($this->zipPath);
+        }
+        // Opcional: puedes loguear el error si lo deseas
+        Log::error("SyncProductImage failed. ZIP eliminado de S3: {$this->zipPath}", [
+            'exception' => $exception->getMessage(),
+        ]);
+    }
 }
