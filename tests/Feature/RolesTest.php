@@ -20,7 +20,7 @@ beforeEach(function () {
 });
 
 describe('read-all-roles permission', function () {
-    test('users with read-all-roles permission can access roles index', function () {
+    it('users with read-all-roles permission can access roles index', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-all-roles');
 
@@ -30,7 +30,7 @@ describe('read-all-roles permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users without read-all-roles permission cannot access roles index', function () {
+    it('users without read-all-roles permission cannot access roles index', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -40,13 +40,13 @@ describe('read-all-roles permission', function () {
         $response->assertStatus(403);
     });
 
-    test('unauthenticated users cannot access roles index', function () {
+    it('unauthenticated users cannot access roles index', function () {
         $response = $this->getJson(route('roles.index'));
 
         $response->assertStatus(401);
     });
 
-    test('roles index returns correct data structure for users with permission', function () {
+    it('roles index returns correct data structure for users with permission', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-all-roles');
 
@@ -86,7 +86,7 @@ describe('read-all-roles permission', function () {
 });
 
 describe('read-user-roles permission', function () {
-    test('users with read-user-roles permission can access roles with users', function () {
+    it('users with read-user-roles permission can access roles with users', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-user-roles');
 
@@ -96,7 +96,7 @@ describe('read-user-roles permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users without read-user-roles permission cannot access roles with users', function () {
+    it('users without read-user-roles permission cannot access roles with users', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -106,7 +106,7 @@ describe('read-user-roles permission', function () {
         $response->assertStatus(403);
     });
 
-    test('users with read-user-roles permission can access specific user roles', function () {
+    it('users with read-user-roles permission can access specific user roles', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-user-roles');
         
@@ -119,7 +119,7 @@ describe('read-user-roles permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users without read-user-roles permission cannot access specific user roles', function () {
+    it('users without read-user-roles permission cannot access specific user roles', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
         
@@ -132,7 +132,7 @@ describe('read-user-roles permission', function () {
         $response->assertStatus(403);
     });
 
-    test('roles with users returns correct data structure for users with permission', function () {
+    it('roles with users returns correct data structure for users with permission', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-user-roles');
         
@@ -158,7 +158,7 @@ describe('read-user-roles permission', function () {
             ]);
     });
 
-    test('user roles returns correct data structure for users with permission', function () {
+    it('user roles returns correct data structure for users with permission', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-user-roles');
         
@@ -183,13 +183,13 @@ describe('read-user-roles permission', function () {
         expect($data['permissions'])->toBeArray();
     });
 
-    test('unauthenticated users cannot access roles with users', function () {
+    it('unauthenticated users cannot access roles with users', function () {
         $response = $this->getJson(route('roles.users'));
 
         $response->assertStatus(401);
     });
 
-    test('unauthenticated users cannot access specific user roles', function () {
+    it('unauthenticated users cannot access specific user roles', function () {
         $targetUser = User::factory()->create();
         
         $response = $this->getJson(route('roles.user', $targetUser->id));
@@ -199,7 +199,7 @@ describe('read-user-roles permission', function () {
 });
 
 describe('read-all-reports permission', function () {
-    test('users with read-all-reports permission can access reports dashboard', function () {
+    it('users with read-all-reports permission can access reports dashboard', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-all-reports');
 
@@ -212,7 +212,7 @@ describe('read-all-reports permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users with read-all-reports permission can access reports transactions', function () {
+    it('users with read-all-reports permission can access reports transactions', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-all-reports');
 
@@ -225,7 +225,7 @@ describe('read-all-reports permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users with read-all-reports permission can export reports', function () {
+    it('users with read-all-reports permission can export reports', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-all-reports');
 
@@ -238,7 +238,7 @@ describe('read-all-reports permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users without read-all-reports permission cannot access reports dashboard', function () {
+    it('users without read-all-reports permission cannot access reports dashboard', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -251,7 +251,7 @@ describe('read-all-reports permission', function () {
         $response->assertStatus(403);
     });
 
-    test('users without read-all-reports permission cannot access reports transactions', function () {
+    it('users without read-all-reports permission cannot access reports transactions', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -264,7 +264,7 @@ describe('read-all-reports permission', function () {
         $response->assertStatus(403);
     });
 
-    test('users without read-all-reports permission cannot export reports', function () {
+    it('users without read-all-reports permission cannot export reports', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -277,7 +277,7 @@ describe('read-all-reports permission', function () {
         $response->assertStatus(403);
     });
 
-    test('users without read-all-reports permission cannot access multiple report endpoints', function () {
+    it('users without read-all-reports permission cannot access multiple report endpoints', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -305,7 +305,7 @@ describe('read-all-reports permission', function () {
         }
     });
 
-    test('unauthenticated users cannot access reports', function () {
+    it('unauthenticated users cannot access reports', function () {
         $response = $this->postJson(route('reports.dashboard'), [
             'start_date' => '2024-01-01',
             'end_date' => '2024-12-31'
@@ -316,7 +316,7 @@ describe('read-all-reports permission', function () {
 });
 
 describe('read-all-permissions permission', function () {
-    test('users with read-all-permissions permission can access permissions index', function () {
+    it('users with read-all-permissions permission can access permissions index', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('read-all-permissions');
 
@@ -326,7 +326,7 @@ describe('read-all-permissions permission', function () {
         $response->assertStatus(200);
     });
 
-    test('users without read-all-permissions permission cannot access permissions index', function () {
+    it('users without read-all-permissions permission cannot access permissions index', function () {
         $user = User::factory()->create();
         // No se asigna el permiso
 
@@ -336,7 +336,7 @@ describe('read-all-permissions permission', function () {
         $response->assertStatus(403);
     });
 
-    test('unauthenticated users cannot access permissions index', function () {
+    it('unauthenticated users cannot access permissions index', function () {
         $response = $this->getJson(route('permissions.index'));
 
         $response->assertStatus(401);
