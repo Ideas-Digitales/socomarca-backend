@@ -42,16 +42,7 @@ return [
         'read-all-categories-export',
         'read-customers-export',
 
-        "see-own-purchases",
-        "see-all-reports",
-        "see-all-clients",
-        "see-all-purchases",
-        "edit-products",
-        "edit-content",
-
         // Address related permissions
-        "see-all-addresses",
-        "see-own-addresses",
         "store-address",
         "update-address",
         "delete-address",
@@ -102,16 +93,8 @@ return [
         'read-all-categories-export',
         'read-customers-export',
 
-        "see-own-purchases",
-        "see-all-reports",
-        "see-all-clients",
-        "see-all-purchases",
-        "edit-products",
-        "edit-content",
 
         // Address related permissions
-        "see-all-addresses",
-        "see-own-addresses",
         "store-address",
         "update-address",
         "delete-address",
@@ -136,11 +119,7 @@ return [
         'read-all-products',
         'read-all-regions',
 
-        "see-own-purchases",
-        "see-all-clients",
-        "see-all-purchases",
         'read-customers-export',
-        "see-all-reports", // [DEPRECATED]
 
         // FAQ related permissions
         "read-all-faqs",
@@ -165,10 +144,6 @@ return [
         'read-content-settings',
         'update-content-settings',
         'read-all-regions',
-
-        "see-own-purchases",
-        "see-all-products",
-        "edit-content",
 
         // FAQ related permissions
         "read-all-faqs",
@@ -206,8 +181,6 @@ return [
         'read-all-products',
         'read-all-regions',
 
-        "see-own-purchases",
-        "see-own-addresses",
         "store-address",
         "update-address",
         "delete-address",
