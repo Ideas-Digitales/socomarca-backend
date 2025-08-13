@@ -50,7 +50,7 @@ test('puede agregar un item al carrito', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response
@@ -94,7 +94,7 @@ test('puede incrementar cantidad si item ya existe en carrito', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(201);
@@ -121,7 +121,7 @@ test('falla al agregar item sin product_id', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -137,7 +137,7 @@ test('falla al agregar item con product_id inexistente', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -152,7 +152,7 @@ test('falla al agregar item sin quantity', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -168,7 +168,7 @@ test('falla al agregar item con quantity menor a 1', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -184,7 +184,7 @@ test('falla al agregar item con quantity mayor a 99', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -199,7 +199,7 @@ test('falla al agregar item sin unit', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -222,7 +222,7 @@ test('puede eliminar cantidad parcial de item del carrito', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200)
@@ -254,7 +254,7 @@ test('puede eliminar item completo del carrito cuando quantity llega a cero', fu
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200)
@@ -278,7 +278,7 @@ test('retorna mensaje cuando item no existe para eliminar', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200)
@@ -303,7 +303,7 @@ test('falla al eliminar mas cantidad de la disponible', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -318,7 +318,7 @@ test('falla al eliminar item sin product_id', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -333,7 +333,7 @@ test('falla al eliminar item sin unit', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -348,7 +348,7 @@ test('falla al eliminar item sin quantity', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
@@ -383,7 +383,7 @@ test('usuarios diferentes no pueden ver items de otros carritos', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200);
@@ -428,8 +428,8 @@ test('puede manejar diferentes unidades del mismo producto', function () {
     ];
 
     // Act
-    $responseKg = $this->postJson('/api/cart/items', $dataKg);
-    $responseG = $this->postJson('/api/cart/items', $dataG);
+    $responseKg = $this->postJson(route('cart-items.store'), $dataKg);
+    $responseG = $this->postJson(route('cart-items.store'), $dataG);
 
     // Assert
     $responseKg->assertStatus(201);
@@ -465,7 +465,7 @@ test('requiere autenticacion para agregar items', function () {
     ];
 
     // Act
-    $response = $this->postJson('/api/cart/items', $data);
+    $response = $this->postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(401);
@@ -482,7 +482,7 @@ test('requiere autenticacion para eliminar items', function () {
     ];
 
     // Act
-    $response = $this->deleteJson('/api/cart/items', $data);
+    $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(401);
@@ -598,7 +598,7 @@ test('puede agregar productos de una orden al carrito vacío', function () {
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -650,7 +650,7 @@ test('puede sumar cantidades cuando el producto ya existe en el carrito', functi
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -721,7 +721,7 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -750,7 +750,7 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
 
 test('falla al agregar orden sin order_id', function () {
     // Act
-    $response = $this->postJson('/api/cart/add-order', []);
+    $response = $this->postJson(route('cart.add-order'), []);
 
     // Assert
     $response->assertStatus(422)
@@ -759,7 +759,7 @@ test('falla al agregar orden sin order_id', function () {
 
 test('falla al agregar orden con order_id inexistente', function () {
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => 99999
     ]);
 
@@ -778,7 +778,7 @@ test('falla al agregar orden que no pertenece al usuario', function () {
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -796,7 +796,7 @@ test('requiere autenticación para agregar orden al carrito', function () {
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -812,7 +812,7 @@ test('maneja orden sin items correctamente', function () {
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -858,7 +858,7 @@ test('respeta diferentes unidades del mismo producto de la orden', function () {
     ]);
 
     // Act
-    $response = $this->postJson('/api/cart/add-order', [
+    $response = $this->postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 

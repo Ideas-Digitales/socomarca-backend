@@ -73,7 +73,7 @@ describe('OrderController', function () {
             ]);
 
             // Act
-            $response = $this->getJson('/api/orders');
+            $response = $this->getJson(route('orders.index'));
 
             // Assert
             $response->assertOk()
@@ -100,7 +100,7 @@ describe('OrderController', function () {
             \Illuminate\Support\Facades\Auth::logout();
 
             // Act
-            $response = $this->getJson('/api/orders');
+            $response = $this->getJson(route('orders.index'));
 
             // Assert
             $response->assertUnauthorized();
@@ -126,7 +126,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -182,7 +182,7 @@ describe('OrderController', function () {
             ]);
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -201,7 +201,7 @@ describe('OrderController', function () {
             ]);
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -215,7 +215,7 @@ describe('OrderController', function () {
             createProductCart();
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => 999999
             ]);
 
@@ -229,7 +229,7 @@ describe('OrderController', function () {
             createProductCart();
 
             // Act
-            $response = $this->postJson('/api/orders/pay', []);
+            $response = $this->postJson(route('orders.pay'), []);
 
             // Assert
             $response->assertStatus(422)
@@ -242,7 +242,7 @@ describe('OrderController', function () {
             $address = Address::factory()->create();
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -265,7 +265,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -294,7 +294,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -323,7 +323,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 

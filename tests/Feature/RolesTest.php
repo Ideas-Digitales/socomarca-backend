@@ -31,7 +31,7 @@ test('user with "read-all-roles" permission can access roles index', function ()
     $user->givePermissionTo('read-all-roles');
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson('/api/roles');
+        ->getJson(route('roles.index'));
 
     $response->assertStatus(200);
 });
@@ -39,7 +39,7 @@ test('user with "read-all-roles" permission can access roles index', function ()
 test('users without "read-user-roles" permission cannot list roles and permissions', function () {
     $user = User::factory()->create();
 
-    $route = '/api/roles/users';
+    $route = route('roles.users');
 
     $this->actingAs($user, 'sanctum')
         ->getJson($route)
@@ -51,14 +51,14 @@ test('users without "read-all-roles" permission cannot access roles index', func
     // User has no permissions
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson('/api/roles');
+        ->getJson(route('roles.index'));
 
     $response->assertStatus(403);
 });
 
 
 test('unauthenticated user cannot access roles index', function () {
-    $response = $this->getJson('/api/roles');
+    $response = $this->getJson(route('roles.index'));
 
     $response->assertStatus(401);
 });
@@ -69,7 +69,7 @@ test('users with "read-user-roles" permission can access roles with users', func
     $user->givePermissionTo('read-user-roles');
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson('/api/roles/users');
+        ->getJson(route('roles.users'));
 
     $response->assertStatus(200);
 });
@@ -79,13 +79,13 @@ test('users without "read-user-roles" permission cannot access roles with users'
     // User has no permissions
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson('/api/roles/users');
+        ->getJson(route('roles.users'));
 
     $response->assertStatus(403);
 });
 
 test('unauthenticated user cannot access roles with users', function () {
-    $response = $this->getJson('/api/roles/users');
+    $response = $this->getJson(route('roles.users'));
 
     $response->assertStatus(401);
 });
@@ -98,7 +98,7 @@ test('users with "read-user-roles" permission can access user roles', function (
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson("/api/roles/{$targetUser->id}");
+        ->getJson(route('roles.show', ['user' => $targetUser->id]));
 
     $response->assertStatus(200);
 });
@@ -110,7 +110,7 @@ test('users without "read-user-roles" permission cannot access user roles', func
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson("/api/roles/{$targetUser->id}");
+        ->getJson(route('roles.show', ['user' => $targetUser->id]));
 
     $response->assertStatus(403);
 });
@@ -118,7 +118,7 @@ test('users without "read-user-roles" permission cannot access user roles', func
 test('unauthenticated user cannot access user roles', function () {
     $targetUser = User::factory()->create();
 
-    $response = $this->getJson("/api/roles/{$targetUser->id}");
+    $response = $this->getJson(route('roles.show', ['user' => $targetUser->id]));
 
     $response->assertStatus(401);
 });
@@ -129,7 +129,7 @@ test('roles index returns correct data structure', function () {
     $user->givePermissionTo('read-all-roles');
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson('/api/roles');
+        ->getJson(route('roles.index'));
 
     $response->assertStatus(200)
         ->assertJsonStructure([
@@ -161,7 +161,7 @@ test('roles with users returns correct data structure', function () {
     $testUser = User::factory()->create();
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson('/api/roles/users');
+        ->getJson(route('roles.users'));
 
     $response->assertStatus(200)
         ->assertJsonStructure([
@@ -185,7 +185,7 @@ test('user roles returns correct data structure', function () {
     $targetUser = User::factory()->create();
 
     $response = $this->actingAs($user, 'sanctum')
-        ->getJson("/api/roles/{$targetUser->id}");
+        ->getJson(route('roles.show', ['user' => $targetUser->id]));
 
     $response->assertStatus(200)
         ->assertJsonStructure([
