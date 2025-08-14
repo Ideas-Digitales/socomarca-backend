@@ -54,6 +54,9 @@ return [
         "update-faqs",
         "delete-faqs",
 
+        // Notification related permissions
+        "create-notifications",
+
     ],
     'admin' => [
         'read-users',
@@ -106,6 +109,9 @@ return [
         "create-faqs",
         "update-faqs",
         "delete-faqs",
+
+        // Notification related permissions
+        "create-notifications",
 
     ],
     'supervisor' => [
