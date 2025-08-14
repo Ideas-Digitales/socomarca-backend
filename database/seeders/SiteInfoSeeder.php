@@ -38,5 +38,13 @@ class SiteInfoSeeder extends Seeder
             ['key' => 'prices_settings'],
             ['value' => ['min_max_quantity_enabled' => false]]
         );
+
+        Siteinfo::updateOrCreate(
+            ['key' => 'upload_settings'],
+            [
+                'value' => ['max_upload_size' => 50], // En MB
+                'content' => 'Configuración de tamaño máximo para subida de archivos'
+            ]
+        );
     }
 } 

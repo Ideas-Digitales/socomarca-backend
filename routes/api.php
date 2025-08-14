@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\SiteinfoController;
 use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -80,7 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('roles.users');
     Route::get('/roles/{user}', [RoleController::class, 'userRoles'])
         ->middleware('permission:read-user-roles')
-        ->name('roles.user');
+        ->name('roles.show');
 
     Route::resource('addresses', AddressController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
@@ -124,6 +125,12 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
 
+
+    Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
+        ->middleware(['permission:sync-product-images'])
+        ->name('products.image.sync');
+
+
     Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
         ->name('products.price-extremes')
         ->middleware('permission:read-all-prices');
@@ -154,11 +161,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('store', 'can:create,App\Models\Favorite')
         ->middlewareFor('destroy', 'can:delete,favorite');
 
-    Route::get('/cart', [CartController::class, 'index']);
-    Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty');
-    Route::post('/cart/add-order', [CartController::class, 'addOrderToCart']);
-    Route::post('/cart/items', [CartItemController::class, 'store']);
-    Route::delete('/cart/items', [CartItemController::class, 'destroy']);
+    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart')->name('cart.index');
+    Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty')->middleware('permission:delete-cart');
+    Route::post('/cart/add-order', [CartController::class, 'addOrderToCart'])->middleware('permission:create-orders')->name('cart.add-order');
+    Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('permission:create-cart-items')->name('cart-items.store');
+    Route::delete('/cart/items', [CartItemController::class, 'destroy'])->middleware('permission:delete-cart-items')->name('cart-items.destroy');
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
         ->middleware('permission:read-all-payment-methods')
@@ -175,25 +182,27 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:read-all-prices');
 
     // Rutas de orden
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders/pay', [OrderController::class, 'payOrder']);
+    Route::get('/orders', [OrderController::class, 'index'])->middleware('permission:read-own-orders')->name('orders.index');
+    Route::post('/orders/pay', [OrderController::class, 'payOrder'])->middleware('permission:update-orders')->name('orders.pay');
 
 
-    Route::middleware(['auth:sanctum', 'role:admin|superadmin|supervisor'])->group(function () {
+    Route::middleware(['auth:sanctum', 'permission:read-all-reports'])->group(function () {
 
-        Route::post('/orders/reports/transactions/export', [ReportController::class, 'export']);
-        Route::post('/orders/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities']);
-        Route::post('/orders/reports/products/export', [ReportController::class, 'exportTopProducts']);
-        Route::post('/orders/reports/categories/export', [ReportController::class, 'exportTopCategories']);
-        Route::post('/orders/reports/export', [ReportController::class, 'ordersReportExport']);
+        // Export endpoints
+        Route::post('/reports/transactions/export', [ReportController::class, 'export'])->name('reports.transactions.export');
+        Route::post('/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities'])->name('reports.municipalities.export');
+        Route::post('/reports/products/export', [ReportController::class, 'exportTopProducts'])->name('reports.products.export');
+        Route::post('/reports/categories/export', [ReportController::class, 'exportTopCategories'])->name('reports.categories.export');
+        Route::post('/reports/customers/export', [ReportController::class, 'clientsExport'])->name('reports.customers.export');
+        Route::post('/reports/orders/export', [ReportController::class, 'ordersReportExport'])->name('reports.orders.export');
 
-        Route::post('/orders/reports', [ReportController::class, 'report']);
-        Route::post('/orders/reports/top-product-list', [ReportController::class, 'productsSalesList']);
-        Route::post('/orders/reports/transactions-list', [ReportController::class, 'transactionsList']);
-        Route::post('/orders/reports/clients-list', [ReportController::class, 'clientsList']);
-        Route::post('/orders/reports/clients/export', [ReportController::class, 'clientsExport']);
-        Route::post('/orders/reports/failed-transactions-list', [ReportController::class, 'failedTransactionsList']);
-        Route::get('/orders/reports/transaction/{id}', [ReportController::class, 'transactionId']);
+        // Dashboard and data endpoints
+        Route::post('/reports/dashboard', [ReportController::class, 'report'])->name('reports.dashboard');
+        Route::post('/reports/products/top-selling', [ReportController::class, 'productsSalesList'])->name('reports.products.top-selling');
+        Route::post('/reports/transactions', [ReportController::class, 'transactionsList'])->name('reports.transactions');
+        Route::post('/reports/customers', [ReportController::class, 'clientsList'])->name('reports.customers');
+        Route::post('/reports/transactions/failed', [ReportController::class, 'failedTransactionsList'])->name('reports.transactions.failed');
+        Route::get('/reports/transactions/{id}', [ReportController::class, 'transactionId'])->name('reports.transactions.show');
 
     });
 
@@ -238,13 +247,17 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
 });
 
-// Configuración de precios
+
+
+// Settings
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
+    Route::get('/settings/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings-upload-files.get');
 });
 
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
+    Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
 });
 
 Route::post('/notifications', [NotificationController::class, 'store'])

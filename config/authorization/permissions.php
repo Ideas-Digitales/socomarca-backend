@@ -94,6 +94,7 @@ return [
 
     // Products permissions
     'read-all-products', // [superadmin, admin, supervisor, editor, customer]
+    'sync-product-images', // [superadmin, admin]
 
     // Content edition permissions
     'read-content-settings', //[superadmin, admin, editor]

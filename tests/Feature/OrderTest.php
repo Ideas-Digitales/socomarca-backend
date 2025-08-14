@@ -19,6 +19,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->user = User::factory()->create();
+    $this->user->givePermissionTo(['read-own-orders', 'create-orders', 'update-orders', 'create-cart-items']);
     $this->actingAs($this->user);
 });
 
@@ -58,19 +59,21 @@ function createProductCart($precio = 100, $cantidad = 2, $unidad = 'kg')
 describe('OrderController', function () {
     
     describe('index', function () {
-        test('puede listar las órdenes del usuario autenticado', function () {
+        test('can list authenticated user orders', function () {
             // Arrange
             Order::factory()->count(3)->create([
                 'user_id' => $this->user->id
             ]);
 
             // Crear órdenes de otro usuario para verificar que no se incluyan
+            $otherUser = User::factory()->create();
+            $otherUser->givePermissionTo(['read-own-orders', 'create-orders']);
             Order::factory()->count(2)->create([
-                'user_id' => User::factory()->create()->id
+                'user_id' => $otherUser->id
             ]);
 
             // Act
-            $response = $this->getJson('/api/orders');
+            $response = $this->getJson(route('orders.index'));
 
             // Assert
             $response->assertOk()
@@ -92,12 +95,12 @@ describe('OrderController', function () {
                 ]);
         });
 
-        test('requiere autenticación para listar órdenes', function () {
+        test('requires authentication to list orders', function () {
             // Arrange
             \Illuminate\Support\Facades\Auth::logout();
 
             // Act
-            $response = $this->getJson('/api/orders');
+            $response = $this->getJson(route('orders.index'));
 
             // Assert
             $response->assertUnauthorized();
@@ -105,7 +108,7 @@ describe('OrderController', function () {
     });
 
     describe('payOrder', function () {
-        test('puede iniciar el pago de una orden desde el carrito', function () {
+        test('can initiate payment for an order from cart', function () {
             // Arrange
             createProductCart();
             $address = Address::factory()->create([
@@ -123,7 +126,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -172,14 +175,14 @@ describe('OrderController', function () {
             ]);
         });
 
-        test('no puede pagar si el carrito está vacío', function () {
+        test('cannot pay if cart is empty', function () {
             // Arrange
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
             ]);
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -188,16 +191,17 @@ describe('OrderController', function () {
                 ->assertJson(['message' => 'El carrito está vacío']);
         });
 
-        test('no puede pagar con una dirección que no le pertenece', function () {
+        test('cannot pay with an address that does not belong to user', function () {
             // Arrange
             createProductCart();
             $otroUsuario = User::factory()->create();
+            $otroUsuario->givePermissionTo(['read-own-orders', 'create-orders']);
             $address = Address::factory()->create([
                 'user_id' => $otroUsuario->id
             ]);
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -206,12 +210,12 @@ describe('OrderController', function () {
                 ->assertJsonValidationErrors('address_id');
         });
 
-        test('requiere una dirección válida para pagar', function () {
+        test('requires a valid address to pay', function () {
             // Arrange
             createProductCart();
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => 999999
             ]);
 
@@ -220,25 +224,25 @@ describe('OrderController', function () {
                 ->assertJsonValidationErrors('address_id');
         });
 
-        test('requiere el campo address_id', function () {
+        test('requires address_id field', function () {
             // Arrange
             createProductCart();
 
             // Act
-            $response = $this->postJson('/api/orders/pay', []);
+            $response = $this->postJson(route('orders.pay'), []);
 
             // Assert
             $response->assertStatus(422)
                 ->assertJsonValidationErrors('address_id');
         });
 
-        test('requiere autenticación para pagar', function () {
+        test('requires authentication to pay', function () {
             // Arrange
             \Illuminate\Support\Facades\Auth::logout();
             $address = Address::factory()->create();
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -246,7 +250,7 @@ describe('OrderController', function () {
             $response->assertUnauthorized();
         });
 
-        test('maneja errores del servicio de pago', function () {
+        test('handles payment service errors', function () {
             // Arrange
             createProductCart();
             $address = Address::factory()->create([
@@ -261,7 +265,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -273,7 +277,7 @@ describe('OrderController', function () {
                 ]);
         });
 
-        test('calcula correctamente el subtotal y amount de la orden', function () {
+        test('correctly calculates subtotal and amount', function () {
             // Arrange
             createProductCart(150, 3); // precio 150, cantidad 3
             $address = Address::factory()->create([
@@ -290,7 +294,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
@@ -302,7 +306,7 @@ describe('OrderController', function () {
             expect($order->amount)->toBe(450.0);
         });
 
-        test('incluye los metadatos de usuario y dirección en la orden', function () {
+        test('includes user and address metadata in order', function () {
             // Arrange
             createProductCart();
             $address = Address::factory()->create([
@@ -319,7 +323,7 @@ describe('OrderController', function () {
             });
 
             // Act
-            $response = $this->postJson('/api/orders/pay', [
+            $response = $this->postJson(route('orders.pay'), [
                 'address_id' => $address->id
             ]);
 
