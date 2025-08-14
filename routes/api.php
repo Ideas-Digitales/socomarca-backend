@@ -124,11 +124,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
 
-    
+
     Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
         ->middleware(['permission:sync-product-images'])
         ->name('products.image.sync');
-    
+
 
     Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
         ->name('products.price-extremes')
@@ -185,21 +185,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders/pay', [OrderController::class, 'payOrder'])->middleware('permission:update-orders')->name('orders.pay');
 
 
-    Route::middleware(['auth:sanctum', 'role:admin|superadmin|supervisor'])->group(function () {
+    Route::middleware(['auth:sanctum', 'permission:read-all-reports'])->group(function () {
 
-        Route::post('/orders/reports/transactions/export', [ReportController::class, 'export']);
-        Route::post('/orders/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities']);
-        Route::post('/orders/reports/products/export', [ReportController::class, 'exportTopProducts']);
-        Route::post('/orders/reports/categories/export', [ReportController::class, 'exportTopCategories']);
-        Route::post('/orders/reports/export', [ReportController::class, 'ordersReportExport']);
+        // Export endpoints
+        Route::post('/reports/transactions/export', [ReportController::class, 'export'])->name('reports.transactions.export');
+        Route::post('/reports/municipalities/export', [ReportController::class, 'exportTopMunicipalities'])->name('reports.municipalities.export');
+        Route::post('/reports/products/export', [ReportController::class, 'exportTopProducts'])->name('reports.products.export');
+        Route::post('/reports/categories/export', [ReportController::class, 'exportTopCategories'])->name('reports.categories.export');
+        Route::post('/reports/customers/export', [ReportController::class, 'clientsExport'])->name('reports.customers.export');
+        Route::post('/reports/orders/export', [ReportController::class, 'ordersReportExport'])->name('reports.orders.export');
 
-        Route::post('/orders/reports', [ReportController::class, 'report']);
-        Route::post('/orders/reports/top-product-list', [ReportController::class, 'productsSalesList']);
-        Route::post('/orders/reports/transactions-list', [ReportController::class, 'transactionsList']);
-        Route::post('/orders/reports/clients-list', [ReportController::class, 'clientsList']);
-        Route::post('/orders/reports/clients/export', [ReportController::class, 'clientsExport']);
-        Route::post('/orders/reports/failed-transactions-list', [ReportController::class, 'failedTransactionsList']);
-        Route::get('/orders/reports/transaction/{id}', [ReportController::class, 'transactionId']);
+        // Dashboard and data endpoints
+        Route::post('/reports/dashboard', [ReportController::class, 'report'])->name('reports.dashboard');
+        Route::post('/reports/products/top-selling', [ReportController::class, 'productsSalesList'])->name('reports.products.top-selling');
+        Route::post('/reports/transactions', [ReportController::class, 'transactionsList'])->name('reports.transactions');
+        Route::post('/reports/customers', [ReportController::class, 'clientsList'])->name('reports.customers');
+        Route::post('/reports/transactions/failed', [ReportController::class, 'failedTransactionsList'])->name('reports.transactions.failed');
+        Route::get('/reports/transactions/{id}', [ReportController::class, 'transactionId'])->name('reports.transactions.show');
 
     });
 
@@ -241,7 +243,7 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/siteinfo', [SiteinfoController::class, 'update'])->name('siteinfo.update');
     Route::put('/terms', [SiteinfoController::class, 'updateTerms'])->name('siteinfo.terms.update');
     Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
-    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update'); 
+    Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
 });
 
 

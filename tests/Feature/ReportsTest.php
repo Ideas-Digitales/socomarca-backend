@@ -1,24 +1,25 @@
 <?php
 use App\Models\User;
 use App\Models\Order;
-use App\Models\Product;
 use Illuminate\Support\Arr;
 
 uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
+    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
     $admin = User::factory()->create();
     $admin->assignRole('admin');
-    $admin->givePermissionTo('see-all-reports');
+    $admin->givePermissionTo('read-all-reports');
     $this->admin = $admin;
 });
 
-test('puede filtrar ventas por monto mínimo y máximo', function () {
+describe('Reports Dashboard', function () {
+    it('can filter sales by minimum and maximum amount', function () {
     Order::factory()->create(['amount' => 5000, 'status' => 'completed', 'created_at' => now()]);
     Order::factory()->create(['amount' => 15000, 'status' => 'completed', 'created_at' => now()]);
     Order::factory()->create(['amount' => 25000, 'status' => 'completed', 'created_at' => now()]);
 
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'sales',
         'total_min' => 10000,
         'total_max' => 20000,
@@ -32,13 +33,13 @@ test('puede filtrar ventas por monto mínimo y máximo', function () {
     }
 });
 
-test('puede filtrar ventas por cliente', function () {
+    it('can filter sales by customer', function () {
     $cliente = User::factory()->create(['name' => 'Cliente Uno']);
     $cliente->assignRole('customer');
     Order::factory()->create(['user_id' => $cliente->id, 'amount' => 10000, 'status' => 'completed', 'created_at' => now()]);
     Order::factory()->create(['amount' => 20000, 'status' => 'completed', 'created_at' => now()]);
 
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'sales',
         'client' => 'Cliente Uno',
     ]);
@@ -48,8 +49,8 @@ test('puede filtrar ventas por cliente', function () {
     expect($clientes)->toContain('Cliente Uno');
 });
 
-test('puede obtener top municipalidades con filtro de monto', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get top municipalities with amount filter', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'top-municipalities',
         'total_min' => 1000,
         'total_max' => 100000,
@@ -64,8 +65,8 @@ test('puede obtener top municipalidades con filtro de monto', function () {
     }
 });
 
-test('puede obtener top productos con filtro de monto', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get top products with amount filter', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'top-products',
         'total_min' => 1000,
         'total_max' => 100000,
@@ -80,8 +81,8 @@ test('puede obtener top productos con filtro de monto', function () {
     }
 });
 
-test('puede obtener top categorías con filtro de monto', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get top categories with amount filter', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'top-categories',
         'total_min' => 1000,
         'total_max' => 100000,
@@ -96,8 +97,8 @@ test('puede obtener top categorías con filtro de monto', function () {
     }
 });
 
-test('puede obtener top clientes', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get top customers', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'top-customers',
     ]);
     $response->assertStatus(200);
@@ -108,8 +109,8 @@ test('puede obtener top clientes', function () {
     }
 });
 
-test('puede obtener revenue', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get revenue', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'revenue',
     ]);
     $response->assertStatus(200);
@@ -120,8 +121,8 @@ test('puede obtener revenue', function () {
     }
 });
 
-test('puede obtener transacciones', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get transactions', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'transactions',
     ]);
     $response->assertStatus(200);
@@ -129,8 +130,8 @@ test('puede obtener transacciones', function () {
     expect($data)->toBeArray();
 });
 
-test('puede obtener transacciones fallidas con filtro de monto', function () {
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    it('can get failed transactions with amount filter', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'type' => 'transactions-failed',
         'total_min' => 1000,
         'total_max' => 100000,
@@ -140,7 +141,7 @@ test('puede obtener transacciones fallidas con filtro de monto', function () {
     expect($data)->toBeArray();
 });
 
-test('puede filtrar ventas por todos los filtros opcionales', function () {
+    it('can filter sales by all optional filters', function () {
     $cliente = User::factory()->create(['name' => 'Juan Perez']);
     $cliente->assignRole('customer');
     Order::factory()->create([
@@ -161,7 +162,7 @@ test('puede filtrar ventas por todos los filtros opcionales', function () {
         'created_at' => '2025-05-20'
     ]);
 
-    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/orders/reports', [
+    $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/reports/dashboard', [
         'start' => '2025-01-01',
         'end' => '2025-06-30',
         'type' => 'sales',
@@ -177,4 +178,38 @@ test('puede filtrar ventas por todos los filtros opcionales', function () {
             ->toBeLessThanOrEqual(6000000);
         expect($venta['customer'])->toBe('Juan Perez');
     }
+});
+
+});
+
+describe('Reports Dashboard - Permission Tests', function () {
+    it('users with read-all-reports permission can access dashboard', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo('read-all-reports');
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/reports/dashboard', [
+            'type' => 'sales',
+        ]);
+
+        $response->assertStatus(200);
+    });
+
+    it('users without read-all-reports permission cannot access dashboard', function () {
+        $user = User::factory()->create();
+        // No permission assigned
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/reports/dashboard', [
+            'type' => 'sales',
+        ]);
+
+        $response->assertStatus(403);
+    });
+
+    it('unauthenticated users cannot access dashboard', function () {
+        $response = $this->postJson('/api/reports/dashboard', [
+            'type' => 'sales',
+        ]);
+
+        $response->assertStatus(401);
+    });
 });
