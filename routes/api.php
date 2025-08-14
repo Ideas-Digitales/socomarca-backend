@@ -79,7 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('roles.users');
     Route::get('/roles/{user}', [RoleController::class, 'userRoles'])
         ->middleware('permission:read-user-roles')
-        ->name('roles.user');
+        ->name('roles.show');
 
     Route::resource('addresses', AddressController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
@@ -153,11 +153,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('store', 'can:create,App\Models\Favorite')
         ->middlewareFor('destroy', 'can:delete,favorite');
 
-    Route::get('/cart', [CartController::class, 'index']);
-    Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty');
-    Route::post('/cart/add-order', [CartController::class, 'addOrderToCart']);
-    Route::post('/cart/items', [CartItemController::class, 'store']);
-    Route::delete('/cart/items', [CartItemController::class, 'destroy']);
+    Route::get('/cart', [CartController::class, 'index'])->middleware('permission:read-own-cart')->name('cart.index');
+    Route::delete('/cart', [CartItemController::class, 'emptyCart'])->name('cart.empty')->middleware('permission:delete-cart');
+    Route::post('/cart/add-order', [CartController::class, 'addOrderToCart'])->middleware('permission:create-orders')->name('cart.add-order');
+    Route::post('/cart/items', [CartItemController::class, 'store'])->middleware('permission:create-cart-items')->name('cart-items.store');
+    Route::delete('/cart/items', [CartItemController::class, 'destroy'])->middleware('permission:delete-cart-items')->name('cart-items.destroy');
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index'])
         ->middleware('permission:read-all-payment-methods')
@@ -174,8 +174,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('permission:read-all-prices');
 
     // Rutas de orden
-    Route::get('/orders', [OrderController::class, 'index']);
-    Route::post('/orders/pay', [OrderController::class, 'payOrder']);
+    Route::get('/orders', [OrderController::class, 'index'])->middleware('permission:read-own-orders')->name('orders.index');
+    Route::post('/orders/pay', [OrderController::class, 'payOrder'])->middleware('permission:update-orders')->name('orders.pay');
 
 
     Route::middleware(['auth:sanctum', 'role:admin|superadmin|supervisor'])->group(function () {
