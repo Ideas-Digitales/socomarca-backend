@@ -41,6 +41,7 @@ return [
         'read-all-products-export',
         'read-all-categories-export',
         'read-customers-export',
+        'sync-product-images',
 
         // Address related permissions
         "store-address",
@@ -92,6 +93,7 @@ return [
         'read-all-products-export',
         'read-all-categories-export',
         'read-customers-export',
+        'sync-product-images',
 
 
         // Address related permissions
