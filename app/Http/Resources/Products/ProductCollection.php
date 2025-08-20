@@ -26,12 +26,9 @@ class ProductCollection extends ResourceCollection
             $imageRelative = $product->image ?? null;
             $imageUrl = null;
             if ($imageRelative) {
-                $bucket = config('filesystems.disks.s3.bucket');
-                $endpoint = rtrim(config('filesystems.disks.s3.endpoint'), '/');
-                if (app()->environment('local') && str_contains($endpoint, 'localstack')) {
-                    $endpoint = str_replace('localstack', 'localhost', $endpoint);
-                }
-                $imageUrl = "{$endpoint}/{$bucket}/{$imageRelative}";
+                $awsUrl = rtrim(config('filesystems.disks.s3.url') ?? env('AWS_URL'), '/');
+                $imageRelative = ltrim($imageRelative, '/');
+                $imageUrl = "{$awsUrl}/{$imageRelative}";
             }
 
             return [
