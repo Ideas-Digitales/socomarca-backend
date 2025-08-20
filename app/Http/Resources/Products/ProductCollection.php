@@ -22,6 +22,17 @@ class ProductCollection extends ResourceCollection
                     $q->where('user_id', Auth::id());
                 })->exists();
             }
+            
+            $imageRelative = $product->image ?? null;
+            $imageUrl = null;
+            if ($imageRelative) {
+                $bucket = config('filesystems.disks.s3.bucket');
+                $endpoint = rtrim(config('filesystems.disks.s3.endpoint'), '/');
+                if (app()->environment('local') && str_contains($endpoint, 'localstack')) {
+                    $endpoint = str_replace('localstack', 'localhost', $endpoint);
+                }
+                $imageUrl = "{$endpoint}/{$bucket}/{$imageRelative}";
+            }
 
             return [
                 'id' => $product->id,
@@ -46,7 +57,7 @@ class ProductCollection extends ResourceCollection
                 'stock' => isset($product->joined_stock)
                     ? (int) $product->joined_stock
                     : (int) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->stock,
-                'image' => $product->image ?? null,
+                'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,
             ];

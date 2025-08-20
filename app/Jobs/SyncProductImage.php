@@ -117,7 +117,7 @@ class SyncProductImage implements ShouldQueue
             // Buscar y actualizar producto
             $product = \App\Models\Product::where('sku', $sku)->first();
             if ($product) {
-                $product->image = $url;
+                $product->image = $s3ImagePath; // $url;
                 $product->save();
                 $processedCount++;
                 Log::info("Imagen actualizada para SKU: $sku", ['url' => $url]);
