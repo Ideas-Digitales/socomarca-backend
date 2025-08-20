@@ -81,6 +81,8 @@ class SyncProductImage implements ShouldQueue
         $processedCount = 0;
         $sheet = $spreadsheet->getActiveSheet();
 
+        // Construir array de filas (sku, image) y lista de archivos
+        $rows = [];
         foreach ($sheet->getRowIterator(2) as $row) {
             $cellIterator = $row->getCellIterator();
             $cellIterator->setIterateOnlyExistingCells(false);
@@ -97,32 +99,46 @@ class SyncProductImage implements ShouldQueue
                 continue;
             }
 
-            $localImagePath = $imagesPath . '/' . $imageName;
-            if (!file_exists($localImagePath)) {
-                Log::warning("Imagen no encontrada: $localImagePath");
-                continue;
-            }
+            $rows[] = ['sku' => $sku, 'image' => $imageName];
+        }
 
-            // Subir imagen directamente a S3
-            $s3ImagePath = 'products/' . $imageName;
-            $imageContent = file_get_contents($localImagePath);
+        // Si no hay filas, terminar
+        if (empty($rows)) {
+            Log::warning('No rows to process in Excel.');
+        } else {
+            // Prefijo temporal en S3 para este sync (por chunk)
+            $tmpPrefix = 'product-sync/tmp/' . uniqid() . '/';
 
-            Storage::disk('s3')->put($s3ImagePath, $imageContent);
+            // Tamaño de chunk: ajustar según recursos (puedes pasarlo por config)
+            $chunkSize = config('sync.chunk_size', 50);
+            $rowChunks = array_chunk($rows, $chunkSize);
 
-            $url = Storage::disk('s3')->url($s3ImagePath);
-            if (app()->environment('local')) {
-                $url = str_replace('localstack:4566', 'localhost:4566', $url);
-            }
+            foreach ($rowChunks as $chunkIndex => $chunk) {
+                $files = array_map(fn($r) => $r['image'], $chunk);
 
-            // Buscar y actualizar producto
-            $product = \App\Models\Product::where('sku', $sku)->first();
-            if ($product) {
-                $product->image = $s3ImagePath; // $url;
-                $product->save();
-                $processedCount++;
-                Log::info("Imagen actualizada para SKU: $sku", ['url' => $url]);
-            } else {
-                Log::warning("Producto no encontrado para SKU: $sku");
+                // Upload synchronously from extractor host to tmpPrefix
+                foreach ($files as $file) {
+                    $local = $imagesPath . '/' . $file;
+                    if (!file_exists($local)) {
+                        Log::warning('File missing before upload', ['local' => $local]);
+                        continue;
+                    }
+                    $tmpS3Path = $tmpPrefix . 'images/' . $file;
+                    Storage::disk('s3')->put($tmpS3Path, file_get_contents($local));
+                    Log::info('Uploaded temp image (sync)', ['s3' => $tmpS3Path]);
+                }
+
+                // Dispatch process and cleanup (workers read from S3)
+                \Illuminate\Support\Facades\Bus::dispatchChain([
+                    new \App\Jobs\ProcessProductImageChunkFromS3($chunk, $tmpPrefix),
+                    new \App\Jobs\CleanupChunkTempS3($files, $tmpPrefix),
+                ]);
+
+                Log::info('Dispatched chunk', [
+                    'index' => $chunkIndex,
+                    'files_count' => count($files),
+                    'tmpPrefix' => $tmpPrefix
+                ]);
             }
         }
 
@@ -133,7 +149,7 @@ class SyncProductImage implements ShouldQueue
         Storage::disk('s3')->delete($this->zipPath);
 
         Log::info('SyncProductImage job finalizado', [
-            'processedImages' => $processedCount,
+            'dispatchedChunks' => isset($rowChunks) ? count($rowChunks) : 0,
             'zipPath' => $this->zipPath
         ]);
     }
