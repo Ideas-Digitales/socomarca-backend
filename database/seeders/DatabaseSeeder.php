@@ -12,7 +12,7 @@ class DatabaseSeeder extends Seeder
     {
 
         if (app()->environment(['local', 'qa','testing'])) {
-            DB::statement('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+            
             $this->call([
                 RegionSeeder::class,
                 RolesAndPermissionsSeeder::class,
