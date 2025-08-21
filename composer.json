@@ -9,6 +9,7 @@
         "php": "^8.2",
         "freshwork/chilean-bundle": "^2.2",
         "http-interop/http-factory-guzzle": "^1.2",
+        "kreait/laravel-firebase": "^6.1",
         "laragear/rut": "^4.3",
         "laravel-notification-channels/fcm": "^5.1",
         "laravel/framework": "^12.0",
