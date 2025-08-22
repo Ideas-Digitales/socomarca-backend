@@ -142,7 +142,7 @@ class Product extends Model
 
         // Filtro de Marca
         if (isset($filters['brand_id'])) {
-            $query->where('brand_id', $filters['brand_id']);
+            $query->whereIn('brand_id', $filters['brand_id']);
         }
         
         // Filtro por Nombre (búsqueda parcial)

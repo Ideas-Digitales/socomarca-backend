@@ -22,6 +22,14 @@ class ProductCollection extends ResourceCollection
                     $q->where('user_id', Auth::id());
                 })->exists();
             }
+            
+            $imageRelative = $product->image ?? null;
+            $imageUrl = null;
+            if ($imageRelative) {
+                $awsUrl = rtrim(config('filesystems.disks.s3.url') ?? env('AWS_URL'), '/');
+                $imageRelative = ltrim($imageRelative, '/');
+                $imageUrl = "{$awsUrl}/{$imageRelative}";
+            }
 
             return [
                 'id' => $product->id,
@@ -46,7 +54,7 @@ class ProductCollection extends ResourceCollection
                 'stock' => isset($product->joined_stock)
                     ? (int) $product->joined_stock
                     : (int) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->stock,
-                'image' => $product->image ?? null,
+                'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,
             ];
