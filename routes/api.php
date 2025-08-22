@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SiteinfoController;
 use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
+use App\Http\Controllers\Api\FirebaseConfigController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\SettingsController;
@@ -263,6 +264,11 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
 Route::post('/notifications', [NotificationController::class, 'store'])
     ->middleware(['auth:sanctum','permission:create-notifications'])
     ->name('notifications.store');
+
+Route::middleware(['auth:sanctum', 'permission:update-system-config'])
+    ->put('firebase/config', [FirebaseConfigController::class, 'update'])
+    ->name('firebase.config.update');
+
 
 // Ruta catch-all al final
 Route::any('{url}', function() {

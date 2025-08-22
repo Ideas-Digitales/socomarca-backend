@@ -38,6 +38,21 @@ beforeEach(function () {
     $this->customer3->assignRole('customer');
     $this->customer3->save(); 
 
+    // Crear un fichero de credenciales fake en storage para que el provider lo encuentre
+    $credsPath = storage_path('app/private/firebase/credentials.json');
+    if (!is_dir(dirname($credsPath))) {
+        mkdir(dirname($credsPath), 0755, true);
+    }
+    $fakeCreds = [
+        'type' => 'service_account',
+        'project_id' => 'fake-project',
+        'private_key_id' => 'fake',
+        'private_key' => "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n",
+        'client_email' => 'sa@fake.iam.gserviceaccount.com',
+        'client_id' => 'fake-client',
+    ];
+    file_put_contents($credsPath, json_encode($fakeCreds, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+
     $this->mock(Messaging::class, function ($mock) {
         $mock->shouldReceive('send')->andReturn('msg-id-123');
         $mock->shouldReceive('sendAll')->andReturnNull();
@@ -134,8 +149,8 @@ describe('Notification API', function () {
             ]);
             $response->assertStatus(201);
 
-            // Ejecuta el Job manualmente
-            (new SendPushNotification('Test notification', 'Test message'))->handle();
+            // Ejecuta el Job de forma síncrona para que Laravel inyecte dependencias (Messaging)
+            SendPushNotification::dispatchSync('Test notification', 'Test message');
 
             Notification::assertSentTo(
                 [$this->customer1, $this->customer2, $this->customer3],

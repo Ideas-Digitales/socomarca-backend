@@ -56,6 +56,7 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        "update-system-config",
 
     ],
     'admin' => [
@@ -97,6 +98,7 @@ return [
         'read-all-categories-export',
         'read-customers-export',
         'sync-product-images',
+        'update-system-config',
 
 
         // Address related permissions

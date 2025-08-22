@@ -129,4 +129,6 @@ return [
 
     // Notification permissions
     'create-notifications', // [superadmin, admin]
+
+    'update-system-config' // [superadmin, admin]
 ];
