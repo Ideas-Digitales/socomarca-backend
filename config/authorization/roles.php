@@ -54,6 +54,10 @@ return [
         "update-faqs",
         "delete-faqs",
 
+        // Notification related permissions
+        "create-notifications",
+        "update-system-config",
+
     ],
     'admin' => [
         'read-users',
@@ -94,6 +98,7 @@ return [
         'read-all-categories-export',
         'read-customers-export',
         'sync-product-images',
+        'update-system-config',
 
 
         // Address related permissions
@@ -106,6 +111,9 @@ return [
         "create-faqs",
         "update-faqs",
         "delete-faqs",
+
+        // Notification related permissions
+        "create-notifications",
 
     ],
     'supervisor' => [
