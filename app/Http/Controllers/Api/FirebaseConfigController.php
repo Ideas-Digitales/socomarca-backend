@@ -7,9 +7,68 @@ use App\Http\Requests\FirebaseConfigRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class FirebaseConfigController extends Controller
 {
+
+    public function showConfig(Request $request): JsonResponse
+    {
+        $envValue = env('FIREBASE_CREDENTIALS');
+        if (empty($envValue)) {
+            return response()->json(['ok' => false, 'message' => 'FIREBASE_CREDENTIALS env not set'], 404);
+        }
+
+        $path = $envValue;
+        if (! file_exists($path)) {
+            if (str_starts_with($path, 'storage/app/')) {
+                $candidate = storage_path('app/' . substr($path, strlen('storage/app/')));
+            } elseif (str_starts_with($path, 'storage/')) {
+                $candidate = storage_path(substr($path, strlen('storage/')));
+            } else {
+                $candidate = storage_path('app/' . ltrim($path, '/'));
+            }
+            $path = $candidate;
+        }
+
+        if (! file_exists($path)) {
+            return response()->json([
+                'ok' => false,
+                'env_value' => $envValue,
+                'resolved_path' => $path,
+                'message' => 'Credentials file not found'
+            ], 404);
+        }
+
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            return response()->json(['ok' => false, 'message' => 'Cannot read file', 'resolved_path' => $path], 500);
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Invalid JSON in credentials file',
+                'resolved_path' => $path,
+                'json_error' => json_last_error_msg()
+            ], 422);
+        }
+
+        $safe = $decoded;
+        if (isset($safe['private_key']) && ! $request->boolean('full')) {
+            $pk = $safe['private_key'];
+            $safe['private_key'] = substr($pk, 0, 40) . '...[truncated]';
+        }
+
+        return response()->json([
+            'ok' => true,
+            'env_value' => $envValue,
+            'resolved_path' => $path,
+            'credentials' => $safe,
+        ]);
+    }
     public function update(FirebaseConfigRequest $request): JsonResponse
     {
         
@@ -21,5 +80,21 @@ class FirebaseConfigController extends Controller
         Log::info('Firebase credentials stored', ['user_id' => optional($request->user())->id]);
 
         return response()->json(['message' => 'Firebase config saved'], 200);
+    }
+
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        // Valida que el token está presente
+        $request->validate([
+            'fcm_token' => 'required|string'
+        ]);
+
+        $user = $request->user();
+
+        $user->update(['fcm_token' => $request->fcm_token]);
+
+        Log::info('Firebase FCM token updated', ['user_id' => $user->id]);
+        
+        return response()->json(['message' => 'FCM Token saved.']);
     }
 }

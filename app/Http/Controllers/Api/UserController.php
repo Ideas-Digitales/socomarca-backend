@@ -108,6 +108,9 @@ class UserController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
+            
+            $oldFcm = $user->fcm_token ?? null;
+            
             $newPassword = null;
 
             if ($request->has('password')) {

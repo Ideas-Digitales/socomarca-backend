@@ -266,9 +266,16 @@ Route::post('/notifications', [NotificationController::class, 'store'])
     ->name('notifications.store');
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
-    ->put('firebase/config', [FirebaseConfigController::class, 'update'])
+    ->put('fcm/config', [FirebaseConfigController::class, 'update'])
     ->name('firebase.config.update');
 
+Route::middleware(['auth:sanctum'])
+    ->put('fcm/token', [FirebaseConfigController::class, 'updateFcmToken'])
+    ->name('firebase.fcm-token');
+
+Route::middleware(['auth:sanctum', 'permission:update-system-config'])
+    ->get('fcm/config', [FirebaseConfigController::class, 'showConfig'])
+    ->name('firebase.config.show');
 
 // Ruta catch-all al final
 Route::any('{url}', function() {
