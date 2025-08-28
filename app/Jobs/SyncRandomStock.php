@@ -25,7 +25,7 @@ class SyncRandomStock implements ShouldQueue
             foreach($stocks['data'] as $stock) {
                 $price = $prices->where('random_product_id', $stock['KOPR'])->first();
                 if($price) {
-                    $price->stock = $stock['STOCNV1'];
+                    $price->stock = $stock['STVEN1'];
                     $price->save();
                 }
             }

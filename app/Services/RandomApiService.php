@@ -41,10 +41,17 @@ class RandomApiService
 
     protected function makeRequest($method, $endpoint, $params = [])
     {
-        $token = $this->getToken();
+        if(env('APP_ENV') == 'local'){
+            $this->baseUrl = env('RANDOM_ERP_URL');
+            $token = env('RANDOM_ERP_TOKEN');
+        } else {
+            $token = $this->getToken();
+        }
         $response = Http::withHeaders([ 
             'Authorization' => 'Bearer ' . $token
         ])->$method($this->baseUrl . $endpoint, $params);
+
+        Log::info('Token: ' . $token);
 
 
         //If token is expired, get new token and make request again
@@ -141,7 +148,8 @@ class RandomApiService
     public function getPricesLists(){
 
         $data = [
-            'empresa' => '01',
+            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'modalidad' => env('RANDOM_ERP_PRICES_MODALITY')
         ];
         $request = $this->makeRequest('get', '/web32/precios/pidelistaprecio?' . http_build_query($data));
         return $request;
