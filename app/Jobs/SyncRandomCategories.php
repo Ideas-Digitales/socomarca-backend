@@ -49,7 +49,6 @@ class SyncRandomCategories implements ShouldQueue
 
                 if($category['NIVEL'] == 3){
                     $parent = explode("/", $category['LLAVE']);
-                    Log::info('Category: ' . json_encode($parent[0]));
                     $parentCategory = Category::where('code', $parent[0])->first();
                     Subcategory::updateOrCreate(
                         ['key' => $category['LLAVE']],

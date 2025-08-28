@@ -30,11 +30,9 @@ class SyncRandomUsers implements ShouldQueue
         try {
             $entidades = $randomApi->fetchAndUpdateUsers();
             
+            Log::info('Entidades: ' . json_encode($entidades));
             
             foreach ($entidades as $entidad) {
-
-                Log::info('Entidad: ' . json_encode($entidad['TIPOSUC']));
-
                 if($entidad['TIPOSUC'] == 'P') { //Sincroniza solo si es sucursal principal
                     
                     $user = \App\Models\User::firstOrNew(['rut' => $entidad['KOEN'] ?? null]);

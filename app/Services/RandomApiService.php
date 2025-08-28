@@ -51,9 +51,6 @@ class RandomApiService
             'Authorization' => 'Bearer ' . $token
         ])->$method($this->baseUrl . $endpoint, $params);
 
-        Log::info('Token: ' . $token);
-
-
         //If token is expired, get new token and make request again
         if(isset($response->json()['message']) && $response->json()['message'] == 'jwt expired'){
             Cache::forget('random_api_token');
@@ -91,32 +88,7 @@ class RandomApiService
 
     public function fetchAndUpdateUsers()
     {
-        // 1. Login para obtener el token
-        $loginResponse = Http::post($this->baseUrl . '/login', [
-            'username' => 'demo@random.cl',
-            'password' => 'd3m0r4nd0m3RP'
-        ]);
-
-        if (!$loginResponse->successful()) {
-            Log::error('Error autenticando con Random API');
-            return;
-        }
-
-        $token = $loginResponse->json('token');
-
-        // 2. Usar el token en la petición GET
-        $response = Http::withToken($token)
-            ->get($this->baseUrl.'/web32/entidades', [
-                //'empresa' => '01',
-                //'size' => 100
-            ]);
-
-        if ($response->successful()) {
-            return $response->json();
-
-        } else {
-            Log::error('Error obteniendo entidades de Random API');
-        }
+        return $this->makeRequest('get', '/web32/entidades');
     }
 
     public function getProducts($tipr = '', $kopr_anterior = 0, $kopr = '', $nokopr = '', $search = '', $fmpr = '', $pfpr = '', $hfpr = '')
