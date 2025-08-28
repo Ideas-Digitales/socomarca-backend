@@ -38,7 +38,7 @@ class SyncRandomUsers implements ShouldQueue
                     $user = \App\Models\User::firstOrNew(['rut' => $entidad['KOEN'] ?? null]);
 
                     // Preparar email - generar temporal si está vacío
-                    $email = trim($entidad['EMAIL'] ?? '') ?: null;
+                    $email = trim($entidad['EMAILCOMER'] ?? '') ?: null;
                     if (!$email) {
                         // Generar email temporal basado en RUT
                         $rut = $entidad['KOEN'] ?? 'user';

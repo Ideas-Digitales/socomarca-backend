@@ -71,6 +71,11 @@ Sync categories
 docker compose exec workcontainer php artisan random:sync-categories
 ```
 
+Sync brands
+```bash
+docker compose exec workcontainer php artisan random:sync-brands
+```
+
 Sync products
 ```bash
 docker compose exec workcontainer php artisan random:sync-products
@@ -148,8 +153,9 @@ docker compose exec workcontainer php artisan test tests/Feature/SyncProductMoni
 ## Available Artisan Commands
 
 ### ERP Synchronization Commands
-- **`random:sync-all`**: Executes complete ERP synchronization in chain (categories → products → prices → stock → users)
+- **`random:sync-all`**: Executes complete ERP synchronization in chain (categories → brands → products → prices → stock → users)
 - **`random:sync-categories`**: Synchronizes categories and subcategories from Random ERP
+- **`random:sync-brands`**: Synchronizes brands from Random ERP
 - **`random:sync-products`**: Synchronizes products from Random ERP
 - **`random:sync-prices`**: Synchronizes product prices with multi-unit support from Random ERP
 - **`random:sync-stock`**: Updates product stock levels from Random ERP
@@ -162,6 +168,7 @@ docker compose exec workcontainer php artisan test tests/Feature/SyncProductMoni
 
 ### ERP Synchronization Jobs
 - **`SyncRandomCategories`**: Processes categories from Random API, handles 3-level hierarchy (categories/subcategories)
+- **`SyncRandomBrands`**: Synchronizes brands from Random API using MRPR and NOKOMR fields
 - **`SyncRandomProducts`**: Creates/updates products with category associations and brand information
 - **`SyncRandomPrices`**: Manages complex pricing with multiple units per product
 - **`SyncRandomStock`**: Updates stock levels for products across different units
@@ -177,13 +184,14 @@ docker compose exec workcontainer php artisan test tests/Feature/SyncProductMoni
 - **`SendRawTestEmail`**: Handles raw email sending for testing purposes
 
 ### Queue Configuration
-- ERP sync jobs use dedicated queues: `random-categories`, `random-products`, `random-prices`, `random-stock`, `random-users`
+- ERP sync jobs use dedicated queues: `random-categories`, `random-brands`, `random-products`, `random-prices`, `random-stock`, `random-users`
 - Image processing jobs use default queue with chaining for sequential processing
 - All jobs implement proper error handling and logging
 
 ### Queue Workers
 - **`php artisan queue:work`**: Starts the queue worker for ERP sync jobs
 - **`php artisan queue:work --queue=random-categories`**: Starts the queue worker for categories sync
+- **`php artisan queue:work --queue=random-brands`**: Starts the queue worker for brands sync
 - **`php artisan queue:work --queue=random-products`**: Starts the queue worker for products sync
 - **`php artisan queue:work --queue=random-prices`**: Starts the queue worker for prices sync
 - **`php artisan queue:work --queue=random-stock`**: Starts the queue worker for stock sync
@@ -194,6 +202,7 @@ docker compose exec workcontainer php artisan test tests/Feature/SyncProductMoni
 // ERP sync chain (executed by random:sync-all)
 Bus::chain([
     new SyncRandomCategories(),
+    new SyncRandomBrands(),
     new SyncRandomProducts(),
     new SyncRandomPrices(),
     new SyncRandomStock(),

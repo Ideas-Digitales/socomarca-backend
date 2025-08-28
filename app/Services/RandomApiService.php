@@ -47,17 +47,13 @@ class RandomApiService
         } else {
             $token = $this->getToken();
         }
-        $response = Http::withHeaders([ 
-            'Authorization' => 'Bearer ' . $token
-        ])->$method($this->baseUrl . $endpoint, $params);
+        $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
 
         //If token is expired, get new token and make request again
         if(isset($response->json()['message']) && $response->json()['message'] == 'jwt expired'){
             Cache::forget('random_api_token');
             $token = $this->getToken();
-            $response = Http::withHeaders([ 
-                'Authorization' => 'Bearer ' . $token
-            ])->$method($this->baseUrl . $endpoint, $params);
+            $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
                 
             return $response->json();
         }
@@ -93,23 +89,22 @@ class RandomApiService
 
     public function getProducts($tipr = '', $kopr_anterior = 0, $kopr = '', $nokopr = '', $search = '', $fmpr = '', $pfpr = '', $hfpr = '')
     {
-   
-        $data = [
-            'kopr_anterior' => $kopr_anterior,
-            'kopr' => $kopr,
-            'nokopr' => $nokopr,
-            'search' => $search,
-            'fmpr' => $fmpr,
-            'pfpr' => $pfpr,
-            'hfpr' => $hfpr,
-            'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA"
+        $params = [
+            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR"
         ];
 
-        if (!empty($tipr)) {
-            $data['tipr'] = $tipr;
-        }
+        // Only add non-empty parameters
+        if (!empty($tipr)) $params['tipr'] = $tipr;
+        if ($kopr_anterior > 0) $params['kopr_anterior'] = $kopr_anterior;
+        if (!empty($kopr)) $params['kopr'] = $kopr;
+        if (!empty($nokopr)) $params['nokopr'] = $nokopr;
+        if (!empty($search)) $params['search'] = $search;
+        if (!empty($fmpr)) $params['fmpr'] = $fmpr;
+        if (!empty($pfpr)) $params['pfpr'] = $pfpr;
+        if (!empty($hfpr)) $params['hfpr'] = $hfpr;
 
-        return $this->makeRequest('get', '/productos?' . http_build_query($data));
+        return $this->makeRequest('get', '/productos', $params);
     }
 
     public function getCategories()
@@ -117,26 +112,35 @@ class RandomApiService
         return $this->makeRequest('get', '/familias');
     }
 
-    public function getPricesLists(){
-
-        $data = [
+    public function getPricesLists()
+    {
+        $params = [
             'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
             'modalidad' => env('RANDOM_ERP_PRICES_MODALITY')
         ];
-        $request = $this->makeRequest('get', '/web32/precios/pidelistaprecio?' . http_build_query($data));
-        return $request;
+        return $this->makeRequest('get', '/web32/precios/pidelistaprecio', $params);
     }
 
-    public function getStock($kopr = null, $fields = null, $warehouse = null, $business_code = null, $mode = null){
-        $data = [];
+    public function getStock($kopr = null, $fields = null, $warehouse = null, $business_code = null, $mode = null)
+    {
+        $params = [];
         
-        if ($kopr !== null) $data['kopr'] = $kopr;
-        if ($fields !== null) $data['fields'] = $fields;
-        if ($warehouse !== null) $data['warehouse'] = $warehouse;
-        if ($business_code !== null) $data['business_code'] = $business_code;
-        if ($mode !== null) $data['mode'] = $mode;
+        if ($kopr !== null) $params['kopr'] = $kopr;
+        if ($fields !== null) $params['fields'] = $fields;
+        if ($warehouse !== null) $params['warehouse'] = $warehouse;
+        if ($business_code !== null) $params['business_code'] = $business_code;
+        if ($mode !== null) $params['mode'] = $mode;
 
-        $request = $this->makeRequest('get', '/stock/detalle?' . http_build_query($data));
-        return $request;
+        return $this->makeRequest('get', '/stock/detalle', $params);
     }
+
+    public function getBrands(){
+        $params = [
+            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'fields' => 'KOPR,MRPR,NOKOMR'
+        ];
+        
+        return $this->makeRequest('get', '/productos', $params);
+    }
+    
 } 

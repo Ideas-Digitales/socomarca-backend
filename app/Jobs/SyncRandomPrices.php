@@ -25,6 +25,12 @@ class SyncRandomPrices implements ShouldQueue
             foreach($prices['datos'] as $price) {
                 foreach($price['unidades'] as $unit) {
                     $product = Product::where('random_product_id', $price['kopr'])->first();
+                    
+                    // Skip if product doesn't exist
+                    if (!$product) {
+                        Log::warning("Product with random_product_id {$price['kopr']} not found, skipping price sync");
+                        continue;
+                    }
     
                     $data = [
                         'product_id' => $product->id,
