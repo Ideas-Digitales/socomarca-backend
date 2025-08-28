@@ -25,10 +25,10 @@ class SyncAllRandomDataCommand extends Command
         
         try {
             Bus::chain([
-                //new SyncRandomCategories(),
-                //new SyncRandomProducts(),
-                //new SyncRandomPrices(),
-//                new SyncRandomStock(),
+                new SyncRandomCategories(),
+                new SyncRandomProducts(),
+                new SyncRandomPrices(),
+                new SyncRandomStock(),
                 new SyncRandomUsers(),
             ])->dispatch();
 
