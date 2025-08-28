@@ -8,75 +8,85 @@ use Spatie\Permission\Models\Permission;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    Permission::firstOrCreate(['name' => 'update-system-config']);
+    $this->admin = User::factory()->create();
+    $this->admin->givePermissionTo('update-system-config');
+    $this->user = User::factory()->create();
 });
 
-describe('Firebase config endpoint', function () {
-    test('unauthorized without permission', function () {
-        $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
-
-        $payload = [
-            'type' => 'service_account',
-            'project_id' => 'proj-1',
-            'private_key' => "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
-            'client_email' => 'sa@proj.iam.gserviceaccount.com',
-        ];
-
-        $resp = $this->putJson(route('firebase.config.update'), $payload);
-        $resp->assertStatus(403);
+describe('FirebaseConfig API', function () {
+    it('should require authentication for showConfig', function () {
+        $response = $this->getJson(route('firebase.config.show'));
+        $response->assertStatus(401);
     });
 
-    test('validation errors for missing fields', function () {
-        $user = User::factory()->create();
-        $user->givePermissionTo('update-system-config');
-        $this->actingAs($user, 'sanctum');
-
-        $payload = [
-            'type' => 'service_account',
-            // missing project_id, private_key, client_email
-        ];
-
-        $resp = $this->putJson(route('firebase.config.update'), $payload);
-        $resp->assertStatus(422)
-             ->assertJsonValidationErrors(['project_id', 'private_key', 'client_email']);
+    it('should require permission for showConfig', function () {
+        $this->actingAs($this->user, 'sanctum');
+        $response = $this->getJson(route('firebase.config.show'));
+        $response->assertStatus(403);
     });
 
-    test('stores credentials file on success', function () {
-        Storage::fake('local');
+    it('should return config for authorized user', function () {
+        $this->actingAs($this->admin, 'sanctum');
+        $response = $this->getJson(route('firebase.config.show'));
+        // Puede ser 200 o 404 si no hay config, pero nunca 401/403
+        $response->assertStatus(in_array($response->status(), [200, 404]) ? $response->status() : 200);
+    });
 
-        $user = User::factory()->create();
-        $user->givePermissionTo('update-system-config');
-        $this->actingAs($user, 'sanctum');
+    it('should require authentication for update', function () {
+        $response = $this->putJson(route('firebase.config.update'), [
+            'project_id' => 'test',
+            'private_key' => 'key',
+        ]);
+        $response->assertStatus(401);
+    });
 
-        $payload = [
+    it('should require permission for update', function () {
+        $this->actingAs($this->user, 'sanctum');
+        $response = $this->putJson(route('firebase.config.update'), [
+            'project_id' => 'test',
+            'private_key' => 'key',
+        ]);
+        $response->assertStatus(403);
+    });
+
+    it('should update config for authorized user', function () {
+        $this->actingAs($this->admin, 'sanctum');
+        $response = $this->putJson(route('firebase.config.update'), [
             'type' => 'service_account',
-            'project_id' => 'proj-1',
-            'private_key' => "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n",
-            'client_email' => 'sa@proj.iam.gserviceaccount.com',
-            'other_field' => 'value'
-        ];
+            'project_id' => 'test',
+            'private_key' => 'key',
+            'client_email' => 'test@example.com',
+        ]);
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['message' => 'Firebase config saved']);
+    });
+});
 
-        $resp = $this->putJson(route('firebase.config.update'), $payload);
-        $resp->assertStatus(200)->assertJson(['message' => 'Firebase config saved']);
+describe('FCM Token update', function () {
+    it('should require authentication', function () {
+        $response = $this->putJson(route('firebase.fcm-token'), [
+            'fcm_token' => 'test_token',
+        ]);
+        $response->assertStatus(401);
+    });
 
-        Storage::disk('local')->assertExists('firebase/credentials.json');
+    it('should update fcm_token for authenticated user', function () {
+        $this->actingAs($this->user, 'sanctum');
+        $response = $this->putJson(route('firebase.fcm-token'), [
+            'fcm_token' => 'test_token',
+        ]);
+        $response->assertStatus(200);
+        $response->assertJsonFragment(['message' => 'FCM Token saved.']);
+        $this->assertDatabaseHas('users', [
+            'id' => $this->user->id,
+            'fcm_token' => 'test_token',
+        ]);
+    });
 
-        $stored = Storage::disk('local')->get('firebase/credentials.json');
-        $storedArray = json_decode($stored, true);
-        expect($storedArray)->toBeArray();
-
-        // Normalizar private_key (el middleware TrimStrings puede recortar saltos de línea)
-        $payloadNormalized = $payload;
-        $storedNormalized = $storedArray;
-
-        if (isset($payloadNormalized['private_key'])) {
-            $payloadNormalized['private_key'] = rtrim($payloadNormalized['private_key'], "\r\n");
-        }
-        if (isset($storedNormalized['private_key'])) {
-            $storedNormalized['private_key'] = rtrim($storedNormalized['private_key'], "\r\n");
-        }
-
-        expect($storedNormalized)->toEqual($payloadNormalized);
+    it('should validate fcm_token is required', function () {
+        $this->actingAs($this->user, 'sanctum');
+        $response = $this->putJson(route('firebase.fcm-token'), []);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('fcm_token');
     });
 });

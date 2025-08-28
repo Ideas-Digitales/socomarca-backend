@@ -52,7 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
-    Route::post('/users/search', [UserController::class, 'search']);
+    Route::post('/users/search', [UserController::class, 'search'])->middleware(['permission:read-admin-users'])->name('users.search');
 
     Route::resource('/users', UserController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
