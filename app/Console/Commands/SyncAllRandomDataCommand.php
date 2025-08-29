@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\SyncRandomBrands;
 use App\Jobs\SyncRandomCategories;
 use App\Jobs\SyncRandomPrices;
 use App\Jobs\SyncRandomProducts;
@@ -26,6 +27,7 @@ class SyncAllRandomDataCommand extends Command
         try {
             Bus::chain([
                 new SyncRandomCategories(),
+                new SyncRandomBrands(),
                 new SyncRandomProducts(),
                 new SyncRandomPrices(),
                 new SyncRandomStock(),

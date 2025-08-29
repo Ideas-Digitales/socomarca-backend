@@ -9,7 +9,7 @@ class Brand extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description', 'logo_url'];
+    protected $fillable = ['random_erp_code', 'name', 'description', 'logo_url'];
 
     public function products()
     {
