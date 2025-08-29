@@ -49,6 +49,9 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
+    
+    Route::put('fcm/token', [UserController::class, 'updateFcmToken'])
+    ->name('firebase.fcm-token');
 
     Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
@@ -269,9 +272,7 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->put('fcm/config', [FirebaseConfigController::class, 'update'])
     ->name('firebase.config.update');
 
-Route::middleware(['auth:sanctum'])
-    ->put('fcm/token', [FirebaseConfigController::class, 'updateFcmToken'])
-    ->name('firebase.fcm-token');
+
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->get('fcm/config', [FirebaseConfigController::class, 'showConfig'])

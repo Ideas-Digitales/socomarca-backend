@@ -41,9 +41,23 @@ class FirebaseConfigController extends Controller
             ], 404);
         }
 
-        $raw = @file_get_contents($path);
+        try {
+            $raw = file_get_contents($path);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cannot read file',
+                'resolved_path' => $path,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+
         if ($raw === false) {
-            return response()->json(['ok' => false, 'message' => 'Cannot read file', 'resolved_path' => $path], 500);
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cannot read file',
+                'resolved_path' => $path,
+            ], 500);
         }
 
         $decoded = json_decode($raw, true);
@@ -82,19 +96,5 @@ class FirebaseConfigController extends Controller
         return response()->json(['message' => 'Firebase config saved'], 200);
     }
 
-    public function updateFcmToken(Request $request): JsonResponse
-    {
-        // Valida que el token está presente
-        $request->validate([
-            'fcm_token' => 'required|string'
-        ]);
-
-        $user = $request->user();
-
-        $user->update(['fcm_token' => $request->fcm_token]);
-
-        Log::info('Firebase FCM token updated', ['user_id' => $user->id]);
-        
-        return response()->json(['message' => 'FCM Token saved.']);
-    }
+    
 }
