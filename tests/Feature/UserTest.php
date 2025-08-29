@@ -64,12 +64,12 @@ test('requiere autenticacion con token', function () {
 });
 
 test('user search permissions', function () {
-//    $response = $this->actingAs($this->clientUser, 'sanctum')
-//        ->withHeaders(['Accept' => 'application/json'])
-//        ->postJson('/api/users/search');
-//
-//    $response->assertStatus(403);
-})->todo(note: "Refactorizar todos los test de este archivo para los endpoints de búsqueda");
+   $response = $this->actingAs($this->clientUser, 'sanctum')
+       ->withHeaders(['Accept' => 'application/json'])
+       ->postJson('/api/users/search');
+
+   $response->assertStatus(403);
+});
 
 test('permite busqueda con permiso manage-users', function () {
     User::truncate();

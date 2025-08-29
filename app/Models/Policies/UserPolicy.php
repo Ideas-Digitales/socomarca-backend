@@ -58,6 +58,11 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
+        // Un usuario puede actualizarse a sí mismo
+        if ($user->id === $model->id) {
+            return true;
+        }
+        
         return $this->view($user, $model) && $user->can('update-users');
     }
 

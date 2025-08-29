@@ -108,6 +108,9 @@ class UserController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
+            
+            $oldFcm = $user->fcm_token ?? null;
+            
             $newPassword = null;
 
             if ($request->has('password')) {
@@ -282,5 +285,21 @@ class UserController extends Controller
         $fileName = 'Lista_usuarios' . now()->format('Ymd_His') . '.xlsx';
 
         return Excel::download(new UsersExport($sort, $sortDirection), $fileName);
+    }
+
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        // Valida que el token está presente
+        $request->validate([
+            'fcm_token' => 'required|string'
+        ]);
+
+        $user = $request->user();
+
+        $user->update(['fcm_token' => $request->fcm_token]);
+
+        Log::info('Firebase FCM token updated', ['user_id' => $user->id]);
+        
+        return response()->json(['message' => 'FCM Token saved.']);
     }
 }

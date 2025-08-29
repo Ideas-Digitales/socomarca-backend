@@ -31,6 +31,7 @@ class ProfileResource extends JsonResource
             'is_active'=> $this->is_active,
             'billing_address' => $billingAddress,
             'default_shipping_address' => $defaultShippingAddress,
+            'fcm_token' => $this->fcm_token,
         ];
     }
 }
