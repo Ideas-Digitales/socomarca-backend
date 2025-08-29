@@ -23,7 +23,21 @@ class SyncRandomPrices implements ShouldQueue
             $prices = $randomApi->getPricesLists();
             
             foreach($prices['datos'] as $price) {
-                foreach($price['unidades'] as $unit) {
+
+                $pricipal_unit = $price['venderen']; // Unidad principal publicada; 1=primera, 2=segunda, 0=ambas
+
+                foreach($price['unidades'] as $index => $unit) {
+                    // 1=primera,
+                    if ($pricipal_unit == 1 && $index != 0) {
+                        continue; 
+                    }
+                    // 2=segunda
+                    if ($pricipal_unit == 2 && $index != 1) {
+                        continue;
+                    }
+                    
+                    // 0=ambas
+                    
                     $product = Product::where('random_product_id', $price['kopr'])->first();
                     
                     // Skip if product doesn't exist
