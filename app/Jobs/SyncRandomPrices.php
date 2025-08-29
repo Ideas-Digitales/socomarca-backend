@@ -22,6 +22,11 @@ class SyncRandomPrices implements ShouldQueue
         try {
             $prices = $randomApi->getPricesLists();
             
+            if (!isset($prices['datos']) || empty($prices['datos'])) {
+                Log::info('No hay datos de precios para procesar');
+                return;
+            }
+            
             foreach($prices['datos'] as $price) {
 
                 $pricipal_unit = $price['venderen']; // Unidad principal publicada; 1=primera, 2=segunda, 0=ambas

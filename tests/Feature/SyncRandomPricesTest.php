@@ -8,9 +8,30 @@ use App\Models\Product;
 
 uses(RefreshDatabase::class);
 
+test('command executes job immediately', function () {
+    // Mock del servicio
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getPricesLists')->andReturn([
+        'nombre' => 1,
+        'datos' => []
+    ]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')
+        ->with('SyncRandomPrices started')
+        ->once();
+    Log::shouldReceive('info')
+        ->with('No hay datos de precios para procesar')
+        ->once();
+
+    $this->artisan('random:sync-prices')
+        ->expectsOutput('Iniciando sincronización de precios...')
+        ->expectsOutput('Proceso de sincronización encolado correctamente.')
+        ->assertExitCode(0);
+});
+
 test('command executes job and updates product prices', function () {
-    
-    $product = Product::create([
+    Product::create([
         'code' => 'PROD1',
         'sku' => 'SKU1',
         'name' => 'Producto 1',
@@ -24,7 +45,8 @@ test('command executes job and updates product prices', function () {
         'nombre' => 1,
         'datos' => [
             [
-                'kopr' => 123, 
+                'kopr' => 123,
+                'venderen' => 1,
                 'unidades' => [
                     [
                         'nombre' => 'kg',
@@ -40,93 +62,6 @@ test('command executes job and updates product prices', function () {
 
     Log::shouldReceive('info')->with('SyncRandomPrices started')->once();
     Log::shouldReceive('info')->with('SyncRandomPrices finished')->once();
-    Log::shouldReceive('error')->zeroOrMoreTimes(); 
-
-
-    
-    $this->artisan('random:sync-prices')
-        ->expectsOutput('Iniciando sincronización de precios...')
-        ->expectsOutput('Proceso de sincronización encolado correctamente.')
-        ->assertExitCode(0);
-
-    // Verifica que el precio fue actualizado (ajusta el valor esperado)
-    $this->assertDatabaseHas('products', [
-        'name' => 'Producto 1',
-    ]);
-});
-
-test('command executes price sync job immediately', function () {
-    // Crea el producto necesario para el job
-    Product::create([
-        'code' => 'PROD1',
-        'sku' => 'SKU1',
-        'name' => 'Producto 1',
-        'price' => 1000,
-        'random_product_id' => 123,
-    ]);
-
-    // Mock del servicio
-    $mock = Mockery::mock(\App\Services\RandomApiService::class);
-    $mock->shouldReceive('getPricesLists')->andReturn([
-        'nombre' => 1,
-        'datos' => [
-            [
-                'kopr' => 123,
-                'unidades' => [
-                    [
-                        'nombre' => 'kg',
-                        'prunneto' => [
-                            ['f' => 999]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]);
-    App::instance(\App\Services\RandomApiService::class, $mock);
-
-    Log::shouldReceive('info')->with('SyncRandomPrices started')->once();
-    Log::shouldReceive('info')->with('SyncRandomPrices finished')->once();
-    Log::shouldReceive('error')->zeroOrMoreTimes(); 
-
-    $this->artisan('random:sync-prices')
-        ->expectsOutput('Iniciando sincronización de precios...')
-        ->expectsOutput('Proceso de sincronización encolado correctamente.')
-        ->assertExitCode(0);
-});
-
-test('command executes price sync job and creates prices', function () {
-    // Crea el producto necesario para el job
-    Product::create([
-        'code' => 'PROD1',
-        'sku' => 'SKU1',
-        'name' => 'Producto 1',
-        'price' => 1000,
-        'random_product_id' => 123,
-    ]);
-
-    // Mock del servicio
-    $mock = Mockery::mock(\App\Services\RandomApiService::class);
-    $mock->shouldReceive('getPricesLists')->andReturn([
-        'nombre' => 1,
-        'datos' => [
-            [
-                'kopr' => 123,
-                'unidades' => [
-                    [
-                        'nombre' => 'kg',
-                        'prunneto' => [
-                            ['f' => 999]
-                        ]
-                    ]
-                ]
-            ]
-        ]
-    ]);
-    App::instance(\App\Services\RandomApiService::class, $mock);
-
-    Log::shouldReceive('info')->with('SyncRandomPrices started')->once();
-    Log::shouldReceive('info')->with('SyncRandomPrices finished')->once();
     Log::shouldReceive('error')->zeroOrMoreTimes();
 
     $this->artisan('random:sync-prices')
@@ -134,10 +69,10 @@ test('command executes price sync job and creates prices', function () {
         ->expectsOutput('Proceso de sincronización encolado correctamente.')
         ->assertExitCode(0);
 
+    // Verificar que se creó un precio
     $this->assertDatabaseHas('prices', [
         'unit' => 'kg',
-    ]);
-    $this->assertDatabaseHas('prices', [
         'is_active' => true,
     ]);
 });
+
