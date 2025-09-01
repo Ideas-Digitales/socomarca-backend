@@ -1,0 +1,16 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html:cached
+      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
+    expose:
+      - 9000
+    ports:
+      - "${LOCAL_FPM_PORT}:9000"
+    environment:
+      - PHP_UPLOAD_MAX_FILESIZE=100M
+      - PHP_POST_MAX_SIZE=100M
