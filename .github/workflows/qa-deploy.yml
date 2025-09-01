@@ -1,0 +1,47 @@
+name: QA Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ideas-qa
+
+    steps:
+
+      - name: Update local repository
+        run: git checkout main && git pull
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Put the application into maintenance / demo mode
+        run: docker compose -f compose.qa.yml exec app php artisan down
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Install composer packages
+        run: docker compose -f compose.qa.yml exec app composer install --optimize-autoloader
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Run migrations and seeders
+        run: docker compose -f compose.qa.yml exec app php artisan migrate --force --seed
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Configuration caching
+        run: docker compose -f compose.qa.yml exec app php artisan config:cache
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Routes caching
+        run: docker compose -f compose.qa.yml exec app php artisan route:cache
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Event caching
+        run: docker compose -f compose.qa.yml exec app php artisan event:cache
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
+      - name: Bring the application out of maintenance mode
+        run: docker compose -f compose.qa.yml exec app php artisan up
+        working-directory: /home/ubuntu/deploys/socomarca-backend
