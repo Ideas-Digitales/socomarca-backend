@@ -10,7 +10,9 @@ permissions:
 jobs:
   build:
 
-    runs-on: [self-hosted, ideas-qa]
+    runs-on:
+      group: Default
+      labels: [self-hosted, ideas-qa]
 
     steps:
 
