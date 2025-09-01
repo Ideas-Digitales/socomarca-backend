@@ -29,7 +29,7 @@ jobs:
         working-directory: /home/ubuntu/deploys/socomarca-backend
 
       - name: Run migrations and seeders
-        run: docker compose -f compose.qa.yml exec app php artisan migrate --force --seed
+        run: docker compose -f compose.qa.yml exec app php artisan migrate:fresh --force --seed
         working-directory: /home/ubuntu/deploys/socomarca-backend
 
       - name: Configuration caching
