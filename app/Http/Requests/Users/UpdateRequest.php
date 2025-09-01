@@ -36,6 +36,7 @@ class UpdateRequest extends FormRequest
             'password' => [$required, 'bail', 'confirmed', Password::min(8)->letters()],
             'roles' => "bail|$required|array",
             'roles.*' => 'bail|string|exists:roles,name',
+            'fcm_token' => ['nullable','string','max:1000'],
         ];
     }
 

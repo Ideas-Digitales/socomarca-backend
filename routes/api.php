@@ -49,10 +49,13 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
+    
+    Route::put('fcm/token', [UserController::class, 'updateFcmToken'])
+    ->name('firebase.fcm-token');
 
     Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
-    Route::post('/users/search', [UserController::class, 'search']);
+    Route::post('/users/search', [UserController::class, 'search'])->middleware(['permission:read-admin-users'])->name('users.search');
 
     Route::resource('/users', UserController::class)
         ->only(['index', 'store', 'show', 'update', 'destroy'])
@@ -266,9 +269,14 @@ Route::post('/notifications', [NotificationController::class, 'store'])
     ->name('notifications.store');
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
-    ->put('firebase/config', [FirebaseConfigController::class, 'update'])
+    ->put('fcm/config', [FirebaseConfigController::class, 'update'])
     ->name('firebase.config.update');
 
+
+
+Route::middleware(['auth:sanctum', 'permission:update-system-config'])
+    ->get('fcm/config', [FirebaseConfigController::class, 'showConfig'])
+    ->name('firebase.config.show');
 
 // Ruta catch-all al final
 Route::any('{url}', function() {

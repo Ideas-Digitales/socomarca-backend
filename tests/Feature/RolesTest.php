@@ -112,7 +112,7 @@ describe('read-user-roles permission', function () {
         $targetUser->assignRole('customer');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson(route('roles.user', $targetUser->id));
+            ->getJson(route('roles.users', $targetUser->id));
 
         $response->assertStatus(200);
     });
@@ -125,7 +125,7 @@ describe('read-user-roles permission', function () {
         $targetUser->assignRole('customer');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->getJson(route('roles.user', $targetUser->id));
+            ->getJson(route('roles.users', $targetUser->id));
 
         $response->assertStatus(403);
     });
@@ -190,7 +190,7 @@ describe('read-user-roles permission', function () {
     it('unauthenticated users cannot access specific user roles', function () {
         $targetUser = User::factory()->create();
 
-        $response = $this->getJson(route('roles.user', $targetUser->id));
+        $response = $this->getJson(route('roles.users', $targetUser->id));
 
         $response->assertStatus(401);
     });
