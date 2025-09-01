@@ -11,8 +11,8 @@ jobs:
   build:
 
     runs-on:
-      group: Default
-      labels: [self-hosted, ideas-qa]
+      group: laravel-qa-deploy
+      labels: self-hosted
 
     steps:
 
