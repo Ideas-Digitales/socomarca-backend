@@ -172,6 +172,7 @@ describe('Product Sync Basic', function () {
             'datos' => [
                 [
                     'kopr' => 'PROD001',
+                    'venderen' => 0,
                     'unidades' => [
                         [
                             'nombre' => 'UN',
@@ -195,6 +196,7 @@ describe('Product Sync Basic', function () {
             ->andReturn($pricesResponse);
 
         Log::shouldReceive('info')->twice();
+        Log::shouldReceive('error')->zeroOrMoreTimes();
 
         // Ejecutar el job de precios
         $job = new SyncRandomPrices();
@@ -243,7 +245,8 @@ describe('Product Sync Basic', function () {
             'data' => [
                 [
                     'KOPR' => 'PROD001',
-                    'STOCNV1' => 50
+                    'STOCNV1' => 50,
+                    'STVEN1' => 50
                 ]
             ]
         ];
@@ -253,6 +256,7 @@ describe('Product Sync Basic', function () {
             ->andReturn($stockResponse);
 
         Log::shouldReceive('info')->twice();
+        Log::shouldReceive('error')->zeroOrMoreTimes();
 
         // Ejecutar el job de stock
         $job = new SyncRandomStock();

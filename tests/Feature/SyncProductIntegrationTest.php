@@ -52,6 +52,7 @@ describe('Product Sync Integration', function () {
             ->andReturn($categoriesResponse);
 
         Log::shouldReceive('info')->atLeast()->times(1);
+        Log::shouldReceive('error')->zeroOrMoreTimes();
 
         $categoriesJob = new SyncRandomCategories();
         $categoriesJob->handle($mockApiService);
@@ -101,6 +102,7 @@ describe('Product Sync Integration', function () {
             'datos' => [
                 [
                     'kopr' => 'PROD001',
+                    'venderen' => 1,
                     'unidades' => [
                         [
                             'nombre' => 'UN',
@@ -110,6 +112,7 @@ describe('Product Sync Integration', function () {
                 ],
                 [
                     'kopr' => 'PROD002',
+                    'venderen' => 1,
                     'unidades' => [
                         [
                             'nombre' => 'UN',
@@ -135,11 +138,13 @@ describe('Product Sync Integration', function () {
             'data' => [
                 [
                     'KOPR' => 'PROD001',
-                    'STOCNV1' => 45
+                    'STOCNV1' => 45,
+                    'STVEN1' => 45
                 ],
                 [
                     'KOPR' => 'PROD002',
-                    'STOCNV1' => 23
+                    'STOCNV1' => 23,
+                    'STVEN1' => 23
                 ]
             ]
         ];

@@ -37,11 +37,11 @@ class SyncRandomCategories implements ShouldQueue
                     $parent = explode("/", $category['LLAVE']);
                     $parentCategory = Category::where('code', $parent[0])->first();
                     Subcategory::updateOrCreate(
-                        ['code' => $category['CODIGO']],
+                        ['key' => $category['LLAVE']],
                         [
+                            'code' => $category['CODIGO'],
                             'name' => $category['NOMBRE'],
                             'level' => $category['NIVEL'],
-                            'key' => $category['LLAVE'],
                             'category_id' => $parentCategory->id
                         ]
                     );
@@ -51,11 +51,11 @@ class SyncRandomCategories implements ShouldQueue
                     $parent = explode("/", $category['LLAVE']);
                     $parentCategory = Category::where('code', $parent[0])->first();
                     Subcategory::updateOrCreate(
-                        ['code' => $category['CODIGO']],
+                        ['key' => $category['LLAVE']],
                         [
+                            'code' => $category['CODIGO'],
                             'name' => $category['NOMBRE'],
                             'level' => $category['NIVEL'],
-                            'key' => $category['LLAVE'],
                             'category_id' => $parentCategory->id
                         ]
                     );
