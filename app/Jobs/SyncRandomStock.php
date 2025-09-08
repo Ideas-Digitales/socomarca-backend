@@ -26,10 +26,23 @@ class SyncRandomStock implements ShouldQueue
     {
         Log::info('SyncRandomStock started');
         try {
-            $warehouses = Warehouse::active()->get();
+            // Obtener todo el stock desde Random ERP (una sola llamada)
+            $allStock = $randomApi->getStock(null, null, null, null, env('RANDOM_ERP_PRICES_MODALITY', 'ADMIN'));
             
-            foreach ($warehouses as $warehouse) {
-                $this->syncWarehouseStock($randomApi, $warehouse);
+            if (!isset($allStock['data']) || !is_array($allStock['data'])) {
+                Log::warning('No stock data received from Random API');
+                return;
+            }
+
+            Log::info('Received ' . count($allStock['data']) . ' stock records from Random API');
+
+            // Resetear todo el stock a 0 antes de sincronizar
+            ProductStock::query()->update(['stock' => 0]);
+            Log::info('Reset all product stocks to 0');
+
+            // Procesar cada registro de stock
+            foreach ($allStock['data'] as $stockData) {
+                $this->syncProductStock($stockData);
             }
             
             Log::info('SyncRandomStock finished');
@@ -39,34 +52,22 @@ class SyncRandomStock implements ShouldQueue
         }
     }
 
-    private function syncWarehouseStock(RandomApiService $randomApi, Warehouse $warehouse)
-    {
-        Log::info("Syncing stock for warehouse: {$warehouse->warehouse_code}");
-        
-        try {
-            $stocks = $randomApi->getStock(null, null, $warehouse->warehouse_code);
-            
-            if (!isset($stocks['data']) || !is_array($stocks['data'])) {
-                Log::warning("No stock data for warehouse: {$warehouse->warehouse_code}");
-                return;
-            }
 
-            foreach ($stocks['data'] as $stock) {
-                $this->syncProductStock($stock, $warehouse);
-            }
-            
-        } catch (\Exception $e) {
-            Log::error("Error syncing stock for warehouse {$warehouse->warehouse_code}: " . $e->getMessage());
-        }
-    }
-
-    private function syncProductStock(array $stockData, Warehouse $warehouse)
+    private function syncProductStock(array $stockData)
     {
         // Buscar producto por random_product_id
         $product = Product::where('random_product_id', $stockData['KOPR'])->first();
         
         if (!$product) {
             Log::warning("Product not found: {$stockData['KOPR']}");
+            return;
+        }
+
+        // Buscar bodega por warehouse_code del API (KOBO)
+        $warehouse = Warehouse::where('warehouse_code', $stockData['KOBO'])->first();
+        
+        if (!$warehouse) {
+            Log::warning("Warehouse not found: {$stockData['KOBO']}");
             return;
         }
 
@@ -89,6 +90,6 @@ class SyncRandomStock implements ShouldQueue
             ]
         );
 
-        Log::debug("Stock updated - Product: {$product->id}, Warehouse: {$warehouse->warehouse_code}, Stock: {$stockData['STVEN1']}");
+        Log::debug("Stock updated - Product: {$product->id} ({$stockData['KOPR']}), Warehouse: {$warehouse->warehouse_code}, Stock: {$stockData['STVEN1']}");
     }
 }

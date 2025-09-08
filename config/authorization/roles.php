@@ -60,7 +60,14 @@ return [
         // Warehouse permissions
         'read-warehouses',
         'manage-warehouses',
+
+        //Cart
+        'read-own-cart',
+        'delete-cart',
+        'create-cart-items',
+        'delete-cart-items',
         
+        // System configuration permissions
         "update-system-config",
 
     ],

@@ -48,6 +48,8 @@ class ProductResource extends JsonResource
                     'price' => $price->price,
                 ];
             }),
+            'stock' => $this->getTotalAvailableStock(),
+            'stock_by_warehouse' => $this->getStockByWarehouse(),
             'sku' => $this->sku,
             'status' => $this->status,
             'is_favorite' => $isFavorite,

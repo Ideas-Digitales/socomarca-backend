@@ -34,26 +34,24 @@ class ProductCollection extends ResourceCollection
             return [
                 'id' => $product->id,
                 'name' => $product->name,
-                'category' => [
+                'category' => $product->category ? [
                     'id' => $product->category->id,
                     'name' => $product->category->name,
-                ],
-                'subcategory' => [
+                ] : null,
+                'subcategory' => $product->subcategory ? [
                     'id' => $product->subcategory->id,
                     'name' => $product->subcategory->name,
-                ],
-                'brand' => [
+                ] : null,
+                'brand' => $product->brand ? [
                     'id' => $product->brand->id,
                     'name' => $product->brand->name,
-                ],
+                ] : null,
                 'unit' => $product->joined_unit
                     ?? optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->unit,
                 'price' => isset($product->joined_price)
                     ? (float) $product->joined_price
                     : (float) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->price,
-                'stock' => isset($product->joined_stock)
-                    ? (int) $product->joined_stock
-                    : (int) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->stock,
+                'stock' => $product->getTotalAvailableStock(),
                 'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,
