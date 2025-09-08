@@ -130,5 +130,9 @@ return [
     // Notification permissions
     'create-notifications', // [superadmin, admin]
 
+    // Warehouse permissions
+    'read-warehouses', // [superadmin, admin, supervisor, editor]
+    'manage-warehouses', // [superadmin, admin]
+
     'update-system-config' // [superadmin, admin]
 ];

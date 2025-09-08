@@ -85,6 +85,11 @@ class Product extends Model
         return $this->hasMany(Favorite::class);
     }
 
+    public function stocks()
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
     public function userFavorites($userId)
     {
         return $this->hasMany(Favorite::class)

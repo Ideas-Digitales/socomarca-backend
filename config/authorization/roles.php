@@ -56,6 +56,11 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        
+        // Warehouse permissions
+        'read-warehouses',
+        'manage-warehouses',
+        
         "update-system-config",
 
     ],
@@ -114,6 +119,10 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        
+        // Warehouse permissions
+        'read-warehouses',
+        'manage-warehouses',
 
     ],
     'supervisor' => [
@@ -135,6 +144,9 @@ return [
         "read-all-faqs",
         'read-all-products-export',
         'read-all-categories-export',
+
+        // Warehouse permissions
+        'read-warehouses',
 
     ],
     'editor' => [
@@ -160,6 +172,9 @@ return [
         "create-faqs",
         "update-faqs",
         "delete-faqs",
+
+        // Warehouse permissions
+        'read-warehouses',
     ],
     'customer' => [
         'read-own-profile',

@@ -16,6 +16,11 @@ class SyncRandomCategories implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public function __construct()
+    {
+        $this->onQueue('random-categories');
+    }
+
     public function handle(RandomApiService $randomApi)
     {
         Log::info('SyncRandomCategories started');

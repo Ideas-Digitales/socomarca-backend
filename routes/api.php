@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\FirebaseConfigController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductImageSyncController;
+use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -148,6 +149,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/products/search', [ProductController::class, 'search'])
         ->name('products.search')
         ->middleware('can:viewAny,App\Models\Product');
+
+    // Warehouse routes
+    Route::get('/warehouses', [WarehouseController::class, 'index'])->name('warehouses.index');
+    Route::get('/warehouses/stock-summary', [WarehouseController::class, 'stockSummary'])->name('warehouses.stock-summary');
+    Route::get('/warehouses/{warehouse}', [WarehouseController::class, 'show'])->name('warehouses.show');
+    Route::patch('/warehouses/{warehouse}/set-default', [WarehouseController::class, 'setDefault'])
+        ->name('warehouses.set-default')
+        ->middleware('permission:manage-warehouses');
+    Route::get('/warehouses/{warehouse}/stock', [WarehouseController::class, 'productStock'])->name('warehouses.product-stock');
 
     Route::resource(
         'favorites-list', FavoriteListController::class,
