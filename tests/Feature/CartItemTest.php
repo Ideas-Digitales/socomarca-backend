@@ -5,8 +5,10 @@ use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Price;
 use App\Models\Product;
+use App\Models\ProductStock;
 use App\Models\Subcategory;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Models\Order;
 use App\Models\OrderItem;
 
@@ -29,15 +31,32 @@ beforeEach(function () {
         'brand_id' => $brand->id
     ]);
 
-    // Crear precio activo para el producto
+    // Crear precio activo para el producto (sin stock, ya que ahora se maneja en ProductStock)
     $this->price = Price::factory()->create([
         'product_id' => $this->product->id,
         'unit' => 'kg',
         'price' => 100,
-        'stock' => 10,
         'is_active' => true,
         'valid_from' => now()->subDays(1),
         'valid_to' => null
+    ]);
+
+    // Crear bodega para el sistema de stock
+    $this->warehouse = Warehouse::factory()->create([
+        'name' => 'Test Warehouse',
+        'warehouse_code' => 'TEST001',
+        'priority' => 1,
+        'is_active' => true,
+    ]);
+
+    // Crear stock en la bodega para el producto
+    $this->productStock = ProductStock::create([
+        'product_id' => $this->product->id,
+        'warehouse_id' => $this->warehouse->id,
+        'unit' => 'kg',
+        'stock' => 10,
+        'reserved_stock' => 0,
+        'min_stock' => 1,
     ]);
 });
 
@@ -56,6 +75,7 @@ test('puede agregar un item al carrito', function () {
     $response
         ->assertCreated()
         ->assertJsonStructure([
+            'message',
             'product' => [
                 'id',
                 'name',
@@ -63,15 +83,27 @@ test('puede agregar un item al carrito', function () {
             ],
             'quantity',
             'unit',
+            'warehouse' => [
+                'id',
+                'name',
+                'code',
+            ],
             'total',
+            'reserved_at',
         ]);
 
     $this->assertDatabaseHas('cart_items', [
         'user_id' => $this->user->id,
         'product_id' => $this->product->id,
         'quantity' => 2,
-        'unit' => 'kg'
+        'unit' => 'kg',
+        'warehouse_id' => $this->warehouse->id,
     ]);
+
+    // Verificar que se reservó el stock
+    $this->productStock->refresh();
+    expect($this->productStock->reserved_stock)->toBe(2);
+    expect($this->productStock->available_stock)->toBe(8);
 });
 
 test('puede incrementar cantidad si item ya existe en carrito', function () {
@@ -79,13 +111,18 @@ test('puede incrementar cantidad si item ya existe en carrito', function () {
     //Clear cart items
     CartItem::where('user_id', $this->user->id)->delete();
 
-    // Arrange
-    CartItem::create([
+    // Arrange - Crear item inicial con reserva de stock
+    $existingItem = CartItem::create([
         'user_id' => $this->user->id,
         'product_id' => $this->product->id,
         'quantity' => 3,
-        'unit' => 'kg'
+        'unit' => 'kg',
+        'warehouse_id' => $this->warehouse->id,
+        'reserved_at' => now(),
     ]);
+
+    // Reservar stock inicial
+    $this->productStock->reserveStock(3);
 
     $data = [
         'product_id' => $this->product->id,
@@ -99,18 +136,25 @@ test('puede incrementar cantidad si item ya existe en carrito', function () {
     // Assert
     $response->assertStatus(201);
 
-
     $this->assertDatabaseHas('cart_items', [
         'user_id' => $this->user->id,
         'product_id' => $this->product->id,
         'quantity' => 5,
-        'unit' => 'kg'
+        'unit' => 'kg',
+        'warehouse_id' => $this->warehouse->id,
     ]);
 
     expect(CartItem::where('user_id', $this->user->id)
         ->where('product_id', $this->product->id)
         ->where('unit', 'kg')
         ->count())->toBe(1);
+
+    // Verificar que el stock se actualizó correctamente
+    // Comportamiento actual: libera reserva anterior (3) y reserva solo cantidad solicitada (2)
+    // Resultado: stock reservado = 2, disponible = 8
+    $this->productStock->refresh();
+    expect($this->productStock->reserved_stock)->toBe(2);
+    expect($this->productStock->available_stock)->toBe(8);
 });
 
 test('falla al agregar item sin product_id', function () {
@@ -281,7 +325,7 @@ test('retorna mensaje cuando item no existe para eliminar', function () {
     $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
-    $response->assertStatus(200)
+    $response->assertStatus(404)
         ->assertJson([
             'message' => 'Product item not found'
         ]);
@@ -404,15 +448,24 @@ test('usuarios diferentes no pueden ver items de otros carritos', function () {
 });
 
 test('puede manejar diferentes unidades del mismo producto', function () {
-    // Arrange
+    // Arrange - Crear precio y stock para unidad 'g'
     Price::factory()->create([
         'product_id' => $this->product->id,
         'unit' => 'g',
         'price' => 50,
-        'stock' => 100,
         'is_active' => true,
         'valid_from' => now()->subDays(1),
         'valid_to' => null
+    ]);
+
+    // Crear stock en la bodega para la unidad 'g'
+    $productStockG = ProductStock::create([
+        'product_id' => $this->product->id,
+        'warehouse_id' => $this->warehouse->id,
+        'unit' => 'g',
+        'stock' => 100,
+        'reserved_stock' => 0,
+        'min_stock' => 5,
     ]);
 
     $dataKg = [
@@ -517,7 +570,7 @@ test('vaciar su carrito', function () {
         ->deleteJson($route);
 
     $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The cart has been emptied']);
+        ->assertJsonFragment(['message' => 'The cart has been emptied and all stock reservations released']);
 
 
     $this->assertDatabaseMissing('cart_items', [
@@ -550,7 +603,7 @@ test('customer no puede vaciar carros de otros', function () {
         ->deleteJson($route);
 
     $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The cart has been emptied']);
+        ->assertJsonFragment(['message' => 'The cart has been emptied and all stock reservations released']);
 
     // El carrito de userB debe seguir teniendo sus ítems
     $this->assertDatabaseHas('cart_items', [

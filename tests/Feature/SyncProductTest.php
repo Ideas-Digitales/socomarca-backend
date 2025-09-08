@@ -221,6 +221,17 @@ describe('Product Sync Basic', function () {
     });
 
     test('la sincronización de stock actualiza precios existentes', function () {
+        // Crear bodega necesaria
+        $warehouse = \App\Models\Warehouse::create([
+            'business_code' => '01',
+            'branch_code' => 'MAIN',
+            'warehouse_code' => 'MAIN001',
+            'name' => 'Bodega Principal',
+            'address' => 'Dirección Principal',
+            'priority' => 1,
+            'is_active' => true,
+        ]);
+        
         // Crear producto y precio
         $product = Product::create([
             'random_product_id' => 'PROD001',
@@ -235,8 +246,7 @@ describe('Product Sync Basic', function () {
             'price_list_id' => 'LISTA_001',
             'unit' => 'UN',
             'price' => 1500,
-            'is_active' => true,
-            'stock' => 0
+            'is_active' => true
         ]);
 
         $mockApiService = Mockery::mock(RandomApiService::class);
@@ -245,6 +255,7 @@ describe('Product Sync Basic', function () {
             'data' => [
                 [
                     'KOPR' => 'PROD001',
+                    'KOBO' => 'MAIN001', // Código de bodega
                     'STOCNV1' => 50,
                     'STVEN1' => 50
                 ]
@@ -255,16 +266,22 @@ describe('Product Sync Basic', function () {
             ->once()
             ->andReturn($stockResponse);
 
-        Log::shouldReceive('info')->twice();
+        Log::shouldReceive('info')->atLeast()->times(1);
         Log::shouldReceive('error')->zeroOrMoreTimes();
+        Log::shouldReceive('debug')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->zeroOrMoreTimes();
 
         // Ejecutar el job de stock
         $job = new SyncRandomStock();
         $job->handle($mockApiService);
 
-        // Verificar que el stock se actualizó
-        $price->refresh();
-        expect($price->stock)->toBe(50);
+        // Verificar que el stock se actualizó en el nuevo sistema ProductStock
+        $productStock = \App\Models\ProductStock::where('product_id', $product->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->first();
+        
+        expect($productStock)->not->toBeNull();
+        expect($productStock->stock)->toBe(50);
     });
 
     test('el servicio RandomApiService obtiene token correctamente', function () {
@@ -315,8 +332,8 @@ describe('Product Sync Basic', function () {
 
         Artisan::call('random:sync-all');
 
-        // Verificar que se encoló al menos un job (el chain se cuenta como uno)
-        Queue::assertPushed(\App\Jobs\SyncRandomCategories::class);
+        // Verificar que se encoló el primer job de la cadena (SyncRandomWarehouses)
+        Queue::assertPushed(\App\Jobs\SyncRandomWarehouses::class);
     });
 
     test('los productos sincronizados tienen la estructura correcta', function () {
