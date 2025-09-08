@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Events\CartItemRemoved;
 use App\Models\CartItem;
 use App\Models\ProductStock;
+use App\Models\Siteinfo;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,11 @@ class ReleaseExpiredReservationsCommand extends Command
     public function handle()
     {
         $isDryRun = $this->option('dry-run');
-        $expirationMinutes = env('CART_RESERVATION_TIMEOUT', 1440); // Default 24 hours
+        
+        // Get timeout from siteinfo configuration
+        $timeoutConfig = Siteinfo::where('key', 'CART_RESERVATION_TIMEOUT')->first();
+        $expirationMinutes = $timeoutConfig ? ($timeoutConfig->value['timeout_minutes'] ?? 1440) : 1440;
+        
         $cutoffTime = Carbon::now()->subMinutes($expirationMinutes);
 
         $this->info("Looking for reservations older than {$expirationMinutes} minutes (before {$cutoffTime->toDateTimeString()})");

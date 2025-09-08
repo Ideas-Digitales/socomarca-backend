@@ -24,8 +24,7 @@ Laravel 12 backend API for Socomarca, an e-commerce platform with **multi-wareho
 ```bash
 cp .env.example .env
 
-# Configure cart reservation timeout (optional - default: 1440 minutes = 24 hours)
-# Add to .env file: CART_RESERVATION_TIMEOUT=1440
+# Cart reservation timeout is now configured via API (see System Configuration section)
 ```
 
 ### Docker Setup
@@ -46,7 +45,7 @@ docker compose exec workcontainer php artisan key:generate
 docker compose exec workcontainer php artisan migrate:fresh --seed
 
 #Complete database reset and sync all data
-docker compose exec workcontainer php artisan db:wipe && docker compose exec workcontainer php artisan migrate && docker compose exec workcontainer php artisan random:sync-all
+docker compose exec workcontainer php artisan db:wipe && docker compose exec workcontainer php artisan migrate --seed && docker compose exec workcontainer php artisan random:sync-all
 ```
 
 ## Development Commands
@@ -161,7 +160,7 @@ docker compose exec workcontainer php artisan app:test-email-sending {email-addr
 - **`random:sync-users`**: Synchronizes users/customers from Random ERP
 
 ### Warehouse & Stock Management Commands
-- **`reservations:release-expired`**: Releases expired cart stock reservations (configurable timeout via CART_RESERVATION_TIMEOUT env var)
+- **`reservations:release-expired`**: Releases expired cart stock reservations (configurable timeout via API system configuration)
 
 ### Utility Commands
 - **`app:test-email-sending {email-address}`**: Tests email functionality by sending a test email
@@ -243,10 +242,8 @@ Bus::dispatchChain([
 - **Automatic Cleanup**: Scheduled task runs hourly to release expired cart reservations
 
 ### Configuration
-```bash
-# Environment variable for cart reservation timeout
-CART_RESERVATION_TIMEOUT=1440  # minutes (default: 24 hours)
-```
+Cart reservation timeout is now configurable via API endpoints (see System Configuration API section below).
+Default timeout: 1440 minutes (24 hours).
 
 ## API Endpoints
 
@@ -257,11 +254,19 @@ CART_RESERVATION_TIMEOUT=1440  # minutes (default: 24 hours)
 - `PATCH /api/warehouses/{warehouse}/set-default` - Set warehouse as default (requires manage-warehouses permission)
 - `GET /api/warehouses/{warehouse}/stock` - Product stock detail by warehouse
 
+### System Configuration Routes
+- `GET /api/settings/cart-reservation-timeout` - Get cart reservation timeout configuration (requires read-all-system-config)
+- `PUT /api/settings/cart-reservation-timeout` - Update cart reservation timeout (requires update-system-config)
+
 ## Permissions
 
 ### Warehouse Permissions
 - **`read-warehouses`**: View warehouse information (roles: superadmin, admin, supervisor, editor)
 - **`manage-warehouses`**: Full warehouse management (roles: superadmin, admin)
+
+### System Configuration Permissions
+- **`read-all-system-config`**: View system configuration (roles: superadmin, admin)
+- **`update-system-config`**: Update system configuration (roles: superadmin, admin)
 
 ## QA Environment
 

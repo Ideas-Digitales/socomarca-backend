@@ -241,8 +241,16 @@ Route::post('/webpay/refund', [WebpayController::class, 'refund']);
 
 // Configuraciones de Webpay
 Route::get('/webpay/config', [SiteinfoController::class, 'webpayConfig'])->middleware(['auth:sanctum', 'permission:read-all-system-config'])->name('webpay.config');
+
+// Configuraciones del Sistema
+Route::get('/settings/cart-reservation-timeout', [SiteinfoController::class, 'getCartReservationTimeout'])
+    ->middleware(['auth:sanctum', 'permission:read-all-system-config'])
+    ->name('settings.cart-reservation-timeout.get');
+
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])->group(function () {
     Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig'])->name('webpay.config.update');
+    Route::put('/settings/cart-reservation-timeout', [SiteinfoController::class, 'updateCartReservationTimeout'])
+        ->name('settings.cart-reservation-timeout.update');
 });
 
 // Configuraciones de contenido - lectura con permiso
