@@ -15,7 +15,7 @@ class CartItemRemoved
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $cartItem;
+    public CartItem $cartItem;
 
     /**
      * Create a new event instance.

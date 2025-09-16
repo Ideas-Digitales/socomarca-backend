@@ -58,8 +58,8 @@ return [
         "create-notifications",
         
         // Warehouse permissions
-        'read-warehouses',
-        'manage-warehouses',
+        'read-all-warehouses',
+        'update-warehouses',
 
         //Cart
         'read-own-cart',
@@ -128,8 +128,8 @@ return [
         "create-notifications",
         
         // Warehouse permissions
-        'read-warehouses',
-        'manage-warehouses',
+        'read-all-warehouses',
+        'update-warehouses',
 
     ],
     'supervisor' => [
@@ -153,7 +153,7 @@ return [
         'read-all-categories-export',
 
         // Warehouse permissions
-        'read-warehouses',
+        'read-all-warehouses',
 
     ],
     'editor' => [
@@ -181,7 +181,7 @@ return [
         "delete-faqs",
 
         // Warehouse permissions
-        'read-warehouses',
+        'read-all-warehouses',
     ],
     'customer' => [
         'read-own-profile',

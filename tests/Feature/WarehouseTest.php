@@ -11,7 +11,7 @@ use App\Models\Brand;
 beforeEach(function () {
     // Crear usuario con permisos de administrador para gestionar bodegas
     $this->admin = User::factory()->create();
-    $this->admin->givePermissionTo(['manage-warehouses', 'read-warehouses']);
+    $this->admin->givePermissionTo(['update-warehouses', 'read-all-warehouses']);
     
     // Crear usuario regular para pruebas de permisos
     $this->user = User::factory()->create();

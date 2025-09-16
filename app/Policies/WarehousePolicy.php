@@ -12,8 +12,8 @@ class WarehousePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('read-warehouses') || 
-               $user->hasPermissionTo('manage-warehouses');
+        return $user->hasPermissionTo('read-all-warehouses') || 
+               $user->hasPermissionTo('update-warehouses');
     }
 
     /**
@@ -21,8 +21,8 @@ class WarehousePolicy
      */
     public function view(User $user, Warehouse $warehouse): bool
     {
-        return $user->hasPermissionTo('read-warehouses') || 
-               $user->hasPermissionTo('manage-warehouses');
+        return $user->hasPermissionTo('read-all-warehouses') || 
+               $user->hasPermissionTo('update-warehouses');
     }
 
     /**
@@ -30,7 +30,7 @@ class WarehousePolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasPermissionTo('manage-warehouses');
+        return $user->hasPermissionTo('update-warehouses');
     }
 
     /**
@@ -38,7 +38,7 @@ class WarehousePolicy
      */
     public function update(User $user, Warehouse $warehouse): bool
     {
-        return $user->hasPermissionTo('manage-warehouses');
+        return $user->hasPermissionTo('update-warehouses');
     }
 
     /**
@@ -46,7 +46,7 @@ class WarehousePolicy
      */
     public function delete(User $user, Warehouse $warehouse): bool
     {
-        return $user->hasPermissionTo('manage-warehouses');
+        return $user->hasPermissionTo('update-warehouses');
     }
 
     /**
@@ -54,7 +54,7 @@ class WarehousePolicy
      */
     public function setDefault(User $user, Warehouse $warehouse): bool
     {
-        return $user->hasPermissionTo('manage-warehouses');
+        return $user->hasPermissionTo('update-warehouses');
     }
 
     /**
@@ -62,8 +62,8 @@ class WarehousePolicy
      */
     public function viewStock(User $user, Warehouse $warehouse): bool
     {
-        return $user->hasPermissionTo('read-warehouses') || 
+        return $user->hasPermissionTo('read-all-warehouses') || 
                $user->hasPermissionTo('read-all-prices') ||
-               $user->hasPermissionTo('manage-warehouses');
+               $user->hasPermissionTo('update-warehouses');
     }
 }
