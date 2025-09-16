@@ -20,8 +20,7 @@ class WarehouseController extends Controller
             ->get();
 
         return response()->json([
-            'data' => $warehouses,
-            'message' => 'Warehouses retrieved successfully'
+            'data' => $warehouses
         ]);
     }
 
@@ -33,8 +32,7 @@ class WarehouseController extends Controller
         $warehouse->load(['productStocks.product']);
         
         return response()->json([
-            'data' => $warehouse,
-            'message' => 'Warehouse retrieved successfully'
+            'data' => $warehouse
         ]);
     }
 
@@ -57,17 +55,13 @@ class WarehouseController extends Controller
             DB::commit();
 
             return response()->json([
-                'data' => $warehouse,
-                'message' => 'Default warehouse updated successfully'
+                'data' => $warehouse
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             
-            return response()->json([
-                'message' => 'Error updating default warehouse',
-                'error' => $e->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -85,8 +79,7 @@ class WarehouseController extends Controller
             ->get();
 
         return response()->json([
-            'data' => $warehouses,
-            'message' => 'Warehouse stock summary retrieved successfully'
+            'data' => $warehouses
         ]);
     }
 
@@ -121,8 +114,7 @@ class WarehouseController extends Controller
         $stocks = $query->paginate($request->get('per_page', 15));
 
         return response()->json([
-            'data' => $stocks,
-            'message' => 'Product stock retrieved successfully'
+            'data' => $stocks
         ]);
     }
 }

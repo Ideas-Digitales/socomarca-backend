@@ -44,7 +44,6 @@ class CartItemController extends Controller
             
             if (!$warehouse) {
                 return response()->json([
-                    'message' => 'Stock insuficiente para este producto',
                     'available_stock' => $this->getTotalAvailableStock($data['product_id'], $data['unit'])
                 ], Response::HTTP_BAD_REQUEST);
             }
@@ -57,7 +56,6 @@ class CartItemController extends Controller
 
             if (!$productStock->reserveStock($requestedQuantity)) {
                 return response()->json([
-                    'message' => 'No se pudo reservar el stock solicitado',
                     'available_stock' => $productStock->available_stock
                 ], Response::HTTP_BAD_REQUEST);
             }
@@ -99,7 +97,6 @@ class CartItemController extends Controller
                 ->value('price');
 
             return response()->json([
-                'message' => 'Producto agregado al carrito y stock reservado',
                 'product' => [
                     'id' => $item->product->id,
                     'name' => $item->product->name,
@@ -137,9 +134,7 @@ class CartItemController extends Controller
                 ->first();
 
             if (!$item) {
-                return response()->json([
-                    'message' => 'Product item not found'
-                ], Response::HTTP_NOT_FOUND);
+                return response(null, Response::HTTP_NOT_FOUND);
             }
 
             $quantityToRemove = $data['quantity'];
@@ -168,7 +163,6 @@ class CartItemController extends Controller
             }
 
             return response()->json([
-                'message' => 'Product item quantity has been removed from cart',
                 'action' => $shouldDeleteItem ? 'deleted' : 'updated',
                 'remaining_quantity' => $shouldDeleteItem ? 0 : $item->quantity
             ]);
@@ -203,7 +197,6 @@ class CartItemController extends Controller
             $user->cartItems()->delete();
 
             return response()->json([
-                'message' => 'The cart has been emptied and all stock reservations released',
                 'released_items_count' => $cartItems->count()
             ], 200);
         });
