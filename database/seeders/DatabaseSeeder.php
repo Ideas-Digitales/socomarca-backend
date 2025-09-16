@@ -31,7 +31,6 @@ class DatabaseSeeder extends Seeder
         }else{
             $this->call([
                 RegionSeeder::class,
-                WarehouseSeeder::class,
                 PaymentMethodSeeder::class,
                 RolesAndPermissionsSeeder::class,
                 SiteInfoSeeder::class,
