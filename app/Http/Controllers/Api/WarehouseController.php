@@ -12,11 +12,16 @@ class WarehouseController extends Controller
     /**
      * Display a listing of warehouses.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $warehouses = Warehouse::active()
-            ->byPriority()
-            ->get();
+        $query = Warehouse::active()->byPriority();
+
+        // Include stock summary if requested
+        if ($request->has('include') && str_contains($request->get('include'), 'stock_summary')) {
+            $query->withStockSummary();
+        }
+
+        $warehouses = $query->get();
 
         return response()->json([
             'data' => $warehouses
@@ -47,23 +52,6 @@ class WarehouseController extends Controller
         ]);
     }
 
-    /**
-     * Get stock summary by warehouse.
-     */
-    public function stockSummary()
-    {
-        $warehouses = Warehouse::active()
-            ->with(['productStocks' => function ($query) {
-                $query->selectRaw('warehouse_id, COUNT(*) as products_count, SUM(stock) as total_stock, SUM(reserved_stock) as total_reserved')
-                    ->groupBy('warehouse_id');
-            }])
-            ->byPriority()
-            ->get();
-
-        return response()->json([
-            'data' => $warehouses
-        ]);
-    }
 
     /**
      * Get product stock detail by warehouse.

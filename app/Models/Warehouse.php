@@ -66,4 +66,12 @@ class Warehouse extends Model
     {
         return $this->priority === 1;
     }
+
+    public function scopeWithStockSummary($query)
+    {
+        return $query->with(['productStocks' => function ($query) {
+            $query->selectRaw('warehouse_id, COUNT(*) as products_count, SUM(stock) as total_stock, SUM(reserved_stock) as total_reserved')
+                ->groupBy('warehouse_id');
+        }]);
+    }
 }

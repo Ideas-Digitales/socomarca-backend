@@ -141,12 +141,12 @@ test('observer no afecta otras actualizaciones que no sean priority', function (
     expect($warehouse2->name)->toBe('Updated Second');
 });
 
-test('puede obtener resumen de stock por bodega', function () {
+test('puede obtener resumen de stock por bodega usando include parameter', function () {
     // Crear datos de prueba
     $warehouse = Warehouse::factory()->create(['name' => 'Test Warehouse']);
-    
+
     $response = $this->actingAs($this->admin, 'sanctum')
-        ->getJson(route('warehouses.stock-summary'));
+        ->getJson(route('warehouses.index', ['include' => 'stock_summary']));
 
     $response->assertStatus(200)
         ->assertJsonStructure([
@@ -159,9 +159,48 @@ test('puede obtener resumen de stock por bodega', function () {
                     'priority',
                     'product_stocks',
                 ]
-            ],
-            'message'
+            ]
         ]);
+});
+
+test('puede obtener warehouses sin stock summary cuando no se especifica include', function () {
+    $warehouse = Warehouse::factory()->create(['name' => 'Test Warehouse']);
+
+    $response = $this->actingAs($this->admin, 'sanctum')
+        ->getJson(route('warehouses.index'));
+
+    $response->assertStatus(200)
+        ->assertJsonStructure([
+            'data' => [
+                '*' => [
+                    'id',
+                    'name',
+                    'warehouse_code',
+                    'is_active',
+                    'priority',
+                ]
+            ]
+        ])
+        // No debe incluir product_stocks cuando no se especifica include
+        ->assertJsonMissing(['product_stocks']);
+});
+
+test('acepta multiples includes separados por coma', function () {
+    $warehouse = Warehouse::factory()->create(['name' => 'Test Warehouse']);
+
+    $response = $this->actingAs($this->admin, 'sanctum')
+        ->getJson(route('warehouses.index', ['include' => 'stock_summary,other_relation']));
+
+    $response->assertStatus(200);
+
+    // Debería incluir stock_summary aunque haya otros includes
+    $response->assertJsonStructure([
+        'data' => [
+            '*' => [
+                'product_stocks',
+            ]
+        ]
+    ]);
 });
 
 
