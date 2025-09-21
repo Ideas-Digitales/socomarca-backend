@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UpdateWarehouseRequest;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 
 class WarehouseController extends Controller
 {
@@ -37,32 +36,15 @@ class WarehouseController extends Controller
     }
 
     /**
-     * Set warehouse as default (priority = 1).
+     * Update the specified warehouse.
      */
-    public function setDefault(Warehouse $warehouse)
+    public function update(UpdateWarehouseRequest $request, Warehouse $warehouse)
     {
-        try {
-            DB::beginTransaction();
+        $warehouse->update($request->validated());
 
-            // Reset all warehouses priority except the selected one
-            Warehouse::where('id', '!=', $warehouse->id)->update(['priority' => 999]);
-            
-            // Set selected warehouse as default (priority = 1)
-            $warehouse->priority = 1;
-            $warehouse->is_active = true;
-            $warehouse->save();
-
-            DB::commit();
-
-            return response()->json([
-                'data' => $warehouse
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            return response(null, Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
+        return response()->json([
+            'data' => $warehouse
+        ]);
     }
 
     /**

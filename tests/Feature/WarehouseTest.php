@@ -68,22 +68,77 @@ test('puede ver detalles de una bodega específica', function () {
         ]);
 });
 
-test('puede establecer bodega por defecto', function () {
+test('puede establecer bodega por defecto actualizando priority', function () {
+    // Crear bodega con prioridad alta (no default)
     $warehouse = Warehouse::factory()->create([
         'priority' => 3,
         'is_active' => true,
     ]);
 
+    // Crear otra bodega que actualmente es default
+    $currentDefault = Warehouse::factory()->create([
+        'priority' => 1,
+        'is_active' => true,
+    ]);
+
     $response = $this->actingAs($this->admin, 'sanctum')
-        ->patchJson(route('warehouses.set-default', $warehouse));
+        ->patchJson(route('warehouses.update', $warehouse), [
+            'priority' => 1
+        ]);
 
     $response->assertStatus(200)
         ->assertJsonFragment([
-            'message' => 'Default warehouse updated successfully'
+            'priority' => 1
         ]);
 
+    // Verificar que la bodega target ahora es default
     $warehouse->refresh();
     expect($warehouse->priority)->toBe(1);
+
+    // Verificar que la bodega anterior ya no es default (observer debe cambiarla)
+    $currentDefault->refresh();
+    expect($currentDefault->priority)->toBe(999);
+});
+
+test('observer resetea prioridades cuando se establece priority 1', function () {
+    // Crear múltiples bodegas con diferentes prioridades
+    $warehouse1 = Warehouse::factory()->create(['priority' => 1, 'name' => 'Current Default']);
+    $warehouse2 = Warehouse::factory()->create(['priority' => 2, 'name' => 'Second']);
+    $warehouse3 = Warehouse::factory()->create(['priority' => 3, 'name' => 'Third']);
+    $warehouse4 = Warehouse::factory()->create(['priority' => 4, 'name' => 'Fourth']);
+
+    // Establecer warehouse3 como default directamente en el modelo
+    $warehouse3->update(['priority' => 1]);
+
+    // Verificar que warehouse3 es ahora default
+    $warehouse3->refresh();
+    expect($warehouse3->priority)->toBe(1);
+
+    // Verificar que todos los demás tienen priority 999
+    $warehouse1->refresh();
+    $warehouse2->refresh();
+    $warehouse4->refresh();
+
+    expect($warehouse1->priority)->toBe(999);
+    expect($warehouse2->priority)->toBe(999);
+    expect($warehouse4->priority)->toBe(999);
+});
+
+test('observer no afecta otras actualizaciones que no sean priority', function () {
+    // Crear bodegas
+    $warehouse1 = Warehouse::factory()->create(['priority' => 1, 'name' => 'Default']);
+    $warehouse2 = Warehouse::factory()->create(['priority' => 2, 'name' => 'Second']);
+
+    // Actualizar solo el nombre de warehouse2
+    $warehouse2->update(['name' => 'Updated Second']);
+
+    // Verificar que las prioridades no cambiaron
+    $warehouse1->refresh();
+    $warehouse2->refresh();
+
+    expect($warehouse1->priority)->toBe(1);
+    expect($warehouse2->priority)->toBe(2);
+    expect($warehouse2->name)->toBe('Updated Second');
 });
 
 test('puede obtener resumen de stock por bodega', function () {
@@ -149,11 +204,13 @@ test('requiere autenticación para acceder a bodegas', function () {
 });
 
 test('requiere permisos para gestionar bodegas', function () {
-    // Usuario sin permisos no puede establecer bodega por defecto
+    // Usuario sin permisos no puede actualizar bodegas
     $warehouse = Warehouse::factory()->create();
-    
+
     $response = $this->actingAs($this->user, 'sanctum')
-        ->patchJson(route('warehouses.set-default', $warehouse));
+        ->patchJson(route('warehouses.update', $warehouse), [
+            'priority' => 1
+        ]);
 
     $response->assertStatus(403);
 });

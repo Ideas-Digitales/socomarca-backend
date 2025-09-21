@@ -6,6 +6,8 @@ use App\Events\CartItemRemoved;
 use App\Events\OrderCompleted;
 use App\Events\OrderFailed;
 use App\Listeners\ReleaseReservedStock;
+use App\Models\Warehouse;
+use App\Observers\WarehouseObserver;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -32,7 +34,7 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Warehouse::observe(WarehouseObserver::class);
     }
 
     /**
