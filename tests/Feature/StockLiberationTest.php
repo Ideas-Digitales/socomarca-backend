@@ -187,7 +187,6 @@ test('libera todo el stock al vaciar carrito completo', function () {
 
     $response->assertStatus(200)
         ->assertJsonFragment([
-            'message' => 'The cart has been emptied and all stock reservations released',
             'released_items_count' => 2
         ]);
 

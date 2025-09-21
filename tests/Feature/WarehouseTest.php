@@ -197,17 +197,25 @@ test('acepta include=product_stock con filtros', function () {
 
     $response->assertStatus(200)
         ->assertJsonStructure([
+            'current_page',
             'data' => [
-                'data' => [ // Paginación
-                    '*' => [
-                        'product_stocks',
-                    ]
-                ],
-                'meta' => [
-                    'per_page',
-                    'total'
+                '*' => [
+                    'id',
+                    'name',
+                    'product_stocks',
                 ]
-            ]
+            ],
+            'first_page_url',
+            'from',
+            'last_page',
+            'last_page_url',
+            'links',
+            'next_page_url',
+            'path',
+            'per_page',
+            'prev_page_url',
+            'to',
+            'total'
         ]);
 });
 
@@ -253,10 +261,22 @@ test('puede obtener stock de productos por bodega', function () {
 
     $response->assertStatus(200)
         ->assertJsonStructure([
-            'data',
-            'message'
-        ])
-        ->assertJsonPath('message', 'Product stock retrieved successfully');
+            'data' => [
+                'data' => [
+                    '*' => [
+                        'product_id',
+                        'warehouse_id',
+                        'unit',
+                        'stock',
+                        'reserved_stock',
+                        'product' => [
+                            'category',
+                            'brand'
+                        ]
+                    ]
+                ]
+            ]
+        ]);
 });
 
 

@@ -152,10 +152,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Warehouse routes
     Route::get('/warehouses', [WarehouseController::class, 'index'])->name('warehouses.index');
-    Route::get('/warehouses/stock-summary', [WarehouseController::class, 'stockSummary'])->name('warehouses.stock-summary');
     Route::get('/warehouses/{warehouse}', [WarehouseController::class, 'show'])->name('warehouses.show');
-    Route::patch('/warehouses/{warehouse}/set-default', [WarehouseController::class, 'setDefault'])
-        ->name('warehouses.set-default')
+    Route::patch('/warehouses/{warehouse}', [WarehouseController::class, 'update'])
+        ->name('warehouses.update')
         ->middleware('permission:update-warehouses');
     Route::get('/warehouses/{warehouse}/stock', [WarehouseController::class, 'productStock'])->name('warehouses.product-stock');
 

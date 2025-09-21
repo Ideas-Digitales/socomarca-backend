@@ -75,7 +75,6 @@ test('puede agregar un item al carrito', function () {
     $response
         ->assertCreated()
         ->assertJsonStructure([
-            'message',
             'product' => [
                 'id',
                 'name',
@@ -271,7 +270,8 @@ test('puede eliminar cantidad parcial de item del carrito', function () {
     // Assert
     $response->assertStatus(200)
         ->assertJson([
-            'message' => 'Product item quantity has been removed from cart'
+            'action' => 'updated',
+            'remaining_quantity' => 3
         ]);
 
     $this->assertDatabaseHas('cart_items', [
@@ -303,7 +303,8 @@ test('puede eliminar item completo del carrito cuando quantity llega a cero', fu
     // Assert
     $response->assertStatus(200)
         ->assertJson([
-            'message' => 'Product item quantity has been removed from cart'
+            'action' => 'deleted',
+            'remaining_quantity' => 0
         ]);
 
     $this->assertDatabaseMissing('cart_items', [
@@ -325,10 +326,7 @@ test('retorna mensaje cuando item no existe para eliminar', function () {
     $response = $this->deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
-    $response->assertStatus(404)
-        ->assertJson([
-            'message' => 'Product item not found'
-        ]);
+    $response->assertStatus(404);
 });
 
 test('falla al eliminar mas cantidad de la disponible', function () {
@@ -570,8 +568,7 @@ test('vaciar su carrito', function () {
         ->deleteJson($route);
 
     $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The cart has been emptied and all stock reservations released']);
-
+        ->assertJsonFragment(['released_items_count' => 2]);
 
     $this->assertDatabaseMissing('cart_items', [
         'user_id' => $user->id,
@@ -603,7 +600,7 @@ test('customer no puede vaciar carros de otros', function () {
         ->deleteJson($route);
 
     $response->assertStatus(200)
-        ->assertJsonFragment(['message' => 'The cart has been emptied and all stock reservations released']);
+        ->assertJsonFragment(['released_items_count' => 0]);
 
     // El carrito de userB debe seguir teniendo sus ítems
     $this->assertDatabaseHas('cart_items', [

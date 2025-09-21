@@ -39,13 +39,13 @@ class WarehouseController extends Controller
         // Handle pagination when product_stock is included
         if ($request->has('include') && str_contains($request->get('include'), 'product_stock')) {
             $warehouses = $query->paginate($request->get('per_page', 15));
+            return response()->json($warehouses);
         } else {
             $warehouses = $query->get();
+            return response()->json([
+                'data' => $warehouses
+            ]);
         }
-
-        return response()->json([
-            'data' => $warehouses
-        ]);
     }
 
     /**

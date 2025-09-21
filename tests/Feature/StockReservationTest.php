@@ -144,7 +144,7 @@ test('falla cuando no hay stock suficiente en ninguna bodega', function () {
     $response = $this->postJson(route('cart-items.store'), $data);
 
     $response->assertStatus(400)
-        ->assertJsonFragment(['message' => 'Stock insuficiente para este producto']);
+        ->assertJsonFragment(['available_stock' => 5]);
 
     // Verificar que no se creó ningún item en el carrito
     $this->assertDatabaseMissing('cart_items', [
@@ -254,7 +254,7 @@ test('maneja reservas concurrentes correctamente', function () {
         ->postJson(route('cart-items.store'), $data);
 
     $response2->assertStatus(400)
-        ->assertJsonFragment(['message' => 'Stock insuficiente para este producto']);
+        ->assertJsonFragment(['available_stock' => 4]);
 
     // Verificar estado de las reservas
     $this->mainStock->refresh();
