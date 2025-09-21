@@ -74,4 +74,28 @@ class Warehouse extends Model
                 ->groupBy('warehouse_id');
         }]);
     }
+
+    public function scopeWithProductStock($query, $filters = [])
+    {
+        return $query->with(['productStocks' => function ($query) use ($filters) {
+            $query->with(['product.category', 'product.brand']);
+
+            // Apply filters
+            if (!empty($filters['product_id'])) {
+                $query->where('product_id', $filters['product_id']);
+            }
+
+            if (!empty($filters['unit'])) {
+                $query->where('unit', $filters['unit']);
+            }
+
+            if (!empty($filters['with_stock_only'])) {
+                $query->withStock();
+            }
+
+            if (!empty($filters['available_only'])) {
+                $query->withAvailableStock();
+            }
+        }]);
+    }
 }

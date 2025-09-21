@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateWarehouseRequest;
+use App\Http\Requests\WarehouseIndexRequest;
 use App\Models\Warehouse;
 use Illuminate\Http\Request;
 
@@ -12,16 +13,35 @@ class WarehouseController extends Controller
     /**
      * Display a listing of warehouses.
      */
-    public function index(Request $request)
+    public function index(WarehouseIndexRequest $request)
     {
         $query = Warehouse::active()->byPriority();
 
-        // Include stock summary if requested
-        if ($request->has('include') && str_contains($request->get('include'), 'stock_summary')) {
-            $query->withStockSummary();
+        if ($request->has('include')) {
+            $includes = explode(',', $request->get('include'));
+            $includes = array_map('trim', $includes);
+
+            if (in_array('stock_summary', $includes)) {
+                $query->withStockSummary();
+            } elseif (in_array('product_stock', $includes)) {
+                // Prepare filters for product stock
+                $filters = array_filter([
+                    'product_id' => $request->get('product_id'),
+                    'unit' => $request->get('unit'),
+                    'with_stock_only' => $request->boolean('with_stock_only'),
+                    'available_only' => $request->boolean('available_only'),
+                ]);
+
+                $query->withProductStock($filters);
+            }
         }
 
-        $warehouses = $query->get();
+        // Handle pagination when product_stock is included
+        if ($request->has('include') && str_contains($request->get('include'), 'product_stock')) {
+            $warehouses = $query->paginate($request->get('per_page', 15));
+        } else {
+            $warehouses = $query->get();
+        }
 
         return response()->json([
             'data' => $warehouses
@@ -55,6 +75,8 @@ class WarehouseController extends Controller
 
     /**
      * Get product stock detail by warehouse.
+     *
+     * @deprecated Use index() with include=product_stock instead
      */
     public function productStock(Warehouse $warehouse, Request $request)
     {

@@ -185,22 +185,46 @@ test('puede obtener warehouses sin stock summary cuando no se especifica include
         ->assertJsonMissing(['product_stocks']);
 });
 
-test('acepta multiples includes separados por coma', function () {
+test('acepta include=product_stock con filtros', function () {
     $warehouse = Warehouse::factory()->create(['name' => 'Test Warehouse']);
 
     $response = $this->actingAs($this->admin, 'sanctum')
-        ->getJson(route('warehouses.index', ['include' => 'stock_summary,other_relation']));
+        ->getJson(route('warehouses.index', [
+            'include' => 'product_stock',
+            'with_stock_only' => true,
+            'per_page' => 10
+        ]));
 
-    $response->assertStatus(200);
-
-    // Debería incluir stock_summary aunque haya otros includes
-    $response->assertJsonStructure([
-        'data' => [
-            '*' => [
-                'product_stocks',
+    $response->assertStatus(200)
+        ->assertJsonStructure([
+            'data' => [
+                'data' => [ // Paginación
+                    '*' => [
+                        'product_stocks',
+                    ]
+                ],
+                'meta' => [
+                    'per_page',
+                    'total'
+                ]
             ]
-        ]
-    ]);
+        ]);
+});
+
+test('rechaza includes conflictivos stock_summary y product_stock', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')
+        ->getJson(route('warehouses.index', ['include' => 'stock_summary,product_stock']));
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['include']);
+});
+
+test('rechaza includes inválidos', function () {
+    $response = $this->actingAs($this->admin, 'sanctum')
+        ->getJson(route('warehouses.index', ['include' => 'invalid_include']));
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['include']);
 });
 
 
