@@ -17,7 +17,7 @@ class ReleaseReservedStock implements ShouldQueue
     /**
      * Handle the event.
      */
-    public function handle($event): void
+    public function handle(OrderCompleted|OrderFailed|CartItemRemoved $event): void
     {
         if ($event instanceof OrderCompleted || $event instanceof OrderFailed) {
             $this->handleOrderEvent($event);

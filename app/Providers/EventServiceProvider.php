@@ -2,10 +2,6 @@
 
 namespace App\Providers;
 
-use App\Events\CartItemRemoved;
-use App\Events\OrderCompleted;
-use App\Events\OrderFailed;
-use App\Listeners\ReleaseReservedStock;
 use App\Models\Warehouse;
 use App\Observers\WarehouseObserver;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -18,15 +14,8 @@ class EventServiceProvider extends ServiceProvider
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
-        OrderCompleted::class => [
-            ReleaseReservedStock::class,
-        ],
-        OrderFailed::class => [
-            ReleaseReservedStock::class,
-        ],
-        CartItemRemoved::class => [
-            ReleaseReservedStock::class,
-        ],
+        // Event discovery is enabled - listeners are automatically discovered
+        // based on union types in listener handle() methods
     ];
 
     /**
@@ -42,6 +31,6 @@ class EventServiceProvider extends ServiceProvider
      */
     public function shouldDiscoverEvents(): bool
     {
-        return false;
+        return true;
     }
 }
