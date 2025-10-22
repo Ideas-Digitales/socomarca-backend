@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\SiteInfo\SiteinfoResource;
 use App\Models\Siteinfo;
+use App\Services\SiteImageUploadService;
 use Illuminate\Http\Request;
 
 class SiteinfoController extends Controller
@@ -173,7 +174,7 @@ class SiteinfoController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function updateCustomerMessage(Request $request)
+    public function updateCustomerMessage(Request $request, SiteImageUploadService $uploadService)
     {
         $data = $request->validate([
             'header_color' => 'required|string',
@@ -190,15 +191,15 @@ class SiteinfoController extends Controller
         $oldValue = $customerMessage ? $customerMessage->value : [];
 
         $bannerDesktopImage = $request->file('banner_desktop_image')
-            ? asset('storage/' . $request->file('banner_desktop_image')->store('customer-message', 'public'))
+            ? $uploadService->upload($request->file('banner_desktop_image'), 'customer-message/banner-desktop')
             : ($oldValue['banner']['desktop_image'] ?? '');
 
         $bannerMobileImage = $request->file('banner_mobile_image')
-            ? asset('storage/' . $request->file('banner_mobile_image')->store('customer-message', 'public'))
+            ? $uploadService->upload($request->file('banner_mobile_image'), 'customer-message/banner-mobile')
             : ($oldValue['banner']['mobile_image'] ?? '');
 
         $modalImage = $request->file('modal_image')
-            ? asset('storage/' . $request->file('modal_image')->store('customer-message', 'public'))
+            ? $uploadService->upload($request->file('modal_image'), 'customer-message/modal')
             : ($oldValue['modal']['image'] ?? '');
 
         $value = [
