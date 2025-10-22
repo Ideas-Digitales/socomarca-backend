@@ -35,16 +35,16 @@ class ProductCollection extends ResourceCollection
                 'id' => $product->id,
                 'name' => $product->name,
                 'category' => [
-                    'id' => $product->category->id,
-                    'name' => $product->category->name,
+                    'id' => $product->category->id ?? null,
+                    'name' => $product->category->name ?? null,
                 ],
                 'subcategory' => [
-                    'id' => $product->subcategory->id,
-                    'name' => $product->subcategory->name,
+                    'id' => $product->subcategory->id ?? null,
+                    'name' => $product->subcategory->name ?? null,
                 ],
                 'brand' => [
-                    'id' => $product->brand->id,
-                    'name' => $product->brand->name,
+                    'id' => $product->brand->id ?? null,
+                    'name' => $product->brand->name ?? null,
                 ],
                 'unit' => $product->joined_unit
                     ?? optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->unit,
