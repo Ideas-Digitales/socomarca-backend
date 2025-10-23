@@ -7,8 +7,8 @@ use App\Http\Requests\Notifications\StoreNotificationRequest;
 use App\Jobs\SendPushNotification;
 use App\Models\FcmNotificationHistory;
 use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+
+
 
 class NotificationController extends Controller
 {
@@ -23,7 +23,6 @@ class NotificationController extends Controller
 
     public function store(StoreNotificationRequest $request)
     {
-        Log::info("Received request to send notification");
         $validated = $request->validated();
 
         $recipients_count = User::whereNotNull('fcm_token')->where('is_active', true)->count();
