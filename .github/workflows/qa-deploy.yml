@@ -47,4 +47,3 @@ jobs:
       - name: Bring the application out of maintenance mode
         run: docker compose -f compose.qa.yml exec app php artisan up
         working-directory: /home/ubuntu/deploys/socomarca-backend
-
