@@ -48,6 +48,3 @@ jobs:
         run: docker compose -f compose.qa.yml exec app php artisan up
         working-directory: /home/ubuntu/deploys/socomarca-backend
 
-      - name: Restart worker service
-        run: docker compose -f compose.qa.yml up -d --build worker
-        working-directory: /home/ubuntu/deploys/socomarca-backend
