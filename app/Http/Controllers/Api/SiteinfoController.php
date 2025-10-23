@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SiteInfo\SiteinfoResource;
 use App\Models\Siteinfo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class SiteinfoController extends Controller
 {
@@ -189,17 +190,14 @@ class SiteinfoController extends Controller
         $customerMessage = Siteinfo::where('key', 'customer_message')->first();
         $oldValue = $customerMessage ? $customerMessage->value : [];
 
-        $bannerDesktopImage = $request->file('banner_desktop_image')
-            ? asset('storage/' . $request->file('banner_desktop_image')->store('customer-message', 'public'))
-            : ($oldValue['banner']['desktop_image'] ?? '');
+        $bannerDesktopImage = $this->saveImage($request, 'banner_desktop_image', 'customer-message/banner-desktop')
+            ?? ($oldValue['banner']['desktop_image'] ?? '');
 
-        $bannerMobileImage = $request->file('banner_mobile_image')
-            ? asset('storage/' . $request->file('banner_mobile_image')->store('customer-message', 'public'))
-            : ($oldValue['banner']['mobile_image'] ?? '');
+        $bannerMobileImage = $this->saveImage($request, 'banner_mobile_image', 'customer-message/banner-mobile')
+            ?? ($oldValue['banner']['mobile_image'] ?? '');
 
-        $modalImage = $request->file('modal_image')
-            ? asset('storage/' . $request->file('modal_image')->store('customer-message', 'public'))
-            : ($oldValue['modal']['image'] ?? '');
+        $modalImage = $this->saveImage($request, 'modal_image', 'customer-message/modal')
+            ?? ($oldValue['modal']['image'] ?? '');
 
         $value = [
             'header' => [
@@ -216,7 +214,6 @@ class SiteinfoController extends Controller
                 'enabled' => (bool)$data['modal_enabled'],
             ],
             'message' => [
-                
                 'enabled' => (bool)$data['message_enabled'],
             ],
         ];
@@ -232,6 +229,22 @@ class SiteinfoController extends Controller
         );
 
         return response()->json(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
+    }
+
+    private function saveImage(Request $request, string $requestFileName, string $s3path)
+    {
+        $file = $request->file($requestFileName);
+        if ($file instanceof \Illuminate\Http\UploadedFile) {
+            $newFileName = uniqid() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storePubliclyAs(
+                $s3path,
+                $newFileName,
+                's3'
+            );
+
+            return Storage::disk('s3')->url($path);
+        }
+        return null;
     }
 
     /**
