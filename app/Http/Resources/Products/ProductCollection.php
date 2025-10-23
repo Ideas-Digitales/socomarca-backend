@@ -34,18 +34,18 @@ class ProductCollection extends ResourceCollection
             return [
                 'id' => $product->id,
                 'name' => $product->name,
-                'category' => [
-                    'id' => $product->category->id ?? null,
-                    'name' => $product->category->name ?? null,
-                ],
-                'subcategory' => [
-                    'id' => $product->subcategory->id ?? null,
-                    'name' => $product->subcategory->name ?? null,
-                ],
-                'brand' => [
-                    'id' => $product->brand->id ?? null,
-                    'name' => $product->brand->name ?? null,
-                ],
+                'category' => $product->category ? [
+                    'id' => $product->category->id,
+                    'name' => $product->category->name,
+                ] : null,
+                'subcategory' => $product->subcategory ? [
+                    'id' => $product->subcategory->id,
+                    'name' => $product->subcategory->name,
+                ] : null,
+                'brand' => $product->brand ? [
+                    'id' => $product->brand->id,
+                    'name' => $product->brand->name,
+                ] : null,
                 'unit' => $product->joined_unit
                     ?? optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->unit,
                 'price' => isset($product->joined_price)
