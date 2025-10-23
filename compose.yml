@@ -60,6 +60,21 @@ services:
       - DEFAULT_REGION=us-east-1
     networks:
       - socomarca
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: socomarca_worker
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html:cached
+      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
+    command: "php artisan queue:work"
+    depends_on:
+      - workcontainer
+      - db
+    networks:
+      - socomarca
 volumes:
   socomarca_data:
     name: socomarca_data
