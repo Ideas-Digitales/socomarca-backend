@@ -45,6 +45,7 @@ class ProductController extends Controller
             'filters.subcategory_id' => 'sometimes|integer|exists:subcategories,id',
             'filters.brand_id' => 'sometimes|array',
             'filters.brand_id.*' => 'integer|exists:brands,id',
+            'filters.sku' => 'sometimes|string|max:255',
             'filters.name' => 'sometimes|string|max:255',
             'filters.is_favorite' => 'sometimes|boolean',
             'filters.sort' => 'sometimes|string|in:price,stock,category_name,id,name,created_at,updated_at',

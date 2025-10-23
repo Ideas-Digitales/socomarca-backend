@@ -123,6 +123,49 @@ describe('Product list endpoint', function () {
         expect($foundProduct['brand']['id'])->toBe($brand->id);
     });
 
+    it('should filter products by SKU', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear productos con SKUs diferentes
+        $targetProduct = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['sku' => 'SKU-12345']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 6000, 'is_active' => true]))
+            ->create(['sku' => 'SKU-67890']);
+
+        // Buscar por SKU usando query parameter
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('products.index', ['sku' => 'SKU-12345']))
+            ->assertStatus(200);
+
+        // Debería encontrar solo 1 producto
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($targetProduct->id);
+        expect($response->json('data.0.sku'))->toBe('SKU-12345');
+    });
+
+    it('should return empty when SKU does not exist', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['sku' => 'SKU-12345']);
+
+        // Buscar por SKU inexistente
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('products.index', ['sku' => 'SKU-NONEXISTENT']))
+            ->assertStatus(200);
+
+        // No debería encontrar productos
+        expect($response->json('data'))->toBeEmpty();
+    });
+
     it('should apply sorting by price, stock, category_name and id', function () {
         $user = \App\Models\User::factory()->create();
         $user->givePermissionTo('read-all-products');
@@ -244,5 +287,59 @@ describe('Product search endpoint', function () {
             ]);
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['filters.brand_id']);
+    });
+
+    it('should filter products by SKU using POST search endpoint', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con SKU específico
+        $targetProduct = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['sku' => 'SKU-123']);
+
+        // Crear otro producto
+        Product::factory()
+            ->has(Price::factory(['price' => 6000, 'is_active' => true]))
+            ->create(['sku' => 'SKU-456']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 0, 'max' => 10000],
+                    'sku' => 'SKU-123',
+                ]
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure($this->searchResponseStructure);
+
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($targetProduct->id);
+        expect($response->json('data.0.sku'))->toBe('SKU-123');
+    });
+
+    it('should return 401 when searching by SKU without authentication', function () {
+        $this->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 0, 'max' => 10000],
+                    'sku' => 'SKU',
+                ]
+            ])
+            ->assertStatus(401);
+    });
+
+    it('should return 403 when searching by SKU without read-all-products permission', function () {
+        $user = \App\Models\User::factory()->create();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 0, 'max' => 10000],
+                    'sku' => 'SKU',
+                ]
+            ])
+            ->assertForbidden();
     });
 });
