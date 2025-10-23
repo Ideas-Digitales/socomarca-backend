@@ -264,15 +264,16 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
 });
 
-Route::post('/notifications', [NotificationController::class, 'store'])
-    ->middleware(['auth:sanctum','permission:create-notifications'])
-    ->name('notifications.store');
+Route::middleware(['auth:sanctum','permission:create-notifications'])->group(function () {
+    Route::get('/notifications', [NotificationController::class, 'index'])
+        ->name('notifications.index');
+    Route::post('/notifications', [NotificationController::class, 'store'])
+        ->name('notifications.store');
+});
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->put('fcm/config', [FirebaseConfigController::class, 'update'])
     ->name('firebase.config.update');
-
-
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->get('fcm/config', [FirebaseConfigController::class, 'showConfig'])
