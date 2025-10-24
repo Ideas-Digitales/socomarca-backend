@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\SendPushNotification;
+use App\Models\FcmNotificationHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -149,8 +150,7 @@ describe('Notification API', function () {
             ]);
             $response->assertStatus(201);
 
-            // Ejecuta el Job de forma síncrona para que Laravel inyecte dependencias (Messaging)
-            SendPushNotification::dispatchSync('Test notification', 'Test message');
+            SendPushNotification::dispatchSync('Test notification', 'Test message', $this->admin->id);
 
             Notification::assertSentTo(
                 [$this->customer1, $this->customer2, $this->customer3],
@@ -175,6 +175,60 @@ describe('Notification API', function () {
                     'recipients_count' => 0
                 ]);
             Notification::assertNothingSent();
+        });
+
+        it('save the history when sending an FCM notification', function () {
+            Notification::fake();
+            $this->actingAs($this->admin, 'sanctum');
+
+            $response = $this->postJson(route('notifications.store'), [
+                'title' => 'Historial FCM',
+                'message' => 'Mensaje historial'
+            ]);
+            $response->assertStatus(201);
+
+            $this->assertDatabaseHas('fcm_notification_histories', [
+                'user_id' => $this->admin->id,
+                'title' => 'Historial FCM',
+                'message' => 'Mensaje historial',
+            ]);
+        });
+
+        it('returns the notification history', function () {
+            $admin = User::factory()->create();
+            $admin->givePermissionTo('create-notifications');
+
+            FcmNotificationHistory::create([
+                'user_id' => $admin->id,
+                'title' => 'Historial FCM',
+                'message' => 'Mensaje historial',
+                'sent_at' => now(),
+            ]);
+
+            $this->actingAs($admin, 'sanctum');
+            $response = $this->getJson(route('notifications.index'));
+
+            $response->assertStatus(200)
+                ->assertJsonFragment([
+                    'title' => 'Historial FCM',
+                    'message' => 'Mensaje historial',
+                ]);
+        });
+
+        it('does not save history if user does not have permission', function () {
+            $user = User::factory()->create();
+            $this->actingAs($user, 'sanctum');
+
+            $response = $this->postJson(route('notifications.store'), [
+                'title' => 'Sin permiso',
+                'message' => 'No debe guardar'
+            ]);
+
+            $response->assertStatus(403);
+            $this->assertDatabaseMissing('fcm_notification_histories', [
+                'title' => 'Sin permiso',
+                'message' => 'No debe guardar',
+            ]);
         });
     });
 });
