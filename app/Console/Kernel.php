@@ -18,6 +18,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('random:sync-users')
                 ->dailyAt('01:00')
                 ->withoutOverlapping();
+
+        // Liberar reservas expiradas cada hora
+        $schedule->command('reservations:release-expired')
+                ->hourly()
+                ->withoutOverlapping();
     }
 
     protected function commands()

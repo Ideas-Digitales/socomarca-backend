@@ -142,5 +142,10 @@ class RandomApiService
         
         return $this->makeRequest('get', '/productos', $params);
     }
+
+    public function getWarehouses()
+    {
+        return $this->makeRequest('get', '/bodegas');
+    }
     
 } 

@@ -8,6 +8,8 @@ use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\Price;
+use App\Models\ProductStock;
+use App\Models\Warehouse;
 use Illuminate\Support\Facades\Storage;
 
 class ProductSeeder extends Seeder
@@ -77,12 +79,47 @@ class ProductSeeder extends Seeder
                         ],
                         [
                             'price' => random_int(1000, 50000),
-                            'stock' => random_int(5, 100),
                             'is_active' => true,
                         ]
                     );
+
+                    // Crear stock en las bodegas para este producto
+                    $this->createProductStock($product, $unit);
                 }
             }
+        }
+    }
+
+    /**
+     * Create stock for a product across different warehouses
+     */
+    private function createProductStock(Product $product, string $unit): void
+    {
+        $warehouses = Warehouse::where('is_active', true)->get();
+        
+        foreach ($warehouses as $warehouse) {
+            // No todos los productos tienen stock en todas las bodegas
+            // Algunas bodegas pueden tener 0 stock
+            $hasStock = fake()->boolean(70); // 70% probabilidad de tener stock
+            
+            if ($hasStock) {
+                $stockAmount = fake()->numberBetween(5, 100);
+            } else {
+                $stockAmount = 0;
+            }
+
+            ProductStock::firstOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'warehouse_id' => $warehouse->id,
+                    'unit' => $unit,
+                ],
+                [
+                    'stock' => $stockAmount,
+                    'reserved_stock' => 0,
+                    'min_stock' => $hasStock ? fake()->numberBetween(1, 10) : null,
+                ]
+            );
         }
     }
 }

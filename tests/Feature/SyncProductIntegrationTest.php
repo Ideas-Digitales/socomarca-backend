@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Price;
+use App\Models\ProductStock;
+use App\Models\Warehouse;
 use App\Models\Brand;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Http;
@@ -18,16 +20,29 @@ use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     // Limpiar todas las tablas relacionadas
+    DB::table('product_stocks')->truncate();
     DB::table('prices')->truncate();
     DB::table('products')->truncate();
     DB::table('subcategories')->truncate();
     DB::table('categories')->truncate();
     DB::table('brands')->truncate();
+    DB::table('warehouses')->truncate();
 });
 
 describe('Product Sync Integration', function () {
 
     test('flujo completo de sincronización funciona correctamente', function () {
+        // Crear bodega necesaria para stock
+        Warehouse::create([
+            'business_code' => '01',
+            'branch_code' => 'MAIN',
+            'warehouse_code' => 'MAIN001',
+            'name' => 'Bodega Principal',
+            'address' => 'Dirección Principal',
+            'priority' => 1,
+            'is_active' => true,
+        ]);
+
         // 1. Primero sincronizar categorías
         $categoriesResponse = [
             'data' => [
@@ -53,6 +68,8 @@ describe('Product Sync Integration', function () {
 
         Log::shouldReceive('info')->atLeast()->times(1);
         Log::shouldReceive('error')->zeroOrMoreTimes();
+        Log::shouldReceive('debug')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->zeroOrMoreTimes();
 
         $categoriesJob = new SyncRandomCategories();
         $categoriesJob->handle($mockApiService);
@@ -133,16 +150,18 @@ describe('Product Sync Integration', function () {
         // Verificar precios creados
         expect(Price::count())->toBe(2);
 
-        // 4. Sincronizar stock
+        // 4. Sincronizar stock (incluir información de bodega)
         $stockResponse = [
             'data' => [
                 [
                     'KOPR' => 'PROD001',
+                    'KOBO' => 'MAIN001', // Código de bodega
                     'STOCNV1' => 45,
                     'STVEN1' => 45
                 ],
                 [
                     'KOPR' => 'PROD002',
+                    'KOBO' => 'MAIN001', // Código de bodega
                     'STOCNV1' => 23,
                     'STVEN1' => 23
                 ]
@@ -156,21 +175,32 @@ describe('Product Sync Integration', function () {
         $stockJob = new SyncRandomStock();
         $stockJob->handle($mockApiService);
 
-        // Verificar stock actualizado
-        $price1 = Price::where('random_product_id', 'PROD001')->first();
-        $price2 = Price::where('random_product_id', 'PROD002')->first();
+        // Verificar stock actualizado en el nuevo sistema
+        $product1 = Product::where('random_product_id', 'PROD001')->first();
+        $product2 = Product::where('random_product_id', 'PROD002')->first();
+        $warehouse = Warehouse::where('warehouse_code', 'MAIN001')->first();
 
-        expect($price1->stock)->toBe(45);
-        expect($price2->stock)->toBe(23);
+        $stock1 = ProductStock::where('product_id', $product1->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->first();
+        $stock2 = ProductStock::where('product_id', $product2->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->first();
+
+        expect($stock1)->not->toBeNull();
+        expect($stock2)->not->toBeNull();
+        expect($stock1->stock)->toBe(45);
+        expect($stock2->stock)->toBe(23);
 
         // Verificar integridad de datos completa
-        $products = Product::with(['category', 'subcategory', 'prices'])->get();
+        $products = Product::with(['category', 'subcategory', 'prices', 'stocks'])->get();
         
         foreach ($products as $product) {
             expect($product->category)->not->toBeNull();
             expect($product->subcategory)->not->toBeNull();
             expect($product->prices)->not->toBeEmpty();
-            expect($product->prices->first()->stock)->toBeGreaterThan(0);
+            expect($product->stocks)->not->toBeEmpty();
+            expect($product->stocks->first()->stock)->toBeGreaterThan(0);
         }
     });
 

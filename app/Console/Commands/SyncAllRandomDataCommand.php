@@ -8,6 +8,7 @@ use App\Jobs\SyncRandomPrices;
 use App\Jobs\SyncRandomProducts;
 use App\Jobs\SyncRandomStock;
 use App\Jobs\SyncRandomUsers;
+use App\Jobs\SyncRandomWarehouses;
 use Illuminate\Bus\Queueable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Bus;
@@ -26,11 +27,12 @@ class SyncAllRandomDataCommand extends Command
         
         try {
             Bus::chain([
+                new SyncRandomWarehouses(),    // Primero sincronizar bodegas
                 new SyncRandomCategories(),
                 new SyncRandomBrands(),
                 new SyncRandomProducts(),
                 new SyncRandomPrices(),
-                new SyncRandomStock(),
+                new SyncRandomStock(),         // Stock ahora usa las bodegas sincronizadas
                 new SyncRandomUsers(),
             ])->dispatch();
 

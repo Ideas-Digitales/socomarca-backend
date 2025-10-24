@@ -17,7 +17,7 @@ class SyncRandomBrands implements ShouldQueue
 
     public function __construct()
     {
-        //
+        $this->onQueue('random-brands');
     }
 
     public function handle(RandomApiService $randomApi)

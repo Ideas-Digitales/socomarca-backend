@@ -175,10 +175,41 @@ describe('Product list endpoint', function () {
         $catA = \App\Models\Category::factory()->create(['name' => 'Alimentos']);
         $catB = \App\Models\Category::factory()->create(['name' => 'Bebidas']);
 
+        // Crear bodega para el stock
+        $warehouse = \App\Models\Warehouse::factory()->create([
+            'priority' => 1,
+            'is_active' => true,
+        ]);
+
         // Crea productos con precios y stock distintos
-        $p1 = Product::factory()->for($catA)->has(Price::factory(['price' => 1000, 'stock' => 5, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 1']);
-        $p2 = Product::factory()->for($catB)->has(Price::factory(['price' => 2000, 'stock' => 10, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 2']);
-        $p3 = Product::factory()->for($catA)->has(Price::factory(['price' => 1500, 'stock' => 7, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 3']);
+        $p1 = Product::factory()->for($catA)->has(Price::factory(['price' => 1000, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 1']);
+        $p2 = Product::factory()->for($catB)->has(Price::factory(['price' => 2000, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 2']);
+        $p3 = Product::factory()->for($catA)->has(Price::factory(['price' => 1500, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 3']);
+
+        // Crear stock en el nuevo sistema ProductStock
+        \App\Models\ProductStock::create([
+            'product_id' => $p1->id,
+            'warehouse_id' => $warehouse->id,
+            'unit' => 'kg',
+            'stock' => 5,
+            'reserved_stock' => 0,
+        ]);
+
+        \App\Models\ProductStock::create([
+            'product_id' => $p2->id,
+            'warehouse_id' => $warehouse->id,
+            'unit' => 'kg',
+            'stock' => 10,
+            'reserved_stock' => 0,
+        ]);
+
+        \App\Models\ProductStock::create([
+            'product_id' => $p3->id,
+            'warehouse_id' => $warehouse->id,
+            'unit' => 'kg',
+            'stock' => 7,
+            'reserved_stock' => 0,
+        ]);
 
         // Ordenar por price asc
         $response = $this->actingAs($user, 'sanctum')
