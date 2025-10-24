@@ -144,7 +144,12 @@ class Product extends Model
         if (isset($filters['brand_id'])) {
             $query->whereIn('brand_id', $filters['brand_id']);
         }
-        
+
+        // Filtro por SKU
+        if (isset($filters['sku'])) {
+            $query->where('sku', $filters['sku']);
+        }
+
         // Filtro por Nombre (búsqueda parcial)
         if (isset($filters['name'])) {
             $searchTerm = $filters['name'];
