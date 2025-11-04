@@ -235,14 +235,11 @@ class SiteinfoController extends Controller
     {
         $file = $request->file($requestFileName);
         if ($file instanceof \Illuminate\Http\UploadedFile) {
+            $s3path = rtrim($s3path, '/');
             $newFileName = uniqid() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storePubliclyAs(
-                $s3path,
-                $newFileName,
-                's3'
-            );
-
-            return Storage::disk('s3')->url($path);
+            $fullPath = $s3path . '/' . $newFileName;
+            Storage::disk('s3')->put($fullPath, file_get_contents($file->getRealPath()));
+            return Storage::disk('s3')->url($fullPath);
         }
         return null;
     }
