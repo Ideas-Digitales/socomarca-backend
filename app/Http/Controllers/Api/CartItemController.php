@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\CartItemRemoved;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CartItems\DestroyRequest;
 use App\Http\Requests\CartItems\StoreRequest;
 use App\Models\CartItem;
+use App\Models\ProductStock;
+use App\Models\Warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 
 class CartItemController extends Controller
@@ -22,43 +27,92 @@ class CartItemController extends Controller
     public function store(StoreRequest $storeRequest)
     {
         $data = $storeRequest->validated();
-        $item = CartItem::where('user_id', Auth::user()->id)
-            ->where('product_id', $data['product_id'])
-            ->where('unit', $data['unit'])
-            ->first();
+        
+        return DB::transaction(function () use ($data) {
+            // Buscar item existente en el carrito
+            $existingItem = CartItem::where('user_id', Auth::user()->id)
+                ->where('product_id', $data['product_id'])
+                ->where('unit', $data['unit'])
+                ->first();
 
-        if ($item) {
-            $item->quantity = $item->quantity + $data['quantity'];
-            $item->save();
-        } else {
-            $item = new CartItem;
-            $item->user_id = Auth::user()->id;
-            $item->product_id = $data['product_id'];
-            $item->quantity = $data['quantity'];
-            $item->unit = $data['unit'];
-            $item->save();
-        }
+            $requestedQuantity = $data['quantity'];
+            $currentQuantity = $existingItem ? $existingItem->quantity : 0;
+            $totalQuantity = $currentQuantity + $requestedQuantity;
 
-        // Cargar la relación del producto
-        $item->load('product');
+            // Buscar bodega con stock disponible por prioridad
+            $warehouse = $this->findWarehouseWithStock($data['product_id'], $data['unit'], $requestedQuantity);
+            
+            if (!$warehouse) {
+                return response()->json([
+                    'available_stock' => $this->getTotalAvailableStock($data['product_id'], $data['unit'])
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
-        $price = null;
-        if ($item->product) {
+            // Reservar stock
+            $productStock = ProductStock::where('product_id', $data['product_id'])
+                ->where('warehouse_id', $warehouse->id)
+                ->where('unit', $data['unit'])
+                ->first();
+
+            if (!$productStock->reserveStock($requestedQuantity)) {
+                return response()->json([
+                    'available_stock' => $productStock->available_stock
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Crear o actualizar item del carrito
+            if ($existingItem) {
+                // Si hay reserva previa, liberarla primero
+                if ($existingItem->warehouse_id) {
+                    $previousStock = ProductStock::where('product_id', $data['product_id'])
+                        ->where('warehouse_id', $existingItem->warehouse_id)
+                        ->where('unit', $data['unit'])
+                        ->first();
+                    if ($previousStock) {
+                        $previousStock->releaseStock($existingItem->quantity);
+                    }
+                }
+                
+                $existingItem->quantity = $totalQuantity;
+                $existingItem->warehouse_id = $warehouse->id;
+                $existingItem->reserved_at = now();
+                $existingItem->save();
+                $item = $existingItem;
+            } else {
+                $item = CartItem::create([
+                    'user_id' => Auth::user()->id,
+                    'product_id' => $data['product_id'],
+                    'quantity' => $requestedQuantity,
+                    'unit' => $data['unit'],
+                    'warehouse_id' => $warehouse->id,
+                    'reserved_at' => now()
+                ]);
+            }
+
+            // Cargar relaciones
+            $item->load(['product', 'warehouse']);
+
             $price = $item->product->prices()
                 ->where('unit', $item->unit)
                 ->value('price');
-        }
-        return response()->json([
-            'product' => [
-                'id' => $item->product->id,
-                'name' => $item->product->name,
-                'price' => (int)$price,
 
-            ],
-            'quantity' => $item->quantity,
-            'unit' => $item->unit,
-            'total' => (int)($price * $item->quantity),
-        ], 201);
+            return response()->json([
+                'product' => [
+                    'id' => $item->product->id,
+                    'name' => $item->product->name,
+                    'price' => (int)$price,
+                ],
+                'quantity' => $item->quantity,
+                'unit' => $item->unit,
+                'warehouse' => [
+                    'id' => $warehouse->id,
+                    'name' => $warehouse->name,
+                    'code' => $warehouse->warehouse_code,
+                ],
+                'total' => (int)($price * $item->quantity),
+                'reserved_at' => $item->reserved_at->toDateTimeString(),
+            ], 201);
+        });
     }
 
     /**
@@ -73,35 +127,109 @@ class CartItemController extends Controller
     {
         $data = $request->validated();
 
-        $item = CartItem::where('user_id', Auth::user()->id)
-            ->where('product_id', $data['product_id'])
-            ->where('unit', $data['unit'])
-            ->first();
+        return DB::transaction(function () use ($data) {
+            $item = CartItem::where('user_id', Auth::user()->id)
+                ->where('product_id', $data['product_id'])
+                ->where('unit', $data['unit'])
+                ->first();
 
-        if (!$item) {
-            return [
-                'message' => 'Product item not found'
-            ];
-        }
+            if (!$item) {
+                return response(null, Response::HTTP_NOT_FOUND);
+            }
 
-        if (($item->quantity - $data['quantity']) == 0) {
-            $item->delete();
-        } else {
-            $item->quantity = $item->quantity - $data['quantity'];
-            $item->save();
-        }
+            $quantityToRemove = $data['quantity'];
+            $shouldDeleteItem = ($item->quantity - $quantityToRemove) <= 0;
+            
+            // Liberar stock reservado proporcionalmente
+            if ($item->warehouse_id) {
+                $productStock = ProductStock::where('product_id', $data['product_id'])
+                    ->where('warehouse_id', $item->warehouse_id)
+                    ->where('unit', $data['unit'])
+                    ->first();
+                
+                if ($productStock) {
+                    $stockToRelease = $shouldDeleteItem ? $item->quantity : $quantityToRemove;
+                    $productStock->releaseStock($stockToRelease);
+                }
+            }
 
-        return [
-            'message' => 'Product item quantity has been removed from cart'
-        ];
+            if ($shouldDeleteItem) {
+                // Disparar evento antes de eliminar para el listener
+                event(new CartItemRemoved($item));
+                $item->delete();
+            } else {
+                $item->quantity = $item->quantity - $quantityToRemove;
+                $item->save();
+            }
+
+            return response()->json([
+                'action' => $shouldDeleteItem ? 'deleted' : 'updated',
+                'remaining_quantity' => $shouldDeleteItem ? 0 : $item->quantity
+            ]);
+        });
     }
 
     public function emptyCart(Request $request)
     {
         $user = $request->user();
 
-        $user->cartItems()->delete();
+        return DB::transaction(function () use ($user) {
+            $cartItems = $user->cartItems()->get();
+            
+            // Liberar stock reservado de todos los items
+            foreach ($cartItems as $item) {
+                if ($item->warehouse_id) {
+                    $productStock = ProductStock::where('product_id', $item->product_id)
+                        ->where('warehouse_id', $item->warehouse_id)
+                        ->where('unit', $item->unit)
+                        ->first();
+                    
+                    if ($productStock) {
+                        $productStock->releaseStock($item->quantity);
+                    }
+                }
+                
+                // Disparar evento para cada item eliminado
+                event(new CartItemRemoved($item));
+            }
 
-        return response()->json(['message' => 'The cart has been emptied'], 200);
+            // Eliminar todos los items del carrito
+            $user->cartItems()->delete();
+
+            return response()->json([
+                'released_items_count' => $cartItems->count()
+            ], 200);
+        });
+    }
+
+    /**
+     * Buscar bodega con stock disponible por orden de prioridad
+     */
+    private function findWarehouseWithStock($productId, $unit, $quantity)
+    {
+        $warehouses = Warehouse::active()->byPriority()->get();
+        
+        foreach ($warehouses as $warehouse) {
+            $productStock = ProductStock::where('product_id', $productId)
+                ->where('warehouse_id', $warehouse->id)
+                ->where('unit', $unit)
+                ->first();
+            
+            if ($productStock && $productStock->available_stock >= $quantity) {
+                return $warehouse;
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Obtener stock total disponible de un producto
+     */
+    private function getTotalAvailableStock($productId, $unit)
+    {
+        return ProductStock::where('product_id', $productId)
+            ->where('unit', $unit)
+            ->sum(DB::raw('stock - reserved_stock'));
     }
 }

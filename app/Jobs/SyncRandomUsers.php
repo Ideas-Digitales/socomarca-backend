@@ -18,7 +18,7 @@ class SyncRandomUsers implements ShouldQueue
      */
     public function __construct()
     {
-        
+        $this->onQueue('random-users');
     }
 
     /**

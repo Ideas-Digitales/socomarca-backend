@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\FirebaseConfigController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductImageSyncController;
+use App\Http\Controllers\Api\WarehouseController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -149,6 +150,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ->name('products.search')
         ->middleware('can:viewAny,App\Models\Product');
 
+    // Warehouse routes
+    Route::get('/warehouses', [WarehouseController::class, 'index'])->name('warehouses.index');
+    Route::get('/warehouses/{warehouse}', [WarehouseController::class, 'show'])->name('warehouses.show');
+    Route::patch('/warehouses/{warehouse}', [WarehouseController::class, 'update'])
+        ->name('warehouses.update')
+        ->middleware('permission:update-warehouses');
+    Route::get('/warehouses/{warehouse}/stock', [WarehouseController::class, 'productStock'])->name('warehouses.product-stock');
+
     Route::resource(
         'favorites-list', FavoriteListController::class,
         ['only' => ['index', 'store', 'show', 'update', 'destroy']]
@@ -231,11 +240,38 @@ Route::post('/webpay/refund', [WebpayController::class, 'refund']);
 
 // Configuraciones de Webpay
 Route::get('/webpay/config', [SiteinfoController::class, 'webpayConfig'])->middleware(['auth:sanctum', 'permission:read-all-system-config'])->name('webpay.config');
+
+// Settings Routes Group
+Route::prefix('settings')->group(function () {
+
+    // System configuration settings
+    Route::get('/cart-reservation-timeout', [SettingsController::class, 'getCartReservationTimeout'])
+        ->middleware(['auth:sanctum', 'permission:read-all-system-config'])
+        ->name('settings.cart-reservation-timeout.get');
+
+    Route::put('/cart-reservation-timeout', [SettingsController::class, 'updateCartReservationTimeout'])
+        ->middleware(['auth:sanctum', 'permission:update-system-config'])
+        ->name('settings.cart-reservation-timeout.update');
+
+    // Content settings - read
+    Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
+        Route::get('/prices', [SettingsController::class, 'index']);
+        Route::get('/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings-upload-files.get');
+    });
+
+    // Content settings - update
+    Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
+        Route::put('/prices', [SettingsController::class, 'update']);
+        Route::put('/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
+    });
+});
+
+// Webpay configuration (separate from settings)
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])->group(function () {
     Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig'])->name('webpay.config.update');
 });
 
-// Configuraciones de contenido - lectura con permiso
+// Site info content (separate from settings)
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/siteinfo', [SiteinfoController::class, 'show'])->name('siteinfo.show');
     Route::get('/terms', [SiteinfoController::class, 'terms'])->name('siteinfo.terms');
@@ -243,25 +279,11 @@ Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(f
     Route::get('/customer-message', [SiteinfoController::class, 'customerMessage'])->name('siteinfo.customer-message');
 });
 
-// Configuraciones de contenido - actualización
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/siteinfo', [SiteinfoController::class, 'update'])->name('siteinfo.update');
     Route::put('/terms', [SiteinfoController::class, 'updateTerms'])->name('siteinfo.terms.update');
     Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
     Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
-});
-
-
-
-// Settings
-Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
-    Route::get('/settings/prices', [SettingsController::class, 'index']);
-    Route::get('/settings/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings-upload-files.get');
-});
-
-Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
-    Route::put('/settings/prices', [SettingsController::class, 'update']);
-    Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
 });
 
 Route::post('/notifications', [NotificationController::class, 'store'])

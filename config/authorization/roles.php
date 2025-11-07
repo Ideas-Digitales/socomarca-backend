@@ -56,6 +56,18 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        
+        // Warehouse permissions
+        'read-all-warehouses',
+        'update-warehouses',
+
+        //Cart
+        'read-own-cart',
+        'delete-cart',
+        'create-cart-items',
+        'delete-cart-items',
+        
+        // System configuration permissions
         "update-system-config",
 
     ],
@@ -114,6 +126,10 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        
+        // Warehouse permissions
+        'read-all-warehouses',
+        'update-warehouses',
 
     ],
     'supervisor' => [
@@ -135,6 +151,9 @@ return [
         "read-all-faqs",
         'read-all-products-export',
         'read-all-categories-export',
+
+        // Warehouse permissions
+        'read-all-warehouses',
 
     ],
     'editor' => [
@@ -160,6 +179,9 @@ return [
         "create-faqs",
         "update-faqs",
         "delete-faqs",
+
+        // Warehouse permissions
+        'read-all-warehouses',
     ],
     'customer' => [
         'read-own-profile',

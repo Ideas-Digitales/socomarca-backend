@@ -85,6 +85,53 @@ class Product extends Model
         return $this->hasMany(Favorite::class);
     }
 
+    public function stocks()
+    {
+        return $this->hasMany(ProductStock::class);
+    }
+
+    /**
+     * Get stock information grouped by warehouse
+     */
+    public function getStockByWarehouse()
+    {
+        return $this->stocks()
+            ->with('warehouse')
+            ->get()
+            ->groupBy('warehouse_id')
+            ->map(function ($stocksByWarehouse) {
+                $warehouse = $stocksByWarehouse->first()->warehouse;
+                $totalStock = $stocksByWarehouse->sum('available_stock');
+                $totalReserved = $stocksByWarehouse->sum('reserved_stock');
+                
+                return [
+                    'warehouse_id' => $warehouse->id,
+                    'warehouse_name' => $warehouse->name,
+                    'warehouse_priority' => $warehouse->priority,
+                    'total_stock' => $totalStock,
+                    'reserved_stock' => $totalReserved,
+                    'available_stock' => $totalStock,
+                    'units' => $stocksByWarehouse->map(function ($stock) {
+                        return [
+                            'unit' => $stock->unit,
+                            'stock' => $stock->stock,
+                            'reserved_stock' => $stock->reserved_stock,
+                            'available_stock' => $stock->available_stock,
+                            'min_stock' => $stock->min_stock,
+                        ];
+                    })->values()->toArray()
+                ];
+            })->values();
+    }
+
+    /**
+     * Get total available stock across all warehouses
+     */
+    public function getTotalAvailableStock()
+    {
+        return $this->stocks()->sum(\DB::raw('stock - reserved_stock'));
+    }
+
     public function userFavorites($userId)
     {
         return $this->hasMany(Favorite::class)
@@ -191,12 +238,10 @@ class Product extends Model
                           ->select(
                               'products.*',
                               'prices.price as joined_price',
-                              'prices.stock as joined_stock',
                               'prices.unit as joined_unit'
                           );
                     break;
                 case 'price':
-                case 'stock':
                     $query->leftJoin('prices', function($join) {
                             $join->on('products.id', '=', 'prices.product_id')
                                  ->where('prices.is_active', true);
@@ -204,10 +249,20 @@ class Product extends Model
                         ->select(
                             'products.*',
                             'prices.price as joined_price',
-                            'prices.stock as joined_stock',
                             'prices.unit as joined_unit'
                         )
-                        ->orderBy('prices.' . $filters['sort'], $direction);
+                        ->orderBy('prices.price', $direction);
+                    break;
+                case 'stock':
+                    // Join with product_stocks table for warehouse-based stock
+                    $query->leftJoin('product_stocks', 'products.id', '=', 'product_stocks.product_id')
+                        ->leftJoin('warehouses', 'product_stocks.warehouse_id', '=', 'warehouses.id')
+                        ->select(
+                            'products.*',
+                            \DB::raw('SUM(product_stocks.stock - product_stocks.reserved_stock) as total_available_stock')
+                        )
+                        ->groupBy('products.id')
+                        ->orderBy('total_available_stock', $direction);
                     break;
                 default:
                     $query->leftJoin('prices', function($join) {
@@ -217,7 +272,6 @@ class Product extends Model
                         ->select(
                             'products.*',
                             'prices.price as joined_price',
-                            'prices.stock as joined_stock',
                             'prices.unit as joined_unit'
                         )
                         ->orderBy($filters['sort'], $direction);

@@ -30,6 +30,7 @@ class SyncRandomProducts implements ShouldQueue
         $this->tipr = $tipr;
         $this->page = $page;
         $this->size = $size;
+        $this->onQueue('random-products');
     }
 
     public function handle(RandomApiService $randomApi)

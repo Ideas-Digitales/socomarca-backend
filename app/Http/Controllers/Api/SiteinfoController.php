@@ -71,7 +71,7 @@ class SiteinfoController extends Controller
             ['value' => $data['social_media']]
         );
 
-        return response()->json(['message' => 'Siteinfo updated successfully']);
+        return response(null, 200);
     }
 
     /**
@@ -105,7 +105,7 @@ class SiteinfoController extends Controller
             ['content' => $data['content']]
         );
 
-        return response()->json(['message' => 'Terms upadated succesfully']);
+        return response(null, 200);
     }
 
     /**
@@ -139,7 +139,7 @@ class SiteinfoController extends Controller
             ['content' => $data['content']]
         );
 
-        return response()->json(['message' => 'Privacy Policy updated successfully']);
+        return response(null, 200);
     }
 
     /**
@@ -228,7 +228,7 @@ class SiteinfoController extends Controller
             ['value' => $data['message_enabled']]
         );
 
-        return response()->json(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
+        return response(null, 200);
     }
 
     private function saveImage(Request $request, string $requestFileName, string $s3path)
@@ -255,10 +255,7 @@ class SiteinfoController extends Controller
         $data = $record ? $record->value : [];
 
         if(!$data){
-            return response()->json([
-                'message' => 'No se encontró la configuración de Webpay',
-                'data' => []
-            ],404);
+            return response(null, 404);
         }
 
         return response()->json($data);
@@ -290,7 +287,6 @@ class SiteinfoController extends Controller
  
         return response()->json(
             [
-                'message' => 'Configuración de Webpay actualizada exitosamente',
                 'data' => $data
             ]
         );
@@ -345,8 +341,8 @@ class SiteinfoController extends Controller
         );
 
         return response()->json([
-            'message' => 'Configuración de subida actualizada correctamente.',
             'data' => $value
         ]);
     }
+
 }

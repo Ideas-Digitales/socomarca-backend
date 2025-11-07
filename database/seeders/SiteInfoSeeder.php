@@ -46,5 +46,13 @@ class SiteInfoSeeder extends Seeder
                 'content' => 'Configuración de tamaño máximo para subida de archivos'
             ]
         );
+
+        Siteinfo::updateOrCreate(
+            ['key' => 'CART_RESERVATION_TIMEOUT'],
+            [
+                'value' => ['timeout_minutes' => 1440], // Default: 24 hours (1440 minutes)
+                'content' => 'Tiempo de expiración de reservas del carrito en minutos'
+            ]
+        );
     }
 } 

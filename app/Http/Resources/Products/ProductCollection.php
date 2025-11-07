@@ -52,9 +52,7 @@ class ProductCollection extends ResourceCollection
                 'price' => isset($product->joined_price)
                     ? (float) $product->joined_price
                     : (float) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->price,
-                'stock' => isset($product->joined_stock)
-                    ? (int) $product->joined_stock
-                    : (int) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->stock,
+                'stock' => $product->getTotalAvailableStock(),
                 'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,
