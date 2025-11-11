@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\FcmNotificationHistory;
 use App\Models\User;
 use App\Notifications\PushNotification;
 use Illuminate\Bus\Queueable;
@@ -16,16 +17,25 @@ class SendPushNotification implements ShouldQueue
 
     public $title;
     public $message;
+    public $sender_id;
 
-    public function __construct($title, $message)
+    public function __construct($title, $message, $sender_id)
     {
         $this->title = $title;
         $this->message = $message;
+        $this->sender_id = $sender_id;
     }
 
     public function handle()
     {
         $users = User::whereNotNull('fcm_token')->where('is_active', true)->get();
+
+        FcmNotificationHistory::create([
+            'user_id' => $this->sender_id,
+            'title' => $this->title,
+            'message' => $this->message,
+            'sent_at' => now(),
+        ]);
 
         foreach ($users as $user) {
             $user->notify(new PushNotification($this->title, $this->message));
