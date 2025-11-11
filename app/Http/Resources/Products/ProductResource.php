@@ -38,9 +38,9 @@ class ProductResource extends JsonResource
         $imageUrl = null;
         if ($imageRelative) {
             $awsUrl = rtrim(config('filesystems.disks.s3.url') ?? env('AWS_URL'), '/');
-            $bucket = config('filesystems.disks.s3.bucket') ?? env('AWS_BUCKET');
+            
             $imageRelative = ltrim($imageRelative, '/');
-            $imageUrl = "{$awsUrl}/{$bucket}/{$imageRelative}";
+            $imageUrl = "{$awsUrl}/{$imageRelative}";
         }
 
         return
