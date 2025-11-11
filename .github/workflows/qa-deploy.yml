@@ -32,6 +32,10 @@ jobs:
         run: docker compose -f compose.qa.yml exec app php artisan migrate --force
         working-directory: /home/ubuntu/deploys/socomarca-backend
 
+      - name: Sync roles and permissions
+        run: docker compose -f compose.qa.yml exec app php artisan permissions:sync
+        working-directory: /home/ubuntu/deploys/socomarca-backend
+
       - name: Configuration caching
         run: docker compose -f compose.qa.yml exec app php artisan config:cache
         working-directory: /home/ubuntu/deploys/socomarca-backend

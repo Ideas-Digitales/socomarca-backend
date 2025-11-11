@@ -7,7 +7,7 @@ use App\Models\User;
 
 class ReassignUserRolesCommand extends Command
 {
-    protected $signature = 'users:reassign-roles';
+    protected $signature = 'permissions:sync';
     protected $description = 'Reasigna roles a todos los usuarios según lógica definida';
 
     public function handle()
