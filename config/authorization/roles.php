@@ -56,6 +56,7 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        "read-all-notifications",
         "update-system-config",
 
     ],
@@ -114,6 +115,7 @@ return [
 
         // Notification related permissions
         "create-notifications",
+        "read-all-notifications",
 
     ],
     'supervisor' => [
@@ -135,6 +137,8 @@ return [
         "read-all-faqs",
         'read-all-products-export',
         'read-all-categories-export',
+
+        'read-all-notifications',
 
     ],
     'editor' => [
@@ -199,5 +203,7 @@ return [
         "read-all-faqs",
         // Siteinfo authorization
         'read-content-settings',
+
+        "read-all-notifications",
     ],
 ];

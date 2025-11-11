@@ -129,6 +129,7 @@ return [
 
     // Notification permissions
     'create-notifications', // [superadmin, admin]
+    'read-all-notifications', // [superadmin, admin, customer]
 
     'update-system-config' // [superadmin, admin]
 ];
