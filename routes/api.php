@@ -264,9 +264,11 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
 });
 
-Route::middleware(['auth:sanctum','permission:create-notifications'])->group(function () {
+Route::middleware(['auth:sanctum', 'permission:read-all-notifications'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])
         ->name('notifications.index');
+});
+Route::middleware(['auth:sanctum', 'permission:create-notifications'])->group(function () {
     Route::post('/notifications', [NotificationController::class, 'store'])
         ->name('notifications.store');
 });
