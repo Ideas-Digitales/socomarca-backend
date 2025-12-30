@@ -235,11 +235,12 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])->group(fu
     Route::put('/webpay/config', [SiteinfoController::class, 'updateWebpayConfig'])->name('webpay.config.update');
 });
 
+Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy'])->name('siteinfo.privacy-policy');
+
 // Configuraciones de contenido - lectura con permiso
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/siteinfo', [SiteinfoController::class, 'show'])->name('siteinfo.show');
     Route::get('/terms', [SiteinfoController::class, 'terms'])->name('siteinfo.terms');
-    Route::get('/privacy-policy', [SiteinfoController::class, 'privacyPolicy'])->name('siteinfo.privacy-policy');
     Route::get('/customer-message', [SiteinfoController::class, 'customerMessage'])->name('siteinfo.customer-message');
 });
 

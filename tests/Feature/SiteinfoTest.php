@@ -90,16 +90,14 @@ describe('Terms and Privacy Policy API', function () {
     describe('Authentication and Authorization', function () {
         it('requires authentication for terms and privacy policy', function () {
             $this->getJson(route('siteinfo.terms'))->assertUnauthorized();
-            $this->getJson(route('siteinfo.privacy-policy'))->assertUnauthorized();
+            $this->getJson(route('siteinfo.privacy-policy'))
+                ->assertJsonStructure(['content']);
         });
 
         it('requires read-content-settings permission', function () {
             $user = User::factory()->create(); // User without permission
             $this->actingAs($user, 'sanctum')
                 ->getJson(route('siteinfo.terms'))
-                ->assertForbidden();
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.privacy-policy'))
                 ->assertForbidden();
         });
     });

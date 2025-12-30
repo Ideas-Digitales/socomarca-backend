@@ -197,6 +197,7 @@ describe('Notification API', function () {
         it('returns the notification history', function () {
             $admin = User::factory()->create();
             $admin->givePermissionTo('create-notifications');
+            $admin->givePermissionTo('read-all-notifications');
 
             FcmNotificationHistory::create([
                 'user_id' => $admin->id,
