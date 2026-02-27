@@ -155,7 +155,8 @@ class Product extends Model
             $searchTerm = $filters['name'];
             $query->where(function($q) use ($searchTerm) {
                 $q->whereRaw('similarity(name, ?) > 0.3', [$searchTerm])
-                  ->orWhere('name', 'ILIKE', "%{$searchTerm}%");
+                  ->orWhere('name', 'ILIKE', "%{$searchTerm}%")
+                  ->orWhere('sku', 'ILIKE', "%{$searchTerm}%");
             });
 
             // Solo aplica el orderByRaw si NO hay sort definido
