@@ -33,7 +33,12 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 20);
-        $orders = Order::where('user_id', Auth::user()->id)->paginate($perPage);
+        $sortBy = in_array($request->input('sort'), ['id', 'created_at']) ? $request->input('sort') : 'created_at';
+        $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
+
+        $orders = Order::where('user_id', Auth::user()->id)
+            ->orderBy($sortBy, $sortDirection)
+            ->paginate($perPage);
         return new OrderCollection($orders);
     }
 
