@@ -210,10 +210,44 @@ describe('Notification API', function () {
             $response = $this->getJson(route('notifications.index'));
 
             $response->assertStatus(200)
+                ->assertJsonStructure([
+                    'current_page',
+                    'data' => [
+                        '*' => [
+                            'id',
+                            'user_id',
+                            'title',
+                            'message',
+                            'viewed',
+                            'sent_at'
+                        ]
+                    ],
+                    'first_page_url',
+                    'from',
+                    'last_page',
+                    'last_page_url',
+                    'links' => [
+                        '*' => [
+                            'url',
+                            'label',
+                            'active'
+                        ]
+                    ],
+                    'next_page_url',
+                    'path',
+                    'per_page',
+                    'prev_page_url',
+                    'to',
+                    'total'
+                ])
                 ->assertJsonFragment([
                     'title' => 'Historial FCM',
                     'message' => 'Mensaje historial',
-                ]);
+                ])
+                ->assertJsonPath('data.0.viewed', false)
+                ->assertJsonPath('current_page', 1)
+                ->assertJsonPath('per_page', 20)
+                ->assertJsonPath('total', 1);
         });
 
         it('does not save history if user does not have permission', function () {
