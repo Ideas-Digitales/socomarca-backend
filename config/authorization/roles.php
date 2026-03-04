@@ -57,6 +57,7 @@ return [
         // Notification related permissions
         "create-notifications",
         "read-all-notifications",
+        "create-viewed-notifications",
         "update-system-config",
 
     ],
@@ -116,6 +117,7 @@ return [
         // Notification related permissions
         "create-notifications",
         "read-all-notifications",
+        "create-viewed-notifications",
 
     ],
     'supervisor' => [
@@ -139,6 +141,7 @@ return [
         'read-all-categories-export',
 
         'read-all-notifications',
+        'create-viewed-notifications',
 
     ],
     'editor' => [
@@ -164,6 +167,7 @@ return [
         "create-faqs",
         "update-faqs",
         "delete-faqs",
+        'create-viewed-notifications',
     ],
     'customer' => [
         'read-own-profile',
@@ -205,5 +209,6 @@ return [
         'read-content-settings',
 
         "read-all-notifications",
+        'create-viewed-notifications',
     ],
 ];

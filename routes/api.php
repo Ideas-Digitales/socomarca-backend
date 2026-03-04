@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\FirebaseConfigController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
 use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\SettingsController;
 
@@ -273,6 +274,10 @@ Route::middleware(['auth:sanctum', 'permission:create-notifications'])->group(fu
     Route::post('/notifications', [NotificationController::class, 'store'])
         ->name('notifications.store');
 });
+
+Route::post('/viewed-notifications/batch', ViewedNotificationsBatchStoreController::class)
+    ->middleware(['auth:sanctum', 'can:create,App\Models\ViewedNotification'])
+    ->name('viewed-notifications.batchStore');
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->put('fcm/config', [FirebaseConfigController::class, 'update'])
