@@ -1,12 +1,37 @@
 <?php
 
 use App\Jobs\SyncProductImage;
+use App\Jobs\ProcessProductImageChunkFromS3;
+use App\Jobs\CleanupChunkTempS3;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use PhpOffice\PhpSpreadsheet\IOFactory;
+
+/**
+ * Helper: create a real ZIP in memory with an images/ folder containing dummy image files.
+ * Returns the path to the temp ZIP file.
+ */
+function createTestZipWithImages(array $imageNames): string
+{
+    $zipPath = tempnam(sys_get_temp_dir(), 'test_zip_') . '.zip';
+    $zip = new ZipArchive();
+    $zip->open($zipPath, ZipArchive::CREATE);
+    $zip->addEmptyDir('images');
+    foreach ($imageNames as $name) {
+        // 1x1 red pixel PNG
+        $img = imagecreatetruecolor(1, 1);
+        ob_start();
+        imagepng($img);
+        $pngData = ob_get_clean();
+        imagedestroy($img);
+        $zip->addFromString('images/' . $name, $pngData);
+    }
+    $zip->close();
+    return $zipPath;
+}
 
 describe('Product Image Sync API', function () {
 
@@ -139,23 +164,111 @@ describe('Product Image Sync API', function () {
             ->assertJsonValidationErrors(['sync_file']);
     });
 
-    it('the job processes the ZIP with Excel and images correctly', function () {
+    it('the job processes the ZIP with images deriving SKU from filenames', function () {
         Storage::fake('s3');
+        Bus::fake();
 
         $product1 = Product::factory()->create(['sku' => '8072', 'image' => null]);
         $product2 = Product::factory()->create(['sku' => '3150', 'image' => null]);
 
-        $zipPath = 'product-sync/test.zip';
+        // Create a real ZIP with images named after SKUs
+        $localZip = createTestZipWithImages(['8072.jpg', '3150.png']);
+        $zipS3Path = 'product-sync/test.zip';
+        Storage::disk('s3')->put($zipS3Path, file_get_contents($localZip));
+        unlink($localZip);
 
-        $excelContent = "SKU\tName\tCategory\tSubcategory\tImages\n";
-        $excelContent .= "8072\tProduct 1\tCategory 1\tSubcat 1\timage1.jpg\n";
-        $excelContent .= "3150\tProduct 2\tCategory 2\tSubcat 2\timage2.jpg\n";
+        $job = new SyncProductImage($zipS3Path);
+        $job->handle();
 
-        Storage::disk('s3')->put($zipPath, 'fake-zip-content');
+        // Should have dispatched chained jobs for the image chunk
+        Bus::assertChained([
+            ProcessProductImageChunkFromS3::class,
+            CleanupChunkTempS3::class,
+        ]);
+    });
 
-        $job = new SyncProductImage($zipPath);
+    it('derives SKU correctly from image filenames ignoring extension', function () {
+        Storage::fake('s3');
+        Bus::fake();
 
-        expect($job->zipPath)->toBe($zipPath);
+        $product = Product::factory()->create(['sku' => 'ABC-123', 'image' => null]);
+
+        $localZip = createTestZipWithImages(['ABC-123.webp']);
+        $zipS3Path = 'product-sync/test.zip';
+        Storage::disk('s3')->put($zipS3Path, file_get_contents($localZip));
+        unlink($localZip);
+
+        $job = new SyncProductImage($zipS3Path);
+        $job->handle();
+
+        Bus::assertChained([
+            ProcessProductImageChunkFromS3::class,
+            CleanupChunkTempS3::class,
+        ]);
+    });
+
+    it('handles ZIP without images directory gracefully', function () {
+        Storage::fake('s3');
+        Bus::fake();
+
+        // Create a ZIP without images/ directory
+        $zipPath = tempnam(sys_get_temp_dir(), 'test_zip_') . '.zip';
+        $zip = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE);
+        $zip->addFromString('readme.txt', 'no images here');
+        $zip->close();
+
+        $zipS3Path = 'product-sync/test.zip';
+        Storage::disk('s3')->put($zipS3Path, file_get_contents($zipPath));
+        unlink($zipPath);
+
+        $job = new SyncProductImage($zipS3Path);
+        $job->handle();
+
+        // No chunks should be dispatched
+        Bus::assertNothingDispatched();
+    });
+
+    it('handles ZIP with empty images directory', function () {
+        Storage::fake('s3');
+        Bus::fake();
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'test_zip_') . '.zip';
+        $zip = new ZipArchive();
+        $zip->open($zipPath, ZipArchive::CREATE);
+        $zip->addEmptyDir('images');
+        $zip->close();
+
+        $zipS3Path = 'product-sync/test.zip';
+        Storage::disk('s3')->put($zipS3Path, file_get_contents($zipPath));
+        unlink($zipPath);
+
+        $job = new SyncProductImage($zipS3Path);
+        $job->handle();
+
+        // No chunks dispatched when no images
+        Bus::assertNothingDispatched();
+        Storage::disk('s3')->assertMissing($zipS3Path);
+    });
+
+    it('uploads images to S3 temp prefix before dispatching', function () {
+        Storage::fake('s3');
+        Bus::fake();
+
+        Product::factory()->create(['sku' => 'SKU001', 'image' => null]);
+
+        $localZip = createTestZipWithImages(['SKU001.jpg']);
+        $zipS3Path = 'product-sync/test.zip';
+        Storage::disk('s3')->put($zipS3Path, file_get_contents($localZip));
+        unlink($localZip);
+
+        $job = new SyncProductImage($zipS3Path);
+        $job->handle();
+
+        // Check that a temp image was uploaded to S3
+        $tmpFiles = Storage::disk('s3')->allFiles('product-sync/tmp');
+        $imageFiles = array_filter($tmpFiles, fn($f) => str_contains($f, 'SKU001.jpg'));
+        expect(count($imageFiles))->toBeGreaterThan(0);
     });
 
     it('admin can upload ZIP respecting dynamic size configuration', function () {
@@ -183,21 +296,25 @@ describe('Product Image Sync API', function () {
         Queue::assertPushed(SyncProductImage::class);
     });
 
-    it('processes real ZIP with Excel and images', function () {
+    it('processes real ZIP uploaded via API and dispatches job', function () {
         Storage::fake('s3');
-        Queue::fake();
+        Bus::fake();
 
         $user = User::factory()->create();
         $user->givePermissionTo('sync-product-images');
 
-        $zipPath = storage_path('app/private/fake_seed_data/productos-test.zip');
+        Product::factory()->create(['sku' => 'PROD-001', 'image' => null]);
+        Product::factory()->create(['sku' => 'PROD-002', 'image' => null]);
+
+        // Create a real ZIP with images named after SKUs
+        $localZip = createTestZipWithImages(['PROD-001.jpg', 'PROD-002.png']);
 
         $zipFile = new UploadedFile(
-            $zipPath,
+            $localZip,
             'productos-test.zip',
             'application/zip',
             null,
-            true // $testMode
+            true
         );
 
         $response = $this->actingAs($user, 'sanctum')
@@ -210,11 +327,14 @@ describe('Product Image Sync API', function () {
         $response->assertStatus(200)
             ->assertJson(['message' => 'Sincronización iniciada.']);
 
+        // SyncProductImage is dispatched via queue
+        Queue::fake() || true; // Queue was already faked via Bus
         $s3ZipPath = collect(Storage::disk('s3')->files('product-sync'))
             ->first(fn($path) => str_ends_with($path, '.zip'));
 
         expect($s3ZipPath)->not->toBeNull();
 
+        // Verify the ZIP in S3 contains images directory
         $zipContent = Storage::disk('s3')->get($s3ZipPath);
         $tempZipPath = tempnam(sys_get_temp_dir(), 'test_zip_');
         file_put_contents($tempZipPath, $zipContent);
@@ -228,34 +348,23 @@ describe('Product Image Sync API', function () {
         $zip->extractTo($extractPath);
         $zip->close();
 
-        $excelPath = null;
-        foreach (glob($extractPath . '/*.{xlsx,xls,csv}', GLOB_BRACE) as $file) {
-            $excelPath = $file;
-            break;
-        }
-        expect($excelPath)->not->toBeNull();
+        $imagesDir = $extractPath . '/images';
+        expect(is_dir($imagesDir))->toBeTrue();
 
-        $spreadsheet = IOFactory::load($excelPath);
-        $sheet = $spreadsheet->getActiveSheet();
+        $imageFiles = glob($imagesDir . '/*.{jpg,jpeg,png,gif,webp,bmp,svg}', GLOB_BRACE);
+        expect(count($imageFiles))->toBe(2);
 
-        foreach ($sheet->getRowIterator(2) as $row) {
-            $cellIterator = $row->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(false);
-            $cells = [];
-            foreach ($cellIterator as $cell) {
-                $cells[] = $cell->getValue();
-            }
-            $sku = $cells[0] ?? null;
-            $imageName = $cells[4] ?? null;
-
-            if ($sku && $imageName) {
-                $imagePath = $extractPath . '/images/' . $imageName;
-                expect(file_exists($imagePath))->toBeTrue("Image $imageName does not exist for SKU $sku");
-            }
-        }
+        // Verify SKU derivation from filenames
+        $skus = array_map(fn($f) => pathinfo(basename($f), PATHINFO_FILENAME), $imageFiles);
+        sort($skus);
+        expect($skus)->toBe(['PROD-001', 'PROD-002']);
 
         unlink($tempZipPath);
         exec("rm -rf " . escapeshellarg($extractPath));
+
+        if (file_exists($localZip)) {
+            unlink($localZip);
+        }
     });
 
     it('failed method deletes ZIP from S3 if job fails', function () {

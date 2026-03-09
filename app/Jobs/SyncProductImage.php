@@ -55,47 +55,25 @@ class SyncProductImage implements ShouldQueue
             return;
         }
 
-        // Buscar el archivo Excel por extensión
-        $excelPath = null;
-        foreach (glob($extractPath . '/*.{xlsx,xls,csv}', GLOB_BRACE) as $file) {
-            $excelPath = $file;
-            break;
-        }
+        // Buscar imágenes en el directorio images/
         $imagesPath = $extractPath . '/images';
 
-        if (!$excelPath || !file_exists($excelPath)) {
-            Log::error('Archivo Excel no encontrado', ['extractPath' => $extractPath]);
+        if (!is_dir($imagesPath)) {
+            Log::error('Directorio de imágenes no encontrado', ['imagesPath' => $imagesPath]);
             $this->cleanup($tempZipPath, $extractPath);
             return;
         }
 
-        try {
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($excelPath);
-            Log::info('Archivo Excel cargado correctamente', ['excelPath' => $excelPath]);
-        } catch (\Throwable $e) {
-            Log::error('Error al cargar archivo Excel', ['error' => $e->getMessage()]);
-            $this->cleanup($tempZipPath, $extractPath);
-            return;
-        }
-
-        $processedCount = 0;
-        $sheet = $spreadsheet->getActiveSheet();
-
-        // Construir array de filas (sku, image) y lista de archivos
+        // Construir array de filas (sku, image) a partir de los nombres de archivo
         $rows = [];
-        foreach ($sheet->getRowIterator(2) as $row) {
-            $cellIterator = $row->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(false);
-            $cells = [];
-            foreach ($cellIterator as $cell) {
-                $cells[] = $cell->getValue();
-            }
+        $imageFiles = glob($imagesPath . '/*.{jpg,jpeg,png,gif,webp,bmp,svg}', GLOB_BRACE);
 
-            $sku = $cells[0] ?? null;
-            $imageName = $cells[4] ?? null;
+        foreach ($imageFiles as $filePath) {
+            $imageName = basename($filePath);
+            $sku = pathinfo($imageName, PATHINFO_FILENAME);
 
-            if (!$sku || !$imageName) {
-                Log::warning("Fila inválida en archivo.xlsx: " . json_encode($cells));
+            if (empty($sku)) {
+                Log::warning('Imagen con nombre inválido', ['file' => $imageName]);
                 continue;
             }
 
@@ -104,7 +82,7 @@ class SyncProductImage implements ShouldQueue
 
         // Si no hay filas, terminar
         if (empty($rows)) {
-            Log::warning('No rows to process in Excel.');
+            Log::warning('No image files found to process.');
         } else {
             // Prefijo temporal en S3 para este sync (por chunk)
             $tmpPrefix = 'product-sync/tmp/' . uniqid() . '/';
