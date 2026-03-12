@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Products\ProductCollection;
 use App\Http\Resources\Products\ProductResource;
+use App\Models\Category;
 use App\Models\Product;
+use App\Models\Subcategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -60,16 +62,34 @@ class ProductController extends Controller
         $validatedFilters = $validator->validated()['filters'];
         $perPage = $request->input('per_page', 20);
 
+        $result = Product::filter($validatedFilters)->paginate($perPage);
 
-        $result = Product::filter($validatedFilters)
-        ->paginate($perPage);
+        // Obtener categorías y subcategorías de todos los resultados (sin paginación ni sorting)
+        $filtersForExtra = array_diff_key($validatedFilters, array_flip(['sort', 'sort_direction']));
+        $matchingProducts = Product::filter($filtersForExtra)
+            ->select('category_id', 'subcategory_id')
+            ->get();
 
+        $categories = [];
+        $subcategories = [];
+
+        if ($matchingProducts->isNotEmpty()) {
+            $categoryIds = $matchingProducts->pluck('category_id')->filter()->unique()->values();
+            $subcategoryIds = $matchingProducts->pluck('subcategory_id')->filter()->unique()->values();
+
+            $categories = Category::whereIn('id', $categoryIds)->select('id', 'name')->get()->toArray();
+            $subcategories = Subcategory::whereIn('id', $subcategoryIds)->select('id', 'name')->get()->toArray();
+        }
 
         $data = new ProductCollection($result)->additional([
+            'extra' => [
+                'categories' => $categories,
+                'subcategories' => $subcategories,
+            ],
             'filters' => [
                 'min_price' => $validatedFilters['price']['min'],
                 'max_price' => $validatedFilters['price']['max'],
-            ]
+            ],
         ]);
 
         return $data;

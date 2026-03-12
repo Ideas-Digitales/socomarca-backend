@@ -26,6 +26,10 @@ beforeEach(function () {
                 'brand' => ['id', 'name'],
             ],
         ],
+        'extra' => [
+            'categories',
+            'subcategories',
+        ],
         'meta', // Estructura de paginación
         'filters' => [ // Filtros devueltos
             'min_price',
@@ -341,5 +345,53 @@ describe('Product search endpoint', function () {
                 ]
             ])
             ->assertForbidden();
+    });
+
+    it('should return categories and subcategories from all matching products', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        $category = Category::factory()->create();
+        $subcategory = Subcategory::factory()->create(['category_id' => $category->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['category_id' => $category->id, 'subcategory_id' => $subcategory->id]);
+
+        // Producto fuera del rango de precio (no debe aportar categorías)
+        $otherCategory = Category::factory()->create();
+        Product::factory()
+            ->has(Price::factory(['price' => 50000, 'is_active' => true]))
+            ->create(['category_id' => $otherCategory->id]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 1000, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure($this->searchResponseStructure);
+
+        expect($response->json('extra.categories'))->toHaveCount(1);
+        expect($response->json('extra.categories.0.id'))->toBe($category->id);
+        expect($response->json('extra.subcategories'))->toHaveCount(1);
+        expect($response->json('extra.subcategories.0.id'))->toBe($subcategory->id);
+    });
+
+    it('should return empty categories and subcategories when no products match', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 999000, 'max' => 1000000]],
+            ]);
+
+        $response->assertStatus(200);
+
+        expect($response->json('extra.categories'))->toBe([]);
+        expect($response->json('extra.subcategories'))->toBe([]);
     });
 });
