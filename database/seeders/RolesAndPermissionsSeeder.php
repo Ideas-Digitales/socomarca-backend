@@ -15,12 +15,6 @@ class RolesAndPermissionsSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('model_has_permissions')->truncate();
-        DB::table('model_has_roles')->truncate();
-        DB::table('role_has_permissions')->truncate();
-        DB::table('permissions')->truncate();
-        DB::table('roles')->truncate();
-
         $permissions = config('authorization.permissions');
 
         foreach ($permissions as $permission) {
