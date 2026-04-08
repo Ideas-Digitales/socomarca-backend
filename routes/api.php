@@ -50,12 +50,13 @@ Route::prefix('auth')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
-    
+
     Route::put('fcm/token', [UserController::class, 'updateFcmToken'])
-    ->name('firebase.fcm-token');
+        ->name('firebase.fcm-token');
 
     Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
+    Route::get('/users/credit-line', [UserController::class, 'creditLine'])->name('users.credit-line');
     Route::post('/users/search', [UserController::class, 'search'])->middleware(['permission:read-admin-users'])->name('users.search');
 
     Route::resource('/users', UserController::class)
@@ -66,14 +67,14 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('update', 'can:update,user')
         ->middlewareFor('destroy', 'can:delete,user');
 
-//    Route::get('/users', [UserController::class, 'index'])->middleware('permission:manage-users');
-//    Route::post('/users', [UserController::class, 'store'])
-//        ->middleware('permission:manage-users')
-//        ->name('users.store');
-//    Route::get('/users/{id}', [UserController::class, 'show'])->middleware('permission:manage-users');
-//    Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])
-//        ->middleware('permission:manage-users')->name('users.update');
-//    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
+    //    Route::get('/users', [UserController::class, 'index'])->middleware('permission:manage-users');
+    //    Route::post('/users', [UserController::class, 'store'])
+    //        ->middleware('permission:manage-users')
+    //        ->name('users.store');
+    //    Route::get('/users/{id}', [UserController::class, 'show'])->middleware('permission:manage-users');
+    //    Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update'])
+    //        ->middleware('permission:manage-users')->name('users.update');
+    //    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('permission:manage-users');
 
     Route::resource('permissions', \App\Http\Controllers\Api\PermissionController::class, ['only' => 'index'])
         ->middleware('permission:read-all-permissions');
@@ -151,7 +152,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('can:viewAny,App\Models\Product');
 
     Route::resource(
-        'favorites-list', FavoriteListController::class,
+        'favorites-list',
+        FavoriteListController::class,
         ['only' => ['index', 'store', 'show', 'update', 'destroy']]
     )
         ->parameters(['favorites-list' => 'favoriteList'])
@@ -208,9 +210,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/reports/customers', [ReportController::class, 'clientsList'])->name('reports.customers');
         Route::post('/reports/transactions/failed', [ReportController::class, 'failedTransactionsList'])->name('reports.transactions.failed');
         Route::get('/reports/transactions/{id}', [ReportController::class, 'transactionId'])->name('reports.transactions.show');
-
     });
-
 });
 
 // Rutas FAQs
@@ -288,6 +288,6 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->name('firebase.config.show');
 
 // Ruta catch-all al final
-Route::any('{url}', function() {
+Route::any('{url}', function () {
     return response()->json(['message' => 'Method Not Allowed.'], 405);
 })->where('url', '.*');

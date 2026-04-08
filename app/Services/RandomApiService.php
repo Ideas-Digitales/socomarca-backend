@@ -41,7 +41,7 @@ class RandomApiService
 
     protected function makeRequest($method, $endpoint, $params = [])
     {
-        if(env('APP_ENV') == 'local'){
+        if (env('APP_ENV') == 'local') {
             $this->baseUrl = env('RANDOM_ERP_URL');
             $token = env('RANDOM_ERP_TOKEN');
         } else {
@@ -50,17 +50,15 @@ class RandomApiService
         $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
 
         //If token is expired, get new token and make request again
-        if(isset($response->json()['message']) && $response->json()['message'] == 'jwt expired'){
+        if (isset($response->json()['message']) && $response->json()['message'] == 'jwt expired') {
             Cache::forget('random_api_token');
             $token = $this->getToken();
             $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
-                
+
             return $response->json();
         }
 
         return $response->json();
-
-
     }
 
     public function getEntidades($empresa, $kofu, $modalidad, $size = 5, $page = 1)
@@ -74,7 +72,7 @@ class RandomApiService
         ]);
     }
 
-     public function getEntidadesUsuarios($size = 15, $page = 1)
+    public function getEntidadesUsuarios($size = 15, $page = 1)
     {
         return $this->makeRequest('get', '/web32/entidades', [
             'size' => $size,
@@ -85,6 +83,11 @@ class RandomApiService
     public function fetchAndUpdateUsers()
     {
         return $this->makeRequest('get', '/web32/entidades');
+    }
+
+    public function getCreditLine(string $koen, string $suen)
+    {
+        return $this->makeRequest('get', "/gestion/credito/resumen/{$koen}/{$suen}");
     }
 
     public function getProducts($tipr = '', $kopr_anterior = 0, $kopr = '', $nokopr = '', $search = '', $fmpr = '', $pfpr = '', $hfpr = '')
@@ -124,7 +127,7 @@ class RandomApiService
     public function getStock($kopr = null, $fields = null, $warehouse = null, $business_code = null, $mode = null)
     {
         $params = [];
-        
+
         if ($kopr !== null) $params['kopr'] = $kopr;
         if ($fields !== null) $params['fields'] = $fields;
         if ($warehouse !== null) $params['warehouse'] = $warehouse;
@@ -134,13 +137,13 @@ class RandomApiService
         return $this->makeRequest('get', '/stock/detalle', $params);
     }
 
-    public function getBrands(){
+    public function getBrands()
+    {
         $params = [
             'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
             'fields' => 'KOPR,MRPR,NOKOMR'
         ];
-        
+
         return $this->makeRequest('get', '/productos', $params);
     }
-    
-} 
+}

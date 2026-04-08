@@ -12,6 +12,7 @@ use App\Http\Resources\Users\UserCollection;
 use App\Http\Resources\Users\UserResource;
 use App\Models\User;
 use App\Services\Data\UserService;
+use App\Services\RandomApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +23,10 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
-    public function __construct(private UserService $service) {}
+    public function __construct(
+        private UserService $service,
+        private RandomApiService $randomApiService,
+    ) {}
 
     public function index(Request $request)
     {
@@ -78,7 +82,6 @@ class UserController extends Controller
                 'user' => new UserResource($user->load('roles')),
                 'password_generated' => $isPasswordGenerated
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creando usuario: ' . $e->getMessage());
@@ -108,9 +111,9 @@ class UserController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            
+
             $oldFcm = $user->fcm_token ?? null;
-            
+
             $newPassword = null;
 
             if ($request->has('password')) {
@@ -136,7 +139,6 @@ class UserController extends Controller
                 'user' => new UserResource($user->load('roles')),
                 'password_changed' => $newPassword !== null,
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error actualizando usuario: ' . $e->getMessage());
@@ -230,7 +232,7 @@ class UserController extends Controller
             $users = User::role($role)
                 ->with('roles')
                 ->orderBy($sortField, $sortDirection)
-                ->paginate($perPage, ['*'], $role.'_page')
+                ->paginate($perPage, ['*'], $role . '_page')
                 ->items();
 
             $result[] = [
@@ -268,7 +270,7 @@ class UserController extends Controller
             select('id', 'name')
             ->orderBy('name')
             ->get()
-            ->map(function($user) {
+            ->map(function ($user) {
                 return [
                     'id' => $user->id,
                     'customer' => $user->name,
@@ -287,6 +289,28 @@ class UserController extends Controller
         return Excel::download(new UsersExport($sort, $sortDirection), $fileName);
     }
 
+    public function creditLine(Request $request): JsonResponse
+    {
+        $request->validate([
+            'rut'             => 'required|string',
+            'sucursal_code' => 'required|string',
+        ]);
+
+        try {
+            $data = $this->randomApiService->getCreditLine(
+                $request->input('rut'),
+                $request->input('sucursal_code')
+            );
+            return response()->json($data);
+        } catch (\Exception $e) {
+            Log::error('Error al obtener línea de crédito: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error al obtener la línea de crédito',
+                'error'   => config('app.debug') ? $e->getMessage() : 'Error interno del servidor',
+            ], 500);
+        }
+    }
+
     public function updateFcmToken(Request $request): JsonResponse
     {
         // Valida que el token está presente
@@ -299,7 +323,7 @@ class UserController extends Controller
         $user->update(['fcm_token' => $request->fcm_token]);
 
         Log::info('Firebase FCM token updated', ['user_id' => $user->id]);
-        
+
         return response()->json(['message' => 'FCM Token saved.']);
     }
 }
