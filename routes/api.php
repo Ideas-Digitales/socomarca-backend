@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AddressController;
+use App\Http\Controllers\Api\CreditLineController;
 use App\Http\Controllers\Api\PriceExtremesController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
@@ -56,7 +57,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/users/exports', [UserController::class, 'export']);
     Route::get('/users/customers', [UserController::class, 'customersList']);
-    Route::get('/users/credit-line', [UserController::class, 'creditLine'])->name('users.credit-line');
     Route::post('/users/search', [UserController::class, 'search'])->middleware(['permission:read-admin-users'])->name('users.search');
 
     Route::resource('/users', UserController::class)
@@ -66,6 +66,10 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('show', 'can:view,user')
         ->middlewareFor('update', 'can:update,user')
         ->middlewareFor('destroy', 'can:delete,user');
+
+    Route::get('/users/{user}/credit-line', [CreditLineController::class, 'show'])
+        ->middleware('can:view-credit-line,user')
+        ->name('users.credit-lines');
 
     //    Route::get('/users', [UserController::class, 'index'])->middleware('permission:manage-users');
     //    Route::post('/users', [UserController::class, 'store'])

@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use App\Services\Data\UserService;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use App\Services\RandomApiService;
@@ -37,6 +39,14 @@ class AppServiceProvider extends ServiceProvider
                     config('services.brevo.key')
                 )
             );
+        });
+
+        Gate::define('view-credit-line', function (User $authUser, User $targetUser) {
+            if ($authUser->id === $targetUser->id) {
+                return $authUser->can('read-own-credit-line');
+            }
+
+            return $authUser->can('read-all-credit-line');
         });
     }
 }

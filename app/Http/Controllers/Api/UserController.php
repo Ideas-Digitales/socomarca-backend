@@ -12,7 +12,6 @@ use App\Http\Resources\Users\UserCollection;
 use App\Http\Resources\Users\UserResource;
 use App\Models\User;
 use App\Services\Data\UserService;
-use App\Services\RandomApiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,8 +23,7 @@ use Maatwebsite\Excel\Facades\Excel;
 class UserController extends Controller
 {
     public function __construct(
-        private UserService $service,
-        private RandomApiService $randomApiService,
+        private UserService $service
     ) {}
 
     public function index(Request $request)
@@ -287,28 +285,6 @@ class UserController extends Controller
         $fileName = 'Lista_usuarios' . now()->format('Ymd_His') . '.xlsx';
 
         return Excel::download(new UsersExport($sort, $sortDirection), $fileName);
-    }
-
-    public function creditLine(Request $request): JsonResponse
-    {
-        $request->validate([
-            'rut'             => 'required|string',
-            'sucursal_code' => 'required|string',
-        ]);
-
-        try {
-            $data = $this->randomApiService->getCreditLine(
-                $request->input('rut'),
-                $request->input('sucursal_code')
-            );
-            return response()->json($data);
-        } catch (\Exception $e) {
-            Log::error('Error al obtener línea de crédito: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error al obtener la línea de crédito',
-                'error'   => config('app.debug') ? $e->getMessage() : 'Error interno del servidor',
-            ], 500);
-        }
     }
 
     public function updateFcmToken(Request $request): JsonResponse
