@@ -210,5 +210,8 @@ return [
 
         "read-all-notifications",
         'create-viewed-notifications',
+
+        // Payment method permissions
+        'read-all-payment-methods',
     ],
 ];
