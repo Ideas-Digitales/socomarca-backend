@@ -1,0 +1,8 @@
+sequenceDiagram
+    participant f as Frontend
+    participant c as CreditLineController
+    participant oc as OrderController
+
+    f->>c: show()
+    f->>f: display credit line options
+    f->>oc: payOrder()
