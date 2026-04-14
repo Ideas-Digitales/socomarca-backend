@@ -13,7 +13,7 @@ class PaymentMethodSeeder extends Seeder
      */
     public function run(): void
     {
-        $methods = ['Transbank', 'Paypal', 'Stripe', 'Servipag', 'MercadoPago'];
+        $methods = ['Transbank', 'Paypal', 'Stripe', 'Servipag', 'MercadoPago', 'Credito'];
 
         foreach ($methods as $name) {
             PaymentMethod::factory()->create([

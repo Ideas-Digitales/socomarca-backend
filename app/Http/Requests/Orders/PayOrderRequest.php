@@ -27,6 +27,7 @@ class PayOrderRequest extends FormRequest
                     }
                 },
             ],
+            'payment_method' => ['required', 'string', 'in:webpay,credit_line'],
         ];
     }
 

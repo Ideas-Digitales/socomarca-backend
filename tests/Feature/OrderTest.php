@@ -12,6 +12,7 @@ use App\Models\Region;
 use App\Models\Municipality;
 use App\Models\Address;
 use App\Services\WebpayService;
+use App\Services\RandomApiService;
 use App\Models\PaymentMethod;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -57,7 +58,7 @@ function createProductCart($precio = 100, $cantidad = 2, $unidad = 'kg')
 }
 
 describe('OrderController', function () {
-    
+
     describe('index', function () {
         test('can list authenticated user orders', function () {
             // Arrange
@@ -127,7 +128,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id'     => $address->id,
+                'payment_method' => 'webpay',
             ]);
 
             // Assert
@@ -183,7 +185,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id'     => $address->id,
+                'payment_method' => 'webpay',
             ]);
 
             // Assert
@@ -202,7 +205,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id'     => $address->id,
+                'payment_method' => 'webpay',
             ]);
 
             // Assert
@@ -216,7 +220,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => 999999
+                'address_id'     => 999999,
+                'payment_method' => 'webpay',
             ]);
 
             // Assert
@@ -266,7 +271,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id'     => $address->id,
+                'payment_method' => 'webpay',
             ]);
 
             // Assert
@@ -300,7 +306,7 @@ describe('OrderController', function () {
 
             // Assert
             $response->assertOk();
-            
+
             $order = Order::first();
             expect($order->subtotal)->toBe(450.0); // 150 * 3
             expect($order->amount)->toBe(450.0);
@@ -324,17 +330,115 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id'     => $address->id,
+                'payment_method' => 'webpay',
             ]);
 
             // Assert
             $response->assertOk();
-            
+
             $order = Order::first();
             expect($order->order_meta)->toHaveKey('user');
             expect($order->order_meta)->toHaveKey('address');
             expect($order->order_meta['user']['id'])->toBe($this->user->id);
             expect($order->order_meta['address']['id'])->toBe($address->id);
+        });
+
+        test('can pay with credit line when credit is sufficient', function () {
+            // Arrange
+            createProductCart(100, 2); // total = 200
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id,
+            ]);
+            $this->user->update(['rut' => '12345678-9', 'sucursal_code' => 'SUC01']);
+
+            $this->mock(RandomApiService::class, function ($mock) {
+                $mock->shouldReceive('getCreditLine')
+                    ->once()
+                    ->andReturn(['credito_disponible' => 5000]); // crédito suficiente
+            });
+
+            // Act
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'     => $address->id,
+                'payment_method' => 'credit_line',
+            ]);
+
+            // Assert
+            $response->assertOk()
+                ->assertJsonFragment(['payment_method' => 'credit_line'])
+                ->assertJsonFragment(['message' => 'Orden pagada con línea de crédito.']);
+
+            $this->assertDatabaseHas('orders', [
+                'user_id' => $this->user->id,
+                'status'  => 'paid',
+            ]);
+        });
+
+        test('cannot pay with credit line when credit is insufficient', function () {
+            // Arrange
+            createProductCart(500, 3); // total = 1500
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id,
+            ]);
+            $this->user->update(['rut' => '12345678-9', 'sucursal_code' => 'SUC01']);
+
+            $this->mock(RandomApiService::class, function ($mock) {
+                $mock->shouldReceive('getCreditLine')
+                    ->once()
+                    ->andReturn(['credito_disponible' => 100]); // crédito insuficiente
+            });
+
+            // Act
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'     => $address->id,
+                'payment_method' => 'credit_line',
+            ]);
+
+            // Assert
+            $response->assertStatus(422)
+                ->assertJsonFragment(['message' => 'Crédito disponible insuficiente para cubrir el monto de la orden.']);
+
+            // La orden debe haber sido eliminada al no poder pagarse
+            $this->assertDatabaseMissing('orders', [
+                'user_id' => $this->user->id,
+                'status'  => 'paid',
+            ]);
+        });
+
+        test('rejects unknown payment_method', function () {
+            // Arrange
+            createProductCart();
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id,
+            ]);
+
+            // Act
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'     => $address->id,
+                'payment_method' => 'bitcoin',
+            ]);
+
+            // Assert
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors('payment_method');
+        });
+
+        test('payment_method is required', function () {
+            // Arrange
+            createProductCart();
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id,
+            ]);
+
+            // Act
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id' => $address->id,
+            ]);
+
+            // Assert
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors('payment_method');
         });
     });
 });

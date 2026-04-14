@@ -13,6 +13,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use App\Services\WebpayService;
+use App\Services\RandomApiService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use App\Models\User;
@@ -24,10 +25,12 @@ use App\Models\Price;
 class OrderController extends Controller
 {
     protected $webpayService;
+    protected $randomApiService;
 
-    public function __construct(WebpayService $webpayService)
+    public function __construct(WebpayService $webpayService, RandomApiService $randomApiService)
     {
         $this->webpayService = $webpayService;
+        $this->randomApiService = $randomApiService;
     }
 
     public function index(Request $request)
@@ -112,14 +115,59 @@ class OrderController extends Controller
                 return response()->json(['message' => 'La orden no está pendiente de pago'], 400);
             }
             $order = Order::find($orderInfo->id);
+            $paymentMethod = $request->input('payment_method');
 
+            // --- Pago con línea de crédito ---
+            if ($paymentMethod === 'credit_line') {
+                try {
+                    $user = User::find(Auth::id());
+                    $creditData = $this->randomApiService->getCreditLine(
+                        $user->rut,
+                        $user->sucursal_code
+                    );
+
+                    $availableCredit = $creditData['credito_disponible'] ?? null;
+
+                    if ($availableCredit === null) {
+                        return response()->json([
+                            'message' => 'No se pudo obtener la información de la línea de crédito.',
+                        ], 502);
+                    }
+
+                    if ($availableCredit < $order->amount) {
+                        // Revertir la orden creada
+                        $order->delete();
+                        return response()->json([
+                            'message' => 'Crédito disponible insuficiente para cubrir el monto de la orden.',
+                            'credit_available' => $availableCredit,
+                            'order_amount'     => $order->amount,
+                        ], 422);
+                    }
+
+                    // Crédito suficiente: marcar la orden como pagada
+                    $order->update(['status' => 'paid']);
+
+                    return response()->json([
+                        'message'        => 'Orden pagada con línea de crédito.',
+                        'payment_method' => 'credit_line',
+                        'order'          => new OrderResource($order->load('orderDetails')),
+                    ]);
+                } catch (\Exception $e) {
+                    return response()->json([
+                        'message' => 'Error al procesar el pago con línea de crédito: ' . $e->getMessage(),
+                        'order'   => $order,
+                    ], 500);
+                }
+            }
+
+            // --- Pago con Webpay (flujo existente) ---
             try {
                 $paymentResponse = $this->webpayService->createTransaction($order);
 
                 return new PaymentResource((object)[
-                    'order' => $order,
+                    'order'       => $order,
                     'payment_url' => $paymentResponse['url'],
-                    'token' => $paymentResponse['token']
+                    'token'       => $paymentResponse['token']
                 ]);
             } catch (\Exception $e) {
                 return response()->json(['message' => 'Error al procesar el pago: ' . $e->getMessage(), 'order' => $order], 500);
@@ -131,7 +179,8 @@ class OrderController extends Controller
 
 
     //NOTA: No eliminar este método, es para crear un carrito de prueba
-    public function createCart(){
+    public function createCart()
+    {
         $category = Category::factory()->create();
         $subcategory = Subcategory::factory()->create([
             'category_id' => $category->id
