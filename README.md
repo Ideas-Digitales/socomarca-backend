@@ -106,20 +106,17 @@ docker compose exec workcontainer php artisan app:test-email-sending {email-addr
 
 # Testing
 
-First you must create a testing DB
-```sql
-CREATE DATABASE socomarca_backend_testing;
+Setup environment configuration
+```shell
+cp .env.testing.example .env.testing
 ```
 
-Then run the migrations in the testing database
-```bash
-php artisan migrate --env=testing
+Run migrations:
+```shell
+php artisan migrate --env testing
 ```
 
-Finally you will be able to run all the tests
-```bash
-php artisan test --env=testing
-```
+You can use task "Docker: Run laravel command"
 
 Run a specific test
 ```bash
