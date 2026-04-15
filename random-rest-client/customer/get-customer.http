@@ -1,0 +1,5 @@
+###
+# @prompt koen
+GET {{$dotenv RANDOM_ERP_URL}}/web32/entidades/{{koen}}
+Content-Type: application/json
+Authorization: Bearer {{$dotenv RANDOM_ERP_TOKEN}}

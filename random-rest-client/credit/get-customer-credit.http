@@ -1,0 +1,6 @@
+###
+# @prompt koen
+# @prompt suen
+GET {{$dotenv RANDOM_ERP_URL}}/gestion/credito/resumen/{{koen}}/{{suen}}
+Content-Type: application/json
+Authorization: Bearer {{$dotenv RANDOM_ERP_TOKEN}}
