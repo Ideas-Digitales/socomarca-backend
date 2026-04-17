@@ -40,6 +40,11 @@ class Order extends Model
         return $this->belongsTo(Municipality::class);
     }
 
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
     public function orderDetails()
     {
         return $this->hasMany(OrderItem::class);

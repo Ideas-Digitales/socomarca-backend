@@ -20,6 +20,7 @@ use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\Price;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
@@ -113,6 +114,10 @@ class OrderController extends Controller
             }
             $order = Order::find($orderInfo->id);
 
+            if ($request->payment_method === 'random_credit') {
+                return $this->processRandomCreditPayment($order);
+            }
+
             try {
                 $paymentResponse = $this->webpayService->createTransaction($order);
 
@@ -130,8 +135,108 @@ class OrderController extends Controller
     }
 
 
+    private function processRandomCreditPayment(Order $order)
+    {
+        $randomApiService = app(\App\Services\RandomApiService::class);
+        $user = $order->user;
+
+        if ($user?->sucursal_code === null || $user?->rut === null) {
+            Log::error(
+                'RandomCredit Error: User missing required attributes',
+                ['user' => $user]
+            );
+            throw new \Exception("Random customer doesn't have complete attributes");
+        }
+
+        $creditLineResponse = $randomApiService
+            ->getCreditLine($user->rut, $user->sucursal_code);
+
+        $creditLineInfo = $creditLineResponse->json();
+
+        if (
+            !is_array($creditLineInfo)
+            || !isset($creditLineInfo['CRSD'], $creditLineInfo['CRSDVU'])
+        ) {
+            Log::error(
+                'RandomCredit Error: Invalid credit line response',
+                ['response' => $creditLineInfo]
+            );
+            throw new \Exception('Invalid credit line response from Random ERP');
+        }
+
+        $availableCredit = $creditLineInfo['CRSD'] - $creditLineInfo['CRSDVU'];
+
+        if ($availableCredit < $order->amount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Crédito insuficiente',
+                'payment' => null,
+                'data' => [
+                    'transaction' => ['status' => 'FAILED'],
+                    'payment' => null,
+                    'credit_status' => $creditLineInfo
+                ]
+            ]);
+        }
+
+        $payload = [
+            'datos' => [
+                'empresa' => '01',
+                'modalidad' => '1',
+                'codigoEntidad' => $user->rut
+            ]
+        ];
+
+        $responseObject = $randomApiService->createFcvDocument($payload);
+        $response = $responseObject->json();
+
+        // TODO Procesar FCV
+
+        if (isset($response['errorId'])) {
+            $order->update(['status' => 'failed']);
+            $payment = $order->payments()->create([
+                'payment_method_id' => \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail()->id,
+                'response_status' => 'FAILED',
+                'response_message' => ['message' => $response['message'] ?? 'Error en Random ERP'],
+                'token' => $response['errorId'] ?? uniqid(),
+                'amount' => $order->amount
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Creación de factura fallida',
+                'data' => [
+                    'transaction' => ['status' => 'FAILED'],
+                    'payment' => new \App\Http\Resources\PaymentResource($payment),
+                    'credit_status' => $creditLineInfo
+                ]
+            ]);
+        }
+
+        $order->update(['status' => 'completed']);
+        $payment = $order->payments()->create([
+            'payment_method_id' => \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail()->id,
+            'response_status' => 'AUTHORIZED',
+            'auth_code' => uniqid(),
+            'amount' => $order->amount,
+            'response_message' => ['message' => 'Aprobado'],
+            'token' => uniqid(),
+            'paid_at' => now()
+        ]);
+
+        \App\Models\CartItem::where('user_id', $user->id)->delete();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'transaction' => ['status' => 'AUTHORIZED'],
+                'payment' => new \App\Http\Resources\PaymentResource($payment)
+            ]
+        ], 200);
+    }
+
     //NOTA: No eliminar este método, es para crear un carrito de prueba
-    public function createCart(){
+    public function createCart()
+    {
         $category = Category::factory()->create();
         $subcategory = Subcategory::factory()->create([
             'category_id' => $category->id

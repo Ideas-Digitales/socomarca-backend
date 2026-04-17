@@ -7,4 +7,9 @@ return [
     'token' => env('RANDOM_ERP_TOKEN', ''),
     'business_code' => env('RANDOM_ERP_BUSINESS_CODE', 'your_default_business_code'),
     'modality' => env('RANDOM_ERP_MODALITY', 'ADMIN'),
+    'mock' => [
+        'documents' => [
+            'fcv' => env('RANDOM_MOCK_DOCS_FCV', false)
+        ]
+    ]
 ];

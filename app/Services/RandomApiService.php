@@ -209,7 +209,7 @@ class RandomApiService
         return $this->makeRequest('get', '/productos', $params);
     }
 
-    public function createFcvDocument(array $data, bool $dryRun = false)
+    public function createFcvDocument(array $data): \Illuminate\Http\Client\Response
     {
         $endpoint = '/web32/documento';
 
@@ -220,11 +220,22 @@ class RandomApiService
         }
 
         $response = Http::withToken($token)
-            ->retry(2, 1000)
-            ->withQueryParameters(['dryRun' => true]) // TODO remove this when ready to create real documents
+            ->retry(2, 1000, null, false)
             ->acceptJson()
             ->post($this->baseUrl . $endpoint, $data);
 
-        return $this->makeRequest('post', $endpoint, $data);
+        if ($response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "Random API Error",
+                $response->status(),
+                [
+                    "response_fragment" => $response->collect()->take(10)
+                ]
+            );
+
+            throw $exception;
+        }
+
+        return $response;
     }
 }

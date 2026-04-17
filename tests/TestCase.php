@@ -2,7 +2,7 @@
 
 namespace Tests;
 
-use Database\Seeders\RolesAndPermissionsSeeder;
+use Database\Seeders\TestingSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
@@ -21,5 +21,5 @@ abstract class TestCase extends BaseTestCase
      *
      * @var string
      */
-    protected $seeder = RolesAndPermissionsSeeder::class;
+    protected $seeder = TestingSeeder::class;
 }
