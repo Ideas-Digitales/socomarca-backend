@@ -40,13 +40,5 @@ class AppServiceProvider extends ServiceProvider
                 )
             );
         });
-
-        Gate::define('view-credit-line', function (User $authUser, User $targetUser) {
-            if ($authUser->id === $targetUser->id) {
-                return $authUser->can('read-own-credit-line');
-            }
-
-            return $authUser->can('read-all-credit-line');
-        });
     }
 }

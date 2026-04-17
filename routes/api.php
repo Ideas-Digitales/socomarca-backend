@@ -68,7 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('destroy', 'can:delete,user');
 
     Route::get('/users/{user}/credit-line', [CreditLineController::class, 'show'])
-        ->middleware('can:view-credit-line,user')
+        ->middleware('can:requestRandomCredit,user')
         ->name('users.credit-lines');
 
     //    Route::get('/users', [UserController::class, 'index'])->middleware('permission:manage-users');

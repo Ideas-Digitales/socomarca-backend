@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\RandomApiServiceErrorException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -15,9 +16,9 @@ class RandomApiService
 
     public function __construct()
     {
-        $this->baseUrl = 'http://seguimiento.random.cl:3003';
-        $this->username = 'demo@random.cl';
-        $this->password = 'd3m0r4nd0m3RP';
+        $this->baseUrl = config('random.url');
+        $this->username = config('random.username');
+        $this->password = config('random.password');
         $this->ttl = 10;
     }
 
@@ -41,9 +42,9 @@ class RandomApiService
 
     protected function makeRequest($method, $endpoint, $params = [])
     {
-        if (env('APP_ENV') == 'local') {
-            $this->baseUrl = env('RANDOM_ERP_URL');
-            $token = env('RANDOM_ERP_TOKEN');
+        if (config('app.env') == 'local') {
+            $this->baseUrl = config('random.url');
+            $token = config('random.token');
         } else {
             $token = $this->getToken();
         }
@@ -85,15 +86,76 @@ class RandomApiService
         return $this->makeRequest('get', '/web32/entidades');
     }
 
-    public function getCreditLine(string $koen, string $suen)
+    public function getCreditLine(string $koen, string $suen): \Illuminate\Http\Client\Response
     {
-        return $this->makeRequest('get', "/gestion/credito/resumen/{$koen}/{$suen}");
+        $endpoint = "{$this->baseUrl}/gestion/credito/resumen/{$koen}/{$suen}";
+
+        if (config('app.env') == 'local') {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000, null, false)
+            ->acceptJson()
+            ->get($endpoint);
+
+        if ($response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "Random API Error",
+                $response->status(),
+                [
+                    "response_fragment" => $response->collect()->take(10)
+                ]
+            );
+
+            throw $exception;
+        }
+
+
+        $requiredKeys = [
+            'KOEN',
+            'SUEN',
+            'CRSD',
+            'CRSDVU',
+            'CRSDVV',
+            'CRSDCU',
+            'CRSDCV'
+        ];
+
+        $data = $response->json();
+
+        $isValid = is_array($data);
+
+        if ($isValid) {
+            foreach ($requiredKeys as $key) {
+                if (!array_key_exists($key, $data)) {
+                    $isValid = false;
+                    break;
+                }
+            }
+        }
+
+        if (!$isValid) {
+            $exception = new RandomApiServiceErrorException(
+                "Random API Error",
+                $response->status(),
+                [
+                    "response_fragment" => $response->collect()->take(10)
+                ]
+            );
+
+            throw $exception;
+        }
+
+        return $response;
     }
 
     public function getProducts($tipr = '', $kopr_anterior = 0, $kopr = '', $nokopr = '', $search = '', $fmpr = '', $pfpr = '', $hfpr = '')
     {
         $params = [
-            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'empresa' => config('random.business_code'),
             'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR"
         ];
 
@@ -118,8 +180,8 @@ class RandomApiService
     public function getPricesLists()
     {
         $params = [
-            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
-            'modalidad' => env('RANDOM_ERP_PRICES_MODALITY')
+            'empresa' => config('random.business_code'),
+            'modalidad' => config('random.modality')
         ];
         return $this->makeRequest('get', '/web32/precios/pidelistaprecio', $params);
     }
@@ -140,10 +202,29 @@ class RandomApiService
     public function getBrands()
     {
         $params = [
-            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'empresa' => config('random.business_code'),
             'fields' => 'KOPR,MRPR,NOKOMR'
         ];
 
         return $this->makeRequest('get', '/productos', $params);
+    }
+
+    public function createFcvDocument(array $data, bool $dryRun = false)
+    {
+        $endpoint = '/web32/documento';
+
+        if (config('app.env') == 'local') {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000)
+            ->withQueryParameters(['dryRun' => true]) // TODO remove this when ready to create real documents
+            ->acceptJson()
+            ->post($this->baseUrl . $endpoint, $data);
+
+        return $this->makeRequest('post', $endpoint, $data);
     }
 }
