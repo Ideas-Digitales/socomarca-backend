@@ -15,15 +15,6 @@ class PaymentMethodSeeder extends Seeder
     public function run(): void
     {
         $methods = [
-            'Transbank' => 'transbank',
-            'Paypal' => 'paypal',
-            'Stripe' => 'stripe',
-            'Servipag' => 'servipag',
-            'MercadoPago' => 'mercadopago',
-            'Crédito Random' => 'random_credit',
-        ];
-
-        $methods = [
             'transbank' => 'Transbank',
             'paypal' => 'Paypal',
             'stripe' => 'Stripe',
@@ -31,7 +22,6 @@ class PaymentMethodSeeder extends Seeder
             'mercadopago' => 'MercadoPago',
             'random_credit' => 'Crédito Random',
         ];
-
 
         $existingCodes = PaymentMethod::whereNotNull('code')
             ->where('code', '!=', '')
