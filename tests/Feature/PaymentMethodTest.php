@@ -43,7 +43,7 @@ describe('Payment Methods API', function () {
         $user->givePermissionTo('update-payment-methods');
         $this->actingAs($user, 'sanctum');
 
-        $paymentMethod = \App\Models\PaymentMethod::factory()->create();
+        $paymentMethod = \App\Models\PaymentMethod::first();
 
         $response = $this->putJson(route('payment-methods.update', ['id' => $paymentMethod->id]), [
             'active' => true, // agrega todos los campos requeridos por tu validador
