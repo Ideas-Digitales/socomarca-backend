@@ -9,7 +9,15 @@ return [
     'modality' => env('RANDOM_ERP_MODALITY', 'ADMIN'),
     'mock' => [
         'documents' => [
-            'fcv' => env('RANDOM_MOCK_DOCS_FCV', false)
+            'fcv' => [
+                'enabled' => env('RANDOM_MOCK_DOCS_FCV', false),
+                'response' => [
+                    'bad' => env('RANDOM_MOCK_DOCS_FCV_RESPONSE_BAD', false)
+                ]
+            ],
+        ],
+        'credit' => [
+            'branch' => env('RANDOM_MOCK_CREDIT_BRANCH', false)
         ]
     ]
 ];
