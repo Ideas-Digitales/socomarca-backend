@@ -86,11 +86,19 @@ class RandomApiService
         return $this->makeRequest('get', '/web32/entidades');
     }
 
+    /**
+     * Get customer credit
+     * 
+     * @param string $koen RUT
+     * @param string $suen Branch (Sucursal) code
+     * 
+     * @return \Illuminate\Http\Client\Response
+     */
     public function getCreditLine(string $koen, string $suen): \Illuminate\Http\Client\Response
     {
         $endpoint = "{$this->baseUrl}/gestion/credito/resumen/{$koen}/{$suen}";
 
-        if (config('app.env') == 'local') {
+        if (!empty(config('random.token'))) {
             $token = config('random.token');
         } else {
             $token = $this->getToken();
@@ -101,18 +109,18 @@ class RandomApiService
             ->acceptJson()
             ->get($endpoint);
 
-        if ($response->failed()) {
-            $exception = new RandomApiServiceErrorException(
-                "Random API Error",
-                $response->status(),
-                [
-                    "response_fragment" => $response->collect()->take(10)
-                ]
-            );
+        $exception = new RandomApiServiceErrorException(
+            "No se pudo obtener el crédito del cliente",
+            [
+                'koen' => $koen,
+                'suen' => $suen,
+            ],
+            $response
+        );
 
+        if ($response->failed()) {
             throw $exception;
         }
-
 
         $requiredKeys = [
             'KOEN',
@@ -138,14 +146,6 @@ class RandomApiService
         }
 
         if (!$isValid) {
-            $exception = new RandomApiServiceErrorException(
-                "Random API Error",
-                $response->status(),
-                [
-                    "response_fragment" => $response->collect()->take(10)
-                ]
-            );
-
             throw $exception;
         }
 
@@ -209,6 +209,13 @@ class RandomApiService
         return $this->makeRequest('get', '/productos', $params);
     }
 
+    /**
+     * Create a sale invoice document (FCV)
+     * 
+     * @param array $data
+     * 
+     * @return \Illuminate\Http\Client\Response
+     */
     public function createFcvDocument(array $data): \Illuminate\Http\Client\Response
     {
         $endpoint = '/web32/documento';
@@ -219,6 +226,8 @@ class RandomApiService
             $token = $this->getToken();
         }
 
+        Log::debug('Random URL (RandomApiService): ' . $this->baseUrl);
+
         $response = Http::withToken($token)
             ->retry(2, 1000, null, false)
             ->acceptJson()
@@ -226,11 +235,9 @@ class RandomApiService
 
         if ($response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "Random API Error",
-                $response->status(),
-                [
-                    "response_fragment" => $response->collect()->take(10)
-                ]
+                "FCV Document creation failed",
+                $data,
+                $response
             );
 
             throw $exception;

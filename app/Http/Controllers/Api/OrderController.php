@@ -137,6 +137,8 @@ class OrderController extends Controller
 
     private function processRandomCreditPayment(Order $order)
     {
+        $paymentMethod = \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail();
+        
         $randomApiService = app(\App\Services\RandomApiService::class);
         $user = $order->user;
 
@@ -145,6 +147,7 @@ class OrderController extends Controller
                 'RandomCredit Error: User missing required attributes',
                 ['user' => $user]
             );
+            // TODO Handle with a custom exception
             throw new \Exception("Random customer doesn't have complete attributes");
         }
 
@@ -153,18 +156,11 @@ class OrderController extends Controller
 
         $creditLineInfo = $creditLineResponse->json();
 
-        if (
-            !is_array($creditLineInfo)
-            || !isset($creditLineInfo['CRSD'], $creditLineInfo['CRSDVU'])
-        ) {
-            Log::error(
-                'RandomCredit Error: Invalid credit line response',
-                ['response' => $creditLineInfo]
-            );
-            throw new \Exception('Invalid credit line response from Random ERP');
-        }
-
-        $availableCredit = $creditLineInfo['CRSD'] - $creditLineInfo['CRSDVU'];
+        $availableCredit = (int) bcsub(
+            (string) ($creditLineInfo['CRSD'] ?? 0),
+            (string) ($creditLineInfo['CRSDVU'] ?? 0),
+            0
+        );
 
         if ($availableCredit < $order->amount) {
             return response()->json([
@@ -179,11 +175,21 @@ class OrderController extends Controller
             ]);
         }
 
+        $orderItems = \App\Models\OrderItem::where('order_id', $order->id)->get();
+        $lines = $orderItems->map(function ($item) {
+            return [
+                'cantidad' => $item->quantity,
+                'codigoProducto' => $item->product->sku
+            ];
+        })->toArray();
+
         $payload = [
             'datos' => [
-                'empresa' => '01',
-                'modalidad' => '1',
-                'codigoEntidad' => $user->rut
+                'empresa' => config('random.business_code'),
+                'codigoEntidad' => $user->rut,
+                'tido' => 'FCV',
+                'modalidad' => config('random.modality'),
+                'lineas' => $lines
             ]
         ];
 
@@ -195,10 +201,12 @@ class OrderController extends Controller
         if (isset($response['errorId'])) {
             $order->update(['status' => 'failed']);
             $payment = $order->payments()->create([
-                'payment_method_id' => \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail()->id,
+                'payment_method_id' => $paymentMethod->id,
                 'response_status' => 'FAILED',
-                'response_message' => ['message' => $response['message'] ?? 'Error en Random ERP'],
-                'token' => $response['errorId'] ?? uniqid(),
+                'response_message' => [
+                    'message' => 'Error al crear FCV en Random ERP'
+                ],
+                'token' => uniqid(),
                 'amount' => $order->amount
             ]);
             return response()->json([
@@ -214,7 +222,7 @@ class OrderController extends Controller
 
         $order->update(['status' => 'completed']);
         $payment = $order->payments()->create([
-            'payment_method_id' => \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail()->id,
+            'payment_method_id' => $paymentMethod->id,
             'response_status' => 'AUTHORIZED',
             'auth_code' => uniqid(),
             'amount' => $order->amount,

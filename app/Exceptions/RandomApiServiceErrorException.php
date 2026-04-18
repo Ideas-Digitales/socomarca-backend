@@ -40,14 +40,18 @@ class RandomApiServiceErrorException extends Exception
     {
         $status = $this->response->status();
         
+        if (!in_array($status, [401, 403, 404])) {
+            $status = 500;
+        }
+
         $detail = match($status) {
-            404 => 'Recurso no encontrado',
-            401, 403 => 'Error de autenticación con el servicio',
-            default => 'Error de comunicación con el servicio'
+            404 => 'Recurso no encontrado en Random API',
+            401, 403 => 'Error de autenticación con el servicio de Random API',
+            default => 'Error de comunicación con el servicio de Random API'
         };
 
         return response()->json([
-            'message' => 'Random API Error',
+            'message' => $this->getMessage(), // Using the specific message provided
             'detail' => $detail
         ], $status);
     }

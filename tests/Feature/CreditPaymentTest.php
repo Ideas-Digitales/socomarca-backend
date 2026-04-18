@@ -161,3 +161,123 @@ test('it handles credit line payment failure correctly', function () {
     expect($payment->response_status)->toBe('FAILED');
     expect($payment->payment_method_id)->toBe($paymentMethod->id);
 });
+
+test('it responds with 500 when Random api returns invalid credit info', function () {
+    /** @var TestCase $this */
+
+    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    if (!$user->hasRole('customer')) {
+        $user->assignRole('customer');
+    }
+
+    $address = Address::factory()->create(['user_id' => $user->id]);
+    $product = Product::factory()->create();
+    $price = \App\Models\Price::factory()->create(['product_id' => $product->id, 'unit' => 'UN']);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'UN'
+    ]);
+
+    $baseUrl = config('random.url');
+    Http::fake([
+        "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
+        "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response([
+            'KOEN' => '12345678-9',
+            // Missing SUEN, CRSD, etc., making it an invalid response
+        ], 200)
+    ]);
+
+    $response = $this->actingAs($user)->postJson(route('orders.pay'), [
+        'address_id' => $address->id,
+        'payment_method' => 'random_credit'
+    ]);
+
+    $response->assertStatus(500)
+        ->assertJsonFragment([
+            'message' => 'No se pudo obtener el crédito del cliente'
+        ]);
+});
+
+test('it fails when the random_credit payment method does not exist in the database', function () {
+    /** @var TestCase $this */
+
+    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    if (!$user->hasRole('customer')) {
+        $user->assignRole('customer');
+    }
+
+    $address = Address::factory()->create(['user_id' => $user->id]);
+    $product = Product::factory()->create();
+    \App\Models\Price::factory()->create(['product_id' => $product->id, 'unit' => 'UN']);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'UN'
+    ]);
+
+    // Force deletion of the payment method to simulate the missing case
+    \App\Models\PaymentMethod::where('code', 'random_credit')->delete();
+
+    $response = $this->actingAs($user)->postJson(route('orders.pay'), [
+        'address_id' => $address->id,
+        'payment_method' => 'random_credit'
+    ]);
+
+    $response->assertStatus(422)
+        ->assertJsonValidationErrors(['payment_method']);
+});
+
+test('it returns insufficient credit message if order amount exceeds available random credit', function () {
+    /** @var TestCase $this */
+
+    $user = User::factory()->create(['rut' => '9876543-2', 'sucursal_code' => 'VALPO']);
+    if (!$user->hasRole('customer')) {
+        $user->assignRole('customer');
+    }
+
+    $address = Address::factory()->create(['user_id' => $user->id]);
+    $product = Product::factory()->create();
+    // Exorbitant price to exceed the credit limit
+    $price = \App\Models\Price::factory()->create(['product_id' => $product->id, 'unit' => 'UN', 'price' => 500000]);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'UN'
+    ]);
+
+    $baseUrl = config('random.url');
+    // Low credit setup
+    Http::fake([
+        "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
+        "{$baseUrl}/gestion/credito/resumen/{$user->rut}/{$user->sucursal_code}" => Http::response([
+            'KOEN' => $user->rut,
+            'SUEN' => $user->sucursal_code,
+            'CRSD' => 2000,     // Total Credit
+            'CRSDVU' => 1500,   // Used Credit
+            'CRSDVV' => 0,
+            'CRSDCU' => 0,
+            'CRSDCV' => 0
+        ], 200)
+    ]);
+
+    $response = $this->actingAs($user)->postJson(route('orders.pay'), [
+        'address_id' => $address->id,
+        'payment_method' => 'random_credit'
+    ]);
+
+    $response->assertStatus(200)
+        ->assertJson([
+            'success' => false,
+            'message' => 'Crédito insuficiente',
+            'data' => [
+                'transaction' => ['status' => 'FAILED']
+            ]
+        ]);
+});

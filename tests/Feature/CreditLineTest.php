@@ -57,8 +57,8 @@ test('it returns 500 when Random API returns 200 but with invalid response', fun
     $response = $this->actingAs($user)->getJson(route('users.credit-lines', $user->id));
     $response
         ->assertJson([
-            'message' => 'Random API Error',
-            'detail' => 'Error de comunicación con Random API'
+            'message' => 'No se pudo obtener el crédito del cliente',
+            'detail' => 'Error de comunicación con el servicio de Random API'
         ])
         ->assertStatus(500);
 });
@@ -78,8 +78,8 @@ test('it returns 500 when Random API fails with a code different from 404', func
     $response = $this->actingAs($user)->getJson(route('users.credit-lines', $user->id));
     $response
         ->assertJson([
-            'message' => 'Random API Error',
-            'detail' => 'Error de comunicación con Random API'
+            'message' => 'No se pudo obtener el crédito del cliente',
+            'detail' => 'Error de comunicación con el servicio de Random API'
         ])
         ->assertStatus(500);
 });
@@ -102,8 +102,8 @@ test('it returns 404 when credit is not found', function () {
     $response = $this->actingAs($user)->getJson(route('users.credit-lines', $user->id));
     $response
         ->assertJson([
-            'message' => 'Random API Error',
-            'detail' => 'Recurso no encontrado'
+            'message' => 'No se pudo obtener el crédito del cliente',
+            'detail' => 'Recurso no encontrado en Random API'
         ])
         ->assertNotFound();
 });
