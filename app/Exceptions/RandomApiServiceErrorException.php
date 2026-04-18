@@ -4,15 +4,21 @@ namespace App\Exceptions;
 
 use Exception;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class RandomApiServiceErrorException extends Exception
 {
-    protected $context;
+    protected array $data;
+    protected \Illuminate\Http\Client\Response $response;
 
-    public function __construct($message, $code = 500, $context = [])
-    {
-        parent::__construct($message, $code);
-        $this->context = $context;
+    public function __construct(
+        string $message,
+        array $data,
+        \Illuminate\Http\Client\Response $response
+    ) {
+        parent::__construct($message, $response->status());
+        $this->response = $response;
+        $this->data = $data;
     }
 
     /**
@@ -20,10 +26,10 @@ class RandomApiServiceErrorException extends Exception
      */
     public function report()
     {
-        Log::error('Random API' . $this->getMessage(), [
-            'status_code' => $this->getCode(),
-            'payload'     => $this->context['payload'] ?? null,
-            'response'    => $this->context['response_fragment'] ?? null,
+        Log::error('Random API Error: ' . $this->getMessage(), [
+            'data' => $this->data,
+            'status' => $this->response->status(),
+            'body' => Str::limit($this->response->body(), 500),
         ]);
     }
 
@@ -32,16 +38,17 @@ class RandomApiServiceErrorException extends Exception
      */
     public function render($request)
     {
-        if ($this->getCode() === 404) {
-            return response()->json([
-                'message' => 'Random API Error',
-                'detail' => 'Recurso no encontrado'
-            ], 404);
-        }
+        $status = $this->response->status();
         
+        $detail = match($status) {
+            404 => 'Recurso no encontrado',
+            401, 403 => 'Error de autenticación con el servicio',
+            default => 'Error de comunicación con el servicio'
+        };
+
         return response()->json([
             'message' => 'Random API Error',
-            'detail' => 'Error de comunicación con Random API'
-        ], 500);
+            'detail' => $detail
+        ], $status);
     }
 }
