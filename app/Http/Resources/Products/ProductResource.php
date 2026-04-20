@@ -8,6 +8,7 @@ use App\Models\Price;
 use App\Models\Subcategory;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class ProductResource extends JsonResource
 {
@@ -34,15 +35,6 @@ class ProductResource extends JsonResource
             })
             ->exists();
 
-        $imageRelative = $this->image ?? null;
-        $imageUrl = null;
-        if ($imageRelative) {
-            $awsUrl = rtrim(config('filesystems.disks.s3.url') ?? env('AWS_URL'), '/');
-            
-            $imageRelative = ltrim($imageRelative, '/');
-            $imageUrl = "{$awsUrl}/{$imageRelative}";
-        }
-
         return
         [
             'id' => $this->id,
@@ -59,7 +51,7 @@ class ProductResource extends JsonResource
             }),
             'sku' => $this->sku,
             'status' => $this->status,
-            'image' => $imageUrl,
+            'image' => Storage::url($this->image),
             'is_favorite' => $isFavorite,
         ];
     }

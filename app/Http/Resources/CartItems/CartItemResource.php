@@ -7,6 +7,7 @@ use App\Models\Price;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class CartItemResource extends JsonResource
 {
@@ -48,7 +49,7 @@ class CartItemResource extends JsonResource
             "unit" => $unit ?? null,
             "price" => (int)$price,
             "stock" => (int)$stock,
-            "image" => $product->image ?? null,
+            "image" => Storage::url($this->image),
             "sku" => $product->sku ?? null,
             "subtotal" => $totalPrice,
             "is_favorite" => false,
