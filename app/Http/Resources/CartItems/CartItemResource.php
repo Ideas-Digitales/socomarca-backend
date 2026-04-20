@@ -49,7 +49,7 @@ class CartItemResource extends JsonResource
             "unit" => $unit ?? null,
             "price" => (int)$price,
             "stock" => (int)$stock,
-            "image" => $this->image !== null ? Storage::url($this->image) : "",
+            "image" => $this->image !== null ? Storage::url($this->product->image) : "",
             "sku" => $product->sku ?? null,
             "subtotal" => $totalPrice,
             "is_favorite" => false,
