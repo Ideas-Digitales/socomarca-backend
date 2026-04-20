@@ -213,5 +213,7 @@ return [
 
         //Credit Line permissions
         "read-own-credit-lines",
+        // Payment method permissions
+        'read-all-payment-methods',
     ],
 ];
