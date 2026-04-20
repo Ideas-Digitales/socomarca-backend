@@ -51,7 +51,7 @@ class ProductResource extends JsonResource
             }),
             'sku' => $this->sku,
             'status' => $this->status,
-            'image' => Storage::url($this->image),
+            'image' => $this->image !== null ? Storage::url($this->image) : "",
             'is_favorite' => $isFavorite,
         ];
     }
