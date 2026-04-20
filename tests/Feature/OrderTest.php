@@ -18,6 +18,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    /** @var TestCase $this */
+
     $this->user = User::factory()->create();
     $this->user->givePermissionTo(['read-own-orders', 'create-orders', 'update-orders', 'create-cart-items']);
     $this->actingAs($this->user);
@@ -57,9 +59,11 @@ function createProductCart($precio = 100, $cantidad = 2, $unidad = 'kg')
 }
 
 describe('OrderController', function () {
-    
+
     describe('index', function () {
         test('can list authenticated user orders', function () {
+            /** @var TestCase $this */
+
             // Arrange
             Order::factory()->count(3)->create([
                 'user_id' => $this->user->id
@@ -96,6 +100,8 @@ describe('OrderController', function () {
         });
 
         test('requires authentication to list orders', function () {
+            /** @var TestCase $this */
+
             // Arrange
             \Illuminate\Support\Facades\Auth::logout();
 
@@ -109,6 +115,8 @@ describe('OrderController', function () {
 
     describe('payOrder', function () {
         test('can initiate payment for an order from cart', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart();
             $address = Address::factory()->create([
@@ -127,7 +135,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
@@ -176,6 +185,8 @@ describe('OrderController', function () {
         });
 
         test('cannot pay if cart is empty', function () {
+            /** @var TestCase $this */
+
             // Arrange
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
@@ -183,7 +194,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
@@ -192,6 +204,8 @@ describe('OrderController', function () {
         });
 
         test('cannot pay with an address that does not belong to user', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart();
             $otroUsuario = User::factory()->create();
@@ -202,7 +216,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
@@ -211,6 +226,8 @@ describe('OrderController', function () {
         });
 
         test('requires a valid address to pay', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart();
 
@@ -225,6 +242,8 @@ describe('OrderController', function () {
         });
 
         test('requires address_id field', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart();
 
@@ -237,13 +256,16 @@ describe('OrderController', function () {
         });
 
         test('requires authentication to pay', function () {
+            /** @var TestCase $this */
+
             // Arrange
             \Illuminate\Support\Facades\Auth::logout();
             $address = Address::factory()->create();
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
@@ -251,6 +273,8 @@ describe('OrderController', function () {
         });
 
         test('handles payment service errors', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart();
             $address = Address::factory()->create([
@@ -266,7 +290,8 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
@@ -278,6 +303,8 @@ describe('OrderController', function () {
         });
 
         test('correctly calculates subtotal and amount', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart(150, 3); // precio 150, cantidad 3
             $address = Address::factory()->create([
@@ -295,18 +322,21 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
             $response->assertOk();
-            
+
             $order = Order::first();
             expect($order->subtotal)->toBe(450.0); // 150 * 3
             expect($order->amount)->toBe(450.0);
         });
 
         test('includes user and address metadata in order', function () {
+            /** @var TestCase $this */
+
             // Arrange
             createProductCart();
             $address = Address::factory()->create([
@@ -324,12 +354,13 @@ describe('OrderController', function () {
 
             // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
             ]);
 
             // Assert
             $response->assertOk();
-            
+
             $order = Order::first();
             expect($order->order_meta)->toHaveKey('user');
             expect($order->order_meta)->toHaveKey('address');

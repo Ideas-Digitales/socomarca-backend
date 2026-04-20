@@ -211,6 +211,8 @@ return [
         "read-all-notifications",
         'create-viewed-notifications',
 
+        //Credit Line permissions
+        "read-own-credit-lines",
         // Payment method permissions
         'read-all-payment-methods',
     ],

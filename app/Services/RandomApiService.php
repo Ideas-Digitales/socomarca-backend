@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\RandomApiServiceErrorException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -15,9 +16,9 @@ class RandomApiService
 
     public function __construct()
     {
-        $this->baseUrl = 'http://seguimiento.random.cl:3003';
-        $this->username = 'demo@random.cl';
-        $this->password = 'd3m0r4nd0m3RP';
+        $this->baseUrl = config('random.url');
+        $this->username = config('random.username');
+        $this->password = config('random.password');
         $this->ttl = 10;
     }
 
@@ -41,26 +42,24 @@ class RandomApiService
 
     protected function makeRequest($method, $endpoint, $params = [])
     {
-        if(env('APP_ENV') == 'local'){
-            $this->baseUrl = env('RANDOM_ERP_URL');
-            $token = env('RANDOM_ERP_TOKEN');
+        if (config('app.env') == 'local') {
+            $this->baseUrl = config('random.url');
+            $token = config('random.token');
         } else {
             $token = $this->getToken();
         }
         $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
 
         //If token is expired, get new token and make request again
-        if(isset($response->json()['message']) && $response->json()['message'] == 'jwt expired'){
+        if (isset($response->json()['message']) && $response->json()['message'] == 'jwt expired') {
             Cache::forget('random_api_token');
             $token = $this->getToken();
             $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
-                
+
             return $response->json();
         }
 
         return $response->json();
-
-
     }
 
     public function getEntidades($empresa, $kofu, $modalidad, $size = 5, $page = 1)
@@ -74,7 +73,7 @@ class RandomApiService
         ]);
     }
 
-     public function getEntidadesUsuarios($size = 15, $page = 1)
+    public function getEntidadesUsuarios($size = 15, $page = 1)
     {
         return $this->makeRequest('get', '/web32/entidades', [
             'size' => $size,
@@ -87,10 +86,76 @@ class RandomApiService
         return $this->makeRequest('get', '/web32/entidades');
     }
 
+    /**
+     * Get customer credit
+     * 
+     * @param string $koen RUT
+     * @param string $suen Branch (Sucursal) code
+     * 
+     * @return \Illuminate\Http\Client\Response
+     */
+    public function getCreditLine(string $koen, string $suen): \Illuminate\Http\Client\Response
+    {
+        $endpoint = "{$this->baseUrl}/gestion/credito/resumen/{$koen}/{$suen}";
+
+        if (!empty(config('random.token'))) {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000, null, false)
+            ->acceptJson()
+            ->get($endpoint);
+
+        $exception = new RandomApiServiceErrorException(
+            "No se pudo obtener el crédito del cliente",
+            [
+                'koen' => $koen,
+                'suen' => $suen,
+            ],
+            $response
+        );
+
+        if ($response->failed()) {
+            throw $exception;
+        }
+
+        $requiredKeys = [
+            'KOEN',
+            'SUEN',
+            'CRSD',
+            'CRSDVU',
+            'CRSDVV',
+            'CRSDCU',
+            'CRSDCV'
+        ];
+
+        $data = $response->json();
+
+        $isValid = is_array($data);
+
+        if ($isValid) {
+            foreach ($requiredKeys as $key) {
+                if (!array_key_exists($key, $data)) {
+                    $isValid = false;
+                    break;
+                }
+            }
+        }
+
+        if (!$isValid) {
+            throw $exception;
+        }
+
+        return $response;
+    }
+
     public function getProducts($tipr = '', $kopr_anterior = 0, $kopr = '', $nokopr = '', $search = '', $fmpr = '', $pfpr = '', $hfpr = '')
     {
         $params = [
-            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'empresa' => config('random.business_code'),
             'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR"
         ];
 
@@ -115,8 +180,8 @@ class RandomApiService
     public function getPricesLists()
     {
         $params = [
-            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
-            'modalidad' => env('RANDOM_ERP_PRICES_MODALITY')
+            'empresa' => config('random.business_code'),
+            'modalidad' => config('random.modality')
         ];
         return $this->makeRequest('get', '/web32/precios/pidelistaprecio', $params);
     }
@@ -124,7 +189,7 @@ class RandomApiService
     public function getStock($kopr = null, $fields = null, $warehouse = null, $business_code = null, $mode = null)
     {
         $params = [];
-        
+
         if ($kopr !== null) $params['kopr'] = $kopr;
         if ($fields !== null) $params['fields'] = $fields;
         if ($warehouse !== null) $params['warehouse'] = $warehouse;
@@ -134,13 +199,50 @@ class RandomApiService
         return $this->makeRequest('get', '/stock/detalle', $params);
     }
 
-    public function getBrands(){
+    public function getBrands()
+    {
         $params = [
-            'empresa' => env('RANDOM_ERP_BUSINESS_CODE'),
+            'empresa' => config('random.business_code'),
             'fields' => 'KOPR,MRPR,NOKOMR'
         ];
-        
+
         return $this->makeRequest('get', '/productos', $params);
     }
-    
-} 
+
+    /**
+     * Create a sale invoice document (FCV)
+     * 
+     * @param array $data
+     * 
+     * @return \Illuminate\Http\Client\Response
+     */
+    public function createFcvDocument(array $data): \Illuminate\Http\Client\Response
+    {
+        $endpoint = '/web32/documento';
+
+        if (config('app.env') == 'local') {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        Log::debug('Random URL (RandomApiService): ' . $this->baseUrl);
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000, null, false)
+            ->acceptJson()
+            ->post($this->baseUrl . $endpoint, $data);
+
+        if ($response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "FCV Document creation failed",
+                $data,
+                $response
+            );
+
+            throw $exception;
+        }
+
+        return $response;
+    }
+}

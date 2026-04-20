@@ -97,4 +97,21 @@ class UserPolicy
     {
         return false;
     }
+
+    /**
+     * Determine whether the user can view the credit line.
+     */
+    public function requestRandomCredit(User $user, User $model): bool
+    {
+
+        if ($user->can('read-all-credit-lines')) {
+            return true;
+        }
+
+        if ($user->can('read-own-credit-lines')) {
+            return $user->id === $model->id;
+        }
+
+        return false;
+    }
 }

@@ -22,7 +22,9 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class UserController extends Controller
 {
-    public function __construct(private UserService $service) {}
+    public function __construct(
+        private UserService $service
+    ) {}
 
     public function index(Request $request)
     {
@@ -78,7 +80,6 @@ class UserController extends Controller
                 'user' => new UserResource($user->load('roles')),
                 'password_generated' => $isPasswordGenerated
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creando usuario: ' . $e->getMessage());
@@ -108,9 +109,9 @@ class UserController extends Controller
         try {
             DB::beginTransaction();
             $data = $request->validated();
-            
+
             $oldFcm = $user->fcm_token ?? null;
-            
+
             $newPassword = null;
 
             if ($request->has('password')) {
@@ -136,7 +137,6 @@ class UserController extends Controller
                 'user' => new UserResource($user->load('roles')),
                 'password_changed' => $newPassword !== null,
             ]);
-
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error actualizando usuario: ' . $e->getMessage());
@@ -230,7 +230,7 @@ class UserController extends Controller
             $users = User::role($role)
                 ->with('roles')
                 ->orderBy($sortField, $sortDirection)
-                ->paginate($perPage, ['*'], $role.'_page')
+                ->paginate($perPage, ['*'], $role . '_page')
                 ->items();
 
             $result[] = [
@@ -268,7 +268,7 @@ class UserController extends Controller
             select('id', 'name')
             ->orderBy('name')
             ->get()
-            ->map(function($user) {
+            ->map(function ($user) {
                 return [
                     'id' => $user->id,
                     'customer' => $user->name,
@@ -299,7 +299,7 @@ class UserController extends Controller
         $user->update(['fcm_token' => $request->fcm_token]);
 
         Log::info('Firebase FCM token updated', ['user_id' => $user->id]);
-        
+
         return response()->json(['message' => 'FCM Token saved.']);
     }
 }

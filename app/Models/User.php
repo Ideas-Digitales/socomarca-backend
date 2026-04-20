@@ -35,6 +35,7 @@ class User extends Authenticatable
         'last_login',
         'password_changed_at',
         'fcm_token',
+        'sucursal_code',
     ];
 
     /**
@@ -195,7 +196,7 @@ class User extends Authenticatable
 
                 $query->where(function ($q) use ($operator, $searchValue) {
                     $q->where('name', $operator, $searchValue)
-                      ->orWhere('email', $operator, $searchValue);
+                        ->orWhere('email', $operator, $searchValue);
                 });
                 continue;
             }

@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant f as Frontend
+    participant c as CreditLineController
+    participant oc as OrderController
+    participant cs as CreditPaymentService
+
+    f->>c: show()
+    f->>f: display credit line options
+    f->>oc: payOrder()
+    oc->>cs: processPayment()
+    cs->>cs: validateCreditLine()
+    alt Valid credit
+        cs->>cs: createSaleInvoice()
+
+        alt Invoice created successfully
+            cs->>cs: return true
+        else Invoice creation failed
+            cs->>cs: return false
+        end
+    else Invalid credit
+        cs->>cs: return false
+    end
+    cs->>oc: result
+    alt Ivoice created successfully (true)
+        oc->>oc: updateOrder
+        oc->>oc: createPayment
+        oc->>f: send successful payment response
+    else Invoice creation failed (false)
+        oc->>f: send failed payment response
+    end

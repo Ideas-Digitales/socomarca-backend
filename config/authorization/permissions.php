@@ -132,5 +132,8 @@ return [
     'read-all-notifications', // [superadmin, admin, customer]
     'create-viewed-notifications', // [superadmin, admin, supervisor, editor, customer]
 
-    'update-system-config' // [superadmin, admin]
+    'update-system-config', // [superadmin, admin]
+
+    //Credit Line permissions
+    'read-own-credit-lines', // [customer]
 ];

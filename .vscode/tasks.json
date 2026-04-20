@@ -1,0 +1,117 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Docker: Start compose",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Stop compose",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Destroy compose",
+      "type": "shell",
+      "command": "docker compose down -v --rmi all --remove-orphans",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Run container",
+      "type": "shell",
+      "command": "docker compose run --rm -it ${input:service} /usr/bin/bash",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Run laravel command",
+      "type": "shell",
+      "command": "docker compose run --rm -it workcontainer php artisan ${input:laravelCommand}",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Create testing database",
+      "type": "shell",
+      "command": "docker compose exec db psql --username=socomarca_user -c \"CREATE DATABASE socomarca_backend_testing;\"",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Run migrations testing",
+      "type": "shell",
+      "command": "docker compose exec workcontainer php artisan migrate --env=testing",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "laravelCommand",
+      "type": "promptString",
+      "description": "Command to execute inside the workcontainer (e.g. php artisan test)",
+      "default": ""
+    },
+    {
+      "id": "service",
+      "type": "promptString",
+      "description": "Service to run the command in (e.g. workcontainer)",
+      "default": "workcontainer"
+    }
+  ]
+}

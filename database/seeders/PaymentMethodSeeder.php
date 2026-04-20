@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Payment;
 use App\Models\PaymentMethod;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -13,13 +14,38 @@ class PaymentMethodSeeder extends Seeder
      */
     public function run(): void
     {
-        $methods = ['Transbank', 'Paypal', 'Stripe', 'Servipag', 'MercadoPago'];
+        $methods = [
+            'transbank' => 'Transbank',
+            'paypal' => 'Paypal',
+            'stripe' => 'Stripe',
+            'servipag' => 'Servipag',
+            'mercadopago' => 'MercadoPago',
+            'random_credit' => 'Crédito Random',
+        ];
 
-        foreach ($methods as $name) {
-            PaymentMethod::factory()->create([
+        $existingCodes = PaymentMethod::whereNotNull('code')
+            ->where('code', '!=', '')
+            ->pluck('code')
+            ->toArray();
+
+        $missingCodes = array_diff(array_keys($methods), $existingCodes);
+
+        $missingMethods = array_filter($methods, function ($code) use ($missingCodes) {
+            return in_array($code, $missingCodes);
+        }, ARRAY_FILTER_USE_KEY);
+
+        $payload = [];
+        foreach ($missingMethods as $code => $name) {
+            $payload[] = [
                 'name' => $name,
-                'active' => true,
-            ]);
+                'code' => $code,
+            ];
         }
+
+        PaymentMethod::upsert(
+            $payload,
+            ['code'],
+            ['code', 'name']
+        );
     }
 }

@@ -106,20 +106,17 @@ docker compose exec workcontainer php artisan app:test-email-sending {email-addr
 
 # Testing
 
-First you must create a testing DB
-```sql
-CREATE DATABASE socomarca_backend_testing;
+Setup environment configuration
+```shell
+cp .env.testing.example .env.testing
 ```
 
-Then run the migrations in the testing database
-```bash
-php artisan migrate --env=testing
+Run migrations:
+```shell
+php artisan migrate --env testing
 ```
 
-Finally you will be able to run all the tests
-```bash
-php artisan test --env=testing
-```
+You can use task "Docker: Run laravel command"
 
 Run a specific test
 ```bash
@@ -260,4 +257,12 @@ Iniciar composición de docker:
 ```bash
 docker compose -f compose.qa.yml up -d
 ```
+
+### Variables de Entorno para Mocking de Random API
+
+Para facilitar el desarrollo y las pruebas (QA) sin depender de la API real de Random ERP, se pueden habilitar variables de simulación (mocking) en el archivo `.env`:
+
+- `RANDOM_MOCK_DOCS_FCV=true` : Activa el mock para la creación de documentos FCV.
+- `RANDOM_MOCK_DOCS_FCV_RESPONSE_BAD=true` : Fuerza una respuesta de error en el mock de creación de documentos FCV, útil para probar flujos de fallo.
+- `RANDOM_MOCK_CREDIT_BRANCH=true` : Activa el flujo simulado (mock) para las operaciones de crédito y consultas de sucursal.
 

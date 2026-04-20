@@ -1,0 +1,28 @@
+###
+# @prompt dryRun // true | false
+# @prompt empresa
+# @prompt sucursalEntidad
+# @prompt koen
+# @prompt tido
+# @prompt modalidad
+# @prompt cantidad
+# @prompt codigoProducto
+POST {{$dotenv RANDOM_ERP_URL}}/web32/documento?dryRun={{dryRun}}
+Content-Type: application/json
+Authorization: Bearer {{$dotenv RANDOM_ERP_TOKEN}}
+
+{
+  "datos": {
+    "empresa": "{{empresa}}",
+    "sucursalEntidad": "{{sucursalEntidad}}",
+    "codigoEntidad": "{{koen}}",
+    "tido": "{{tido}}",
+    "modalidad": "{{modalidad}}",
+    "lineas": [
+      {
+        "cantidad": "{{cantidad}}",
+        "codigoProducto": "{{codigoProducto}}"
+      }
+    ]
+  }
+}

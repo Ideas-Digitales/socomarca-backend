@@ -27,6 +27,11 @@ class PayOrderRequest extends FormRequest
                     }
                 },
             ],
+            'payment_method' => [
+                'required',
+                'string',
+                'exists:payment_methods,code',
+            ],
         ];
     }
 
