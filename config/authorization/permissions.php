@@ -135,5 +135,6 @@ return [
     'update-system-config', // [superadmin, admin]
 
     //Credit Line permissions
+    'read-all-credit-lines', // [superadmin, admin]
     'read-own-credit-lines', // [customer]
 ];

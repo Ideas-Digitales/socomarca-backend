@@ -60,6 +60,8 @@ return [
         "create-viewed-notifications",
         "update-system-config",
 
+        // Credit lines
+        'read-all-credit-lines'
     ],
     'admin' => [
         'read-users',
@@ -118,6 +120,9 @@ return [
         "create-notifications",
         "read-all-notifications",
         "create-viewed-notifications",
+
+        // Credit lines
+        'read-all-credit-lines'
 
     ],
     'supervisor' => [
