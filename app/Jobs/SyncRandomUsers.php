@@ -53,7 +53,7 @@ class SyncRandomUsers implements ShouldQueue
                     $user->business_name = $entidad['SIEN'] ?? '';
                     $user->is_active     = true;
                     $user->phone         = $entidad['FOEN'] ?? null;
-                    $user->sucursal_code = $entidad['SUEN'] ?? null;
+                    $user->branch_code = $entidad['SUEN'] ?? null;
                     // Solo asigna password si es un usuario nuevo
                     if (!$user->exists) {
                         $user->password = bcrypt('password');

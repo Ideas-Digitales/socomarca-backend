@@ -20,7 +20,7 @@ test('it can process a credit line payment successfully', function () {
     // $this->artisan('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
     /** @var TestCase $this */
 
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     if (!$user->hasRole('customer')) {
         $user->assignRole('customer');
     }
@@ -107,7 +107,7 @@ test('it can process a credit line payment successfully', function () {
 test('it handles credit line payment failure correctly', function () {
     /** @var TestCase $this */
 
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     if (!$user->hasRole('customer')) {
         $user->assignRole('customer');
     }
@@ -165,7 +165,7 @@ test('it handles credit line payment failure correctly', function () {
 test('it responds with 500 when Random api returns invalid credit info', function () {
     /** @var TestCase $this */
 
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     if (!$user->hasRole('customer')) {
         $user->assignRole('customer');
     }
@@ -204,7 +204,7 @@ test('it responds with 500 when Random api returns invalid credit info', functio
 test('it fails when the random_credit payment method does not exist in the database', function () {
     /** @var TestCase $this */
 
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     if (!$user->hasRole('customer')) {
         $user->assignRole('customer');
     }
@@ -235,7 +235,7 @@ test('it fails when the random_credit payment method does not exist in the datab
 test('it returns insufficient credit message if order amount exceeds available random credit', function () {
     /** @var TestCase $this */
 
-    $user = User::factory()->create(['rut' => '9876543-2', 'sucursal_code' => 'VALPO']);
+    $user = User::factory()->create(['rut' => '9876543-2', 'branch_code' => 'VALPO']);
     if (!$user->hasRole('customer')) {
         $user->assignRole('customer');
     }
@@ -256,9 +256,9 @@ test('it returns insufficient credit message if order amount exceeds available r
     // Low credit setup
     Http::fake([
         "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
-        "{$baseUrl}/gestion/credito/resumen/{$user->rut}/{$user->sucursal_code}" => Http::response([
+        "{$baseUrl}/gestion/credito/resumen/{$user->rut}/{$user->branch_code}" => Http::response([
             'KOEN' => $user->rut,
-            'SUEN' => $user->sucursal_code,
+            'SUEN' => $user->branch_code,
             'CRSD' => 2000,     // Total Credit
             'CRSDVU' => 1500,   // Used Credit
             'CRSDVV' => 0,
