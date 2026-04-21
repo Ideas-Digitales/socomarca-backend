@@ -6,6 +6,7 @@ use App\Models\FavoriteList;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class FavoriteResource extends JsonResource
 {
@@ -17,7 +18,7 @@ class FavoriteResource extends JsonResource
     public function toArray(Request $request): array
     {
         $product = $this->product;
-        
+
         // Encontrar el precio correspondiente a la unidad del favorito
         $priceData = $product->prices->firstWhere('unit', $this->unit);
 
@@ -42,7 +43,7 @@ class FavoriteResource extends JsonResource
                 'unit' => $priceData?->unit,
                 'price' => (int) $priceData?->price,
                 'stock' => $priceData?->stock,
-                'image' => $product->image,
+                'image' => Storage::url($product?->image ?? ""),
                 'sku' => $product->sku,
             ]
         ];
