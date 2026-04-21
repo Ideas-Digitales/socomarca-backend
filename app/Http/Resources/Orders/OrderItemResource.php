@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Orders;
 
+use App\Http\Resources\Products\ProductResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,7 +17,7 @@ class OrderItemResource extends JsonResource
     {
         return [
             "id" => $this->id,
-            "product" => $this->product,
+            "product" => new ProductResource($this->product),
             "unit" => $this->unit,
             "quantity" => $this->quantity,
             "price" => $this->price,
@@ -25,4 +26,4 @@ class OrderItemResource extends JsonResource
             "updated_at" => $this->updated_at,
         ];
     }
-} 
+}
