@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -82,22 +83,22 @@ class Order extends Model
                   ON (order_meta->\'address\'->>\'municipality_id\')::bigint = municipalities.id
                 WHERE orders.status = \'completed\'
                   AND order_meta->\'address\'->>\'municipality_id\' IS NOT NULL
-                  AND orders.created_at BETWEEN \''.$start.'\' AND \''.$end.'\'
+                  AND orders.created_at BETWEEN \'' . $start . '\' AND \'' . $end . '\'
                 GROUP BY month, municipalities.name
                 ORDER BY month, total_purchases DESC
             ) as t'))
-            ->selectRaw('DISTINCT ON (month) month, municipality, total_purchases::bigint, quantity')
-            ->orderBy('month')
-            ->orderByDesc('total_purchases');
+                ->selectRaw('DISTINCT ON (month) month, municipality, total_purchases::bigint, quantity')
+                ->orderBy('month')
+                ->orderByDesc('total_purchases');
         }
-        
+
         if ($type === 'transactions') {
             // Solo órdenes exitosas (ajusta el estado según tu lógica)
             return $query->select(
-                    DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
-                    DB::raw('COUNT(*) as transactions'),
-                    DB::raw('SUM(amount) as total')
-                )
+                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
+                DB::raw('COUNT(*) as transactions'),
+                DB::raw('SUM(amount) as total')
+            )
                 ->where('status', 'completed')
                 ->groupBy('month')
                 ->orderBy('month');
@@ -105,10 +106,10 @@ class Order extends Model
 
         if ($type === 'transactions-failed') {
             return $query->select(
-                    DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
-                    DB::raw('COUNT(*) as transactions_failed'),
-                    DB::raw('SUM(amount) as total')
-                )
+                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
+                DB::raw('COUNT(*) as transactions_failed'),
+                DB::raw('SUM(amount) as total')
+            )
                 ->where('status', 'failed')
                 ->groupBy('month')
                 ->orderBy('month');
@@ -116,29 +117,29 @@ class Order extends Model
 
         if ($type === 'sales') {
             return $query->select(
-                    DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
-                    'user_id',
-                    DB::raw('SUM(amount) as total')
-                )
+                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
+                'user_id',
+                DB::raw('SUM(amount) as total')
+            )
                 ->groupBy('month', 'user_id');
         }
 
         if ($type === 'revenue') {
             return $query->select(
-                    DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
-                    DB::raw('SUM(subtotal) as total_month')
-                )
+                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
+                DB::raw('SUM(subtotal) as total_month')
+            )
                 ->groupBy('month')
                 ->orderBy('month');
         }
 
         if ($type === 'top-customers') {
             return $query->select(
-                    DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
-                    'user_id',
-                    DB::raw('SUM(amount) as total_purchases'),
-                    DB::raw('COUNT(*) as quantity_purchases')
-                )
+                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
+                'user_id',
+                DB::raw('SUM(amount) as total_purchases'),
+                DB::raw('COUNT(*) as quantity_purchases')
+            )
                 ->groupBy('month', 'user_id')
                 ->orderBy('month')
                 ->orderByDesc('total_purchases');
@@ -178,10 +179,10 @@ class Order extends Model
 
         // Por defecto, ventas por cliente y mes
         return $query->select(
-                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
-                'user_id',
-                DB::raw('SUM(amount) as total')
-            )
+            DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month"),
+            'user_id',
+            DB::raw('SUM(amount) as total')
+        )
             ->groupBy('month', 'user_id');
     }
 }
