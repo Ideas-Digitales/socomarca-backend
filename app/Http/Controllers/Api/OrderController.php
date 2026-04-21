@@ -142,7 +142,7 @@ class OrderController extends Controller
         $randomApiService = app(\App\Services\RandomApiService::class);
         $user = $order->user;
 
-        if ($user?->sucursal_code === null || $user?->rut === null) {
+        if ($user?->branch_code === null || $user?->rut === null) {
             Log::error(
                 'RandomCredit Error: User missing required attributes',
                 ['user' => $user]
@@ -152,7 +152,7 @@ class OrderController extends Controller
         }
 
         $creditLineResponse = $randomApiService
-            ->getCreditLine($user->rut, $user->sucursal_code);
+            ->getCreditLine($user->rut, $user->branch_code);
 
         $creditLineInfo = $creditLineResponse->json();
 

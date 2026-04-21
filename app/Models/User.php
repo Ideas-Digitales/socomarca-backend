@@ -35,7 +35,7 @@ class User extends Authenticatable
         'last_login',
         'password_changed_at',
         'fcm_token',
-        'sucursal_code',
+        'branch_code',
     ];
 
     /**

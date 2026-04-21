@@ -13,7 +13,7 @@ test('it returns valid credit line successfully', function () {
     /** @var TestCase $this */
 
     /** @var User $user */
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
     $baseUrl = config('random.url');
     Http::fake([
@@ -46,7 +46,7 @@ test('it returns 500 when Random API returns 200 but with invalid response', fun
     /** @var TestCase $this */
 
     /** @var User $user */
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
 
     $baseUrl = config('random.url');
@@ -67,7 +67,7 @@ test('it returns 500 when Random API fails with a code different from 404', func
     /** @var TestCase $this */
 
     /** @var User $user */
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
 
     $baseUrl = config('random.url');
@@ -88,7 +88,7 @@ test('it returns 404 when credit is not found', function () {
     /** @var TestCase $this */
 
     /** @var User $user */
-    $user = User::factory()->create(['rut' => '12345678-9', 'sucursal_code' => 'CM']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
     $baseUrl = config('random.url');
     Http::fake([

@@ -18,7 +18,7 @@ class CreditLineController extends Controller
     {
         $response = $this->randomApiService->getCreditLine(
             $user->rut,
-            $user->sucursal_code
+            $user->branch_code
         );
 
         $data = $response->json();
