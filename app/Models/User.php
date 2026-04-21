@@ -36,6 +36,8 @@ class User extends Authenticatable
         'password_changed_at',
         'fcm_token',
         'branch_code',
+        'user_code',
+        'random_user_type'
     ];
 
     /**

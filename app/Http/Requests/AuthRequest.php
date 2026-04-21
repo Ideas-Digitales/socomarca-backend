@@ -30,7 +30,7 @@ class AuthRequest extends FormRequest
     {
 
         return [
-            'rut' => ['required', new ValidateRut()],
+            'rut' => ['required'],
             'password' => [
                 'required',
                 'string',
