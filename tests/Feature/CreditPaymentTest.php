@@ -102,6 +102,32 @@ test('it can process a credit line payment successfully', function () {
 
     // Cart is empty
     expect(CartItem::where('user_id', $user->id)->count())->toBe(0);
+
+    // Find order by payment method applying filters
+    $response = $this->actingAs($user)->getJson(route('orders.index', [
+        'payment_method_code' => 'random_credit'
+    ]));
+
+    expect($response->json('data.0.payments.0.auth_code'))->toBe($payment->auth_code);
+    expect($response->json('data.0.payments.0.amount'))->toBe($payment->amount);
+    expect($response->json('data.0.payments.0.response_status'))->toBe($payment->response_status);
+    expect($response->json('data.0.payments.0.payment_method.code'))->toBe("random_credit");
+
+    // Get order without applying filters
+    $response = $this->actingAs($user)->getJson(route('orders.index'));
+
+    expect($response->json('data.0.payments.0.auth_code'))->toBe($payment->auth_code);
+    expect($response->json('data.0.payments.0.amount'))->toBe($payment->amount);
+    expect($response->json('data.0.payments.0.response_status'))->toBe($payment->response_status);
+    expect($response->json('data.0.payments.0.payment_method.code'))->toBe("random_credit");
+
+    // Getting empty orders array when providing another payment method code
+    // as filter parameter
+    $response = $this->actingAs($user)->getJson(route('orders.index', [
+        'payment_method_code' => 'transbank'
+    ]));
+
+    expect($response->json('data'))->toBeEmpty();
 });
 
 test('it handles credit line payment failure correctly', function () {

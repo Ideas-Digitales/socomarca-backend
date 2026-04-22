@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -184,5 +185,24 @@ class Order extends Model
             DB::raw('SUM(amount) as total')
         )
             ->groupBy('month', 'user_id');
+    }
+
+    #[Scope]
+    /**
+     * Get orders which have the payment method associated through the
+     * payment relationship
+     *
+     * @param Builder $query Eloquent query Builder
+     * @param string $code Payment method code
+     */
+    protected function byPaymentMethodCode(Builder $query, string $code)
+    {
+        $query
+            ->select('orders.*')
+            ->join('payments', 'orders.id', '=', 'payments.order_id')
+            ->join('payment_methods', 'payments.payment_method_id', '=', 'payment_methods.id')
+            ->where('payment_methods.code', $code);
+
+        return $query;
     }
 }
