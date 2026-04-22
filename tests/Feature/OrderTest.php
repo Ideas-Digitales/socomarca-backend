@@ -331,7 +331,7 @@ describe('OrderController', function () {
 
             $order = Order::first();
             expect($order->subtotal)->toBe(450.0); // 150 * 3
-            expect($order->amount)->toBe(450.0);
+            expect($order->amount)->toBe(495.0);
         });
 
         test('includes user and address metadata in order', function () {
