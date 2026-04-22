@@ -48,10 +48,13 @@ class OrderFactory extends Factory
             'billing_address_details' => fake()->address(),
         ];
         
+        $shippingCost = $subtotal >= 70000 ? 0 : (int) round($subtotal * 0.1);
+
         return [
             'user_id' => User::factory(),
             'subtotal' => $subtotal,
-            'amount' => $subtotal,
+            'shipping_cost' => $shippingCost,
+            'amount' => $subtotal + $shippingCost,
             'status' => fake()->randomElement(['pending', 'processing', 'on_hold', 'completed', 'canceled', 'refunded', 'failed']),
             'order_meta' => json_encode($meta),
         ];

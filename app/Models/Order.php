@@ -15,6 +15,7 @@ class Order extends Model
     protected $fillable = [
         'user_id',
         'subtotal',
+        'shipping_cost',
         'amount',
         'status',
         'order_meta'
@@ -60,6 +61,11 @@ class Order extends Model
     public function getSubtotalAttribute()
     {
         return round($this->attributes['subtotal'], 0);
+    }
+
+    public function getShippingCostAttribute()
+    {
+        return round($this->attributes['shipping_cost'] ?? 0, 0);
     }
 
     public function getMunicipalityIdAttribute()

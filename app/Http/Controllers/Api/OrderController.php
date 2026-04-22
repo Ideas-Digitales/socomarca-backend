@@ -72,6 +72,9 @@ class OrderController extends Controller
                 return $price->price * $cart->quantity;
             });
 
+            $shippingCost = $subtotal >= 70000 ? 0 : (int) round($subtotal * 0.1);
+            $total = $subtotal + $shippingCost;
+
             $user = User::find(Auth::user()->id);
             $address = $user->addresses()->where('id', $addressId)->first();
 
@@ -83,7 +86,8 @@ class OrderController extends Controller
             $data = [
                 'user_id' => $user->id,
                 'subtotal' => $subtotal,
-                'amount' => $subtotal,
+                'shipping_cost' => $shippingCost,
+                'amount' => $total,
                 'status' => 'pending',
                 'order_meta' => $order_meta,
             ];
