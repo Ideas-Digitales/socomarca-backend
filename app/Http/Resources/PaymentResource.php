@@ -25,7 +25,7 @@ class PaymentResource extends JsonResource
             'payment_method' => new PaymentMethodResource(
                 $this->paymentMethod
             ),
-            'order' => new OrderResource($this->order)
+            'order' => new OrderResource($this->whenLoaded('order'))
         ];
     }
 }

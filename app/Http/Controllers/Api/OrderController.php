@@ -20,6 +20,7 @@ use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\Price;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
@@ -38,8 +39,17 @@ class OrderController extends Controller
         $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
 
         $orders = Order::where('user_id', Auth::user()->id)
+            ->with(['payments'])
+            ->when(
+                $request->has('payment_method_code'),
+                function (Builder $query) use ($request) {
+                    $code = $request->input('payment_method_code');
+                    $query->byPaymentMethodCode($code);
+                }
+            )
             ->orderBy($sortBy, $sortDirection)
             ->paginate($perPage);
+
         return new OrderCollection($orders);
     }
 
@@ -138,7 +148,7 @@ class OrderController extends Controller
     private function processRandomCreditPayment(Order $order)
     {
         $paymentMethod = \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail();
-        
+
         $randomApiService = app(\App\Services\RandomApiService::class);
         $user = $order->user;
 
@@ -209,6 +219,7 @@ class OrderController extends Controller
                 'token' => uniqid(),
                 'amount' => $order->amount
             ]);
+            $payment->load('order');
             return response()->json([
                 'success' => false,
                 'message' => 'Creación de factura fallida',
@@ -230,6 +241,7 @@ class OrderController extends Controller
             'token' => uniqid(),
             'paid_at' => now()
         ]);
+        $payment->load('order');
 
         \App\Models\CartItem::where('user_id', $user->id)->delete();
 
