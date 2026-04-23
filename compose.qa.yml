@@ -1,28 +1,55 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/${REPO_NAME}:qa
+    container_name: socomarca_app_qa
     restart: unless-stopped
+
+    env_file:
+      - .env
+
     volumes:
-      - .:/var/www/html:cached
       - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
-    expose:
-      - 9000
-    ports:
-      - "${LOCAL_FPM_PORT}:9000"
-    environment:
-      - PHP_UPLOAD_MAX_FILESIZE=100M
-      - PHP_POST_MAX_SIZE=100M
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: socomarca_worker_qa
+
+    networks:
+      - traefik-public
+
+  nginx:
+    image: nginx:alpine
+    container_name: socomarca_nginx_qa
     restart: unless-stopped
+
     volumes:
-      - .:/var/www/html:cached
-      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
-    command: php artisan queue:work
+      - ./nginx:/etc/nginx/conf.d
+
     depends_on:
       - app
+
+    networks:
+      - traefik-public
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.socomarca.rule=Host(`qa.tudominio.com`)"
+      - "traefik.http.routers.socomarca.entrypoints=websecure"
+      - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
+      - "traefik.http.services.socomarca.loadbalancer.server.port=80"
+
+  worker:
+    image: ghcr.io/${REPO_NAME}:qa
+    container_name: socomarca_worker_qa
+    restart: unless-stopped
+
+    command: php artisan queue:work --tries=3 --timeout=90
+
+    env_file:
+      - .env
+
+    depends_on:
+      - app
+
+    networks:
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true

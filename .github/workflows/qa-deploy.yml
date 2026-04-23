@@ -2,52 +2,142 @@ name: QA Deployment
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "qa" ]
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   build:
-
-    runs-on:
-      group: laravel-qa-deploy
-      labels: self-hosted
+    runs-on: ubuntu-latest
+    environment: qa
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Update local repository
-        run: git checkout main && git pull
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
 
-      - name: Put the application into maintenance / demo mode
-        run: docker compose -f compose.qa.yml exec app php artisan down
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    - name: Login to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GH_TOKEN }}
 
-      - name: Install composer packages
-        run: docker compose -f compose.qa.yml exec app composer install --optimize-autoloader
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    - name: Set lowercase repository name
+      run: echo "repo_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Run migrations and seeders
-        run: docker compose -f compose.qa.yml exec app php artisan migrate --force
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    - name: Build and push image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: ./Dockerfile.qa
+        push: true
+        tags: ghcr.io/${{ env.repo_name }}:qa
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
-      - name: Configuration caching
-        run: docker compose -f compose.qa.yml exec app php artisan config:cache
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: qa
 
-      - name: Routes caching
-        run: docker compose -f compose.qa.yml exec app php artisan route:cache
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
 
-      - name: Event caching
-        run: docker compose -f compose.qa.yml exec app php artisan event:cache
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    - name: Set lowercase repository name
+      run: echo "repo_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
-      - name: Seed roles and permissions
-        run: docker compose -f compose.qa.yml exec app php artisan db:seed --class=RolesAndPermissionsSeeder --force
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    # 🔐 SSH
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Bring the application out of maintenance mode
-        run: docker compose -f compose.qa.yml exec app php artisan up
-        working-directory: /home/ubuntu/deploys/socomarca-backend
+    # 📦 Crear .env
+    - name: Generate .env
+      run: |
+        cat > .env << 'EOF'
+        APP_NAME="${{ vars.APP_NAME }}"
+        APP_KEY="${{ secrets.APP_KEY }}"
+        APP_ENV=qa
+        APP_DEBUG=true
+        APP_URL="${{ vars.APP_URL }}"
+
+        DB_CONNECTION=pgsql
+        DB_HOST="${{ secrets.DB_HOST }}"
+        DB_PORT="${{ secrets.DB_PORT }}"
+        DB_DATABASE="${{ secrets.DB_DATABASE }}"
+        DB_USERNAME="${{ secrets.DB_USERNAME }}"
+        DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+
+        CACHE_STORE=redis
+        QUEUE_CONNECTION=redis
+        SESSION_DRIVER=redis
+        EOF
+
+    # 📤 Subir archivos
+    - name: Upload files
+      run: |
+        export REPO_NAME=${{ env.repo_name }}
+
+        envsubst < compose.qa.yml > compose.tmp.yml
+
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ vars.BASE_DIR }}"
+
+        scp compose.tmp.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/compose.yml
+        scp .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/.env
+        scp -r nginx ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/ || true
+
+    # 📥 Pull + deploy sin downtime
+    - name: Deploy containers
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+        set -e
+        cd ${{ vars.BASE_DIR }}
+
+        echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+        docker pull ghcr.io/${{ env.repo_name }}:qa
+
+        docker compose up -d --remove-orphans
+        ENDSSH
+
+    # 🧱 Migraciones con rollback automático
+    - name: Run migrations safely
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+        set -e
+        cd ${{ vars.BASE_DIR }}
+
+        if ! docker compose exec -T app php artisan migrate --force; then
+          echo "❌ Migration failed. Rolling back..."
+          docker compose exec -T app php artisan migrate:rollback --force
+          exit 1
+        fi
+        ENDSSH
+
+    # ⚡ Optimización
+    - name: Optimize Laravel
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+        "cd ${{ vars.BASE_DIR }} && docker compose exec -T app php artisan optimize"
+
+    # ❤️ Healthcheck real
+    - name: Health check
+      run: |
+        sleep 10
+        curl -f "${{ vars.APP_URL }}/health" || exit 1
+
+    # 📜 Logs finales
+    - name: Show logs
+      if: always()
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+        "cd ${{ vars.BASE_DIR }} && docker compose logs --tail=100"
