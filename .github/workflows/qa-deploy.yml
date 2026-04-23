@@ -34,7 +34,7 @@ jobs:
       uses: docker/build-push-action@v7
       with:
         context: .
-        file: ./Dockerfile.qa
+        file: ./Dockerfile
         push: true
         tags: ghcr.io/${{ env.repo_name }}:qa
         cache-from: type=gha
