@@ -33,6 +33,34 @@ services:
       - "traefik.http.routers.socomarca.entrypoints=websecure"
       - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
       - "traefik.http.services.socomarca.loadbalancer.server.port=80"
+  db:
+    image: postgres
+    restart: unless-stopped
+    shm_size: 128mb
+    volumes:
+     - type: tmpfs
+       target: /dev/shm
+       tmpfs:
+         size: 134217728 # 128MB
+     - ./docker/postgresql/init.sh:/docker-entrypoint-initdb.d/init.sh
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    ports:
+      - "5432:5432"
+    networks:
+      - traefik-public
+  localstack:
+    image: localstack/localstack
+    container_name: socomarca_localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+    networks:
+      - traefik-public
 
   worker:
     image: ghcr.io/${REPO_NAME}:qa
