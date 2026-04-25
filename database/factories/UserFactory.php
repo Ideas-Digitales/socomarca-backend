@@ -60,7 +60,7 @@ class UserFactory extends Factory
     {
         $s = 1;
         $m = 0;
-        
+
         for (; $rut != 0; $rut /= 10) {
             $s = ($s + $rut % 10 * (9 - $m++ % 6)) % 11;
         }

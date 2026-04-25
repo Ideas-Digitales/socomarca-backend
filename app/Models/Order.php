@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 
 class Order extends Model
@@ -210,5 +211,13 @@ class Order extends Model
             ->where('payment_methods.code', $code);
 
         return $query;
+    }
+
+    /**
+     * Random documents relationship
+     */
+    public function randomDocuments(): MorphMany
+    {
+        return $this->morphMany(RandomDocument::class, 'documentable');
     }
 }
