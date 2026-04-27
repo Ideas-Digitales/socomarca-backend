@@ -140,7 +140,7 @@ jobs:
         sleep 5
 
         # esperar readiness real
-        until docker compose exec -T db pg_isready -U ${DB_USERNAME} > /dev/null 2>&1; do
+        until docker compose exec -T db pg_isready > /dev/null 2>&1; do
           echo "⌛ DB not ready yet..."
           sleep 2
         done
@@ -158,7 +158,7 @@ jobs:
           exit 1
         fi
         ENDSSH
-        
+
     - name: Debug network
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
