@@ -22,6 +22,7 @@ return new class extends Migration
                 ->jsonb('state')
                 ->nullable()
                 ->comment('Credit line state');
+            $table->boolean('is_blocked')->default(true);
             $table->timestamps();
         });
     }

@@ -12,7 +12,8 @@ class CreditLine extends Model
     protected $fillable = [
         'branch_code',
         'user_id',
-        'state'
+        'state',
+        'is_blocked',
     ];
 
     protected $casts = [
