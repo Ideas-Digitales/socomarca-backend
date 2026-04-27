@@ -48,9 +48,9 @@ services:
       - .env
 
     environment:
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: socomarca_user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: socomarca_backend
 
     volumes:
       - db_data:/var/lib/postgresql/data
