@@ -137,34 +137,13 @@ jobs:
         ENDSSH
 
     # 🧱 Migraciones con rollback automático
-    - name: Run migrations safely
+    - name: Run database migrations
+      env:
+        SSH_USER: ${{ secrets.SSH_USER }}
+        SSH_HOST: ${{ secrets.SSH_HOST }}
+        BASE_DIR: ${{ vars.BASE_DIR }}
       run: |
-        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
-        set -e
-        cd ${{ vars.BASE_DIR }}
-
-        until docker compose ps db | grep -q "Up"; do
-          echo "⌛ DB container not up yet..."
-          sleep 2
-        done
-
-        echo "⏳ Waiting for DB to accept connections..."
-
-        until docker compose exec -T db pg_isready > /dev/null 2>&1; do
-          echo "⌛ DB not ready yet..."
-          sleep 2
-        done
-
-        echo "✅ DB is ready"
-
-        echo "🚀 Running migrations..."
-
-        if ! docker compose exec -T app php artisan migrate --force; then
-          echo "❌ Migration failed. Rolling back..."
-          docker compose exec -T app php artisan migrate:rollback --force || true
-          exit 1
-        fi
-        ENDSSH
+        ssh $SSH_USER@$SSH_HOST "cd ${{ vars.BASE_DIR }} && docker compose run --rm app php artisan migrate --force --database=pgsql"
 
     - name: Debug network
       run: |
