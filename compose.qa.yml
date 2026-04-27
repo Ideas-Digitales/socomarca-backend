@@ -44,6 +44,9 @@ services:
     container_name: socomarca_db_qa
     restart: unless-stopped
 
+    env_file:
+      - .env
+
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
