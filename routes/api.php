@@ -296,4 +296,3 @@ Route::any('{url}', function () {
     return response()->json(['message' => 'Method Not Allowed.'], 405);
 })->where('url', '.*');
 
-Route::get('/health', fn () => response()->json(['status' => 'ok']));
