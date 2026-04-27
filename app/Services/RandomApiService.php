@@ -88,10 +88,10 @@ class RandomApiService
 
     /**
      * Get customer credit
-     * 
+     *
      * @param string $koen RUT
      * @param string $suen Branch (Sucursal) code
-     * 
+     *
      * @return \Illuminate\Http\Client\Response
      */
     public function getCreditLine(string $koen, string $suen): \Illuminate\Http\Client\Response
@@ -210,13 +210,13 @@ class RandomApiService
     }
 
     /**
-     * Create a sale invoice document (FCV)
-     * 
+     * Create a document
+     *
      * @param array $data
-     * 
+     *
      * @return \Illuminate\Http\Client\Response
      */
-    public function createFcvDocument(array $data): \Illuminate\Http\Client\Response
+    public function createDocument(array $data): \Illuminate\Http\Client\Response
     {
         $endpoint = '/web32/documento';
 
@@ -235,8 +235,43 @@ class RandomApiService
 
         if ($response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "FCV Document creation failed",
+                "Document creation failed",
                 $data,
+                $response
+            );
+
+            throw $exception;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Get document trace
+     *
+     * @param int $idmaeedo
+     *
+     * @return \Illuminate\Http\Client\Response
+     */
+    public function getDocumentTrace(int $idmaeedo): \Illuminate\Http\Client\Response
+    {
+        $endpoint = "/documentos/traza/{$idmaeedo}";
+
+        if (!empty(config('random.token'))) {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000, null, false)
+            ->acceptJson()
+            ->get($this->baseUrl . $endpoint);
+
+        if ($response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "Document trace query failed",
+                ['idmaeedo' => $idmaeedo],
                 $response
             );
 

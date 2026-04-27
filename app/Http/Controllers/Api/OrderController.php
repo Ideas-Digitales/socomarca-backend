@@ -207,7 +207,7 @@ class OrderController extends Controller
             ]
         ];
 
-        $responseObject = $randomApiService->createFcvDocument($payload);
+        $responseObject = $randomApiService->createDocument($payload);
         $response = $responseObject->json();
 
         // TODO Procesar FCV
