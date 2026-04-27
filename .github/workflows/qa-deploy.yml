@@ -81,6 +81,14 @@ jobs:
         DB_DATABASE=${{ secrets.DB_DATABASE }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+        QUEUE_CONNECTION="${{ vars.QUEUE_CONNECTION }}"
+        SESSION_DRIVER="${{ vars.SESSION_DRIVER }}"
+        SESSION_DOMAIN="${{ vars.SESSION_DOMAIN }}"
+        SESSION_ENCRYPT="${{ vars.SESSION_ENCRYPT }}"
+        SESSION_LIFETIME="${{ vars.SESSION_LIFETIME }}"
+        SESSION_PATH="${{ vars.SESSION_PATH }}"
+
         EOF
 
     # 📤 Subir archivos
