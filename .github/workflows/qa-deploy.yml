@@ -82,6 +82,7 @@ jobs:
         DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
+        CACHE_STORE="${{ vars.CACHE_STORE }}"
         QUEUE_CONNECTION="${{ vars.QUEUE_CONNECTION }}"
         SESSION_DRIVER="${{ vars.SESSION_DRIVER }}"
         SESSION_DOMAIN="${{ vars.SESSION_DOMAIN }}"
