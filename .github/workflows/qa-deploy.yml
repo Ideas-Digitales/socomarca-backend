@@ -143,12 +143,13 @@ jobs:
         set -e
         cd ${{ vars.BASE_DIR }}
 
-        echo "⏳ Waiting for DB to be ready..."
+        until docker compose ps db | grep -q "Up"; do
+          echo "⌛ DB container not up yet..."
+          sleep 2
+        done
 
-        # esperar a que el contenedor exista
-        sleep 5
+        echo "⏳ Waiting for DB to accept connections..."
 
-        # esperar readiness real
         until docker compose exec -T db pg_isready > /dev/null 2>&1; do
           echo "⌛ DB not ready yet..."
           sleep 2
