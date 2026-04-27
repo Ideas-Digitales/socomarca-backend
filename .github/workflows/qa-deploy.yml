@@ -97,17 +97,34 @@ jobs:
         scp -r nginx ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/ || true
 
     # 📥 Pull + deploy sin downtime
-    - name: Deploy containers
+    - name: Clean and deploy containers
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
         set -e
         cd ${{ vars.BASE_DIR }}
 
+        echo "🧹 Cleaning previous deployment..."
+
+        # detener y eliminar contenedores + volúmenes
+        docker compose down -v --remove-orphans || true
+
+        # eliminar contenedores huérfanos (por si cambió nombre)
+        docker rm -f socomarca_app_qa socomarca_db_qa socomarca_nginx_qa socomarca_worker_qa 2>/dev/null || true
+
+        # limpiar redes no usadas
+        docker network prune -f || true
+
+        echo "🔐 Login GHCR..."
         echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+        echo "📥 Pull image..."
         docker pull ghcr.io/${{ env.repo_name }}:qa
 
-        docker compose up -d --remove-orphans
+        echo "🚀 Starting fresh containers..."
+        docker compose up -d --build --remove-orphans
+
+        echo "📊 Containers status:"
+        docker compose ps
         ENDSSH
 
     # 🧱 Migraciones con rollback automático
@@ -117,11 +134,38 @@ jobs:
         set -e
         cd ${{ vars.BASE_DIR }}
 
+        echo "⏳ Waiting for DB to be ready..."
+
+        # esperar a que el contenedor exista
+        sleep 5
+
+        # esperar readiness real
+        until docker compose exec -T db pg_isready -U ${DB_USERNAME} > /dev/null 2>&1; do
+          echo "⌛ DB not ready yet..."
+          sleep 2
+        done
+
+        echo "✅ DB is ready"
+
+        # validar DNS interno
+        docker compose exec -T app ping -c 1 db || (echo "❌ DNS db failed" && exit 1)
+
+        echo "🚀 Running migrations..."
+
         if ! docker compose exec -T app php artisan migrate --force; then
           echo "❌ Migration failed. Rolling back..."
-          docker compose exec -T app php artisan migrate:rollback --force
+          docker compose exec -T app php artisan migrate:rollback --force || true
           exit 1
         fi
+        ENDSSH
+        
+    - name: Debug network
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+        cd ${{ vars.BASE_DIR }}
+        docker compose exec app getent hosts db || true
+        docker compose exec app ping -c 1 db || true
+        docker compose logs db --tail=50
         ENDSSH
 
     # ⚡ Optimización
