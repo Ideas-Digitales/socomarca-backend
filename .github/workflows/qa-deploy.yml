@@ -68,23 +68,19 @@ jobs:
     # 📦 Crear .env
     - name: Generate .env
       run: |
-        cat > .env << 'EOF'
-        APP_NAME="${{ vars.APP_NAME }}"
-        APP_KEY="${{ secrets.APP_KEY }}"
+        cat > .env << EOF
+        APP_NAME=${{ vars.APP_NAME }}
+        APP_KEY=${{ secrets.APP_KEY }}
         APP_ENV=qa
         APP_DEBUG=true
-        APP_URL="${{ vars.APP_URL }}"
+        APP_URL=${{ vars.APP_URL }}
 
         DB_CONNECTION=pgsql
-        DB_HOST="${{ secrets.DB_HOST }}"
-        DB_PORT="${{ secrets.DB_PORT }}"
-        DB_DATABASE="${{ secrets.DB_DATABASE }}"
-        DB_USERNAME="${{ secrets.DB_USERNAME }}"
+        DB_HOST=db
+        DB_PORT=5432
+        DB_DATABASE=${{ secrets.DB_DATABASE }}
+        DB_USERNAME=${{ secrets.DB_USERNAME }}
         DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
-        CACHE_STORE=redis
-        QUEUE_CONNECTION=redis
-        SESSION_DRIVER=redis
         EOF
 
     # 📤 Subir archivos
