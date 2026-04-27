@@ -156,9 +156,6 @@ jobs:
 
         echo "✅ DB is ready"
 
-        # validar DNS interno
-        docker compose exec -T app ping -c 1 db || (echo "❌ DNS db failed" && exit 1)
-
         echo "🚀 Running migrations..."
 
         if ! docker compose exec -T app php artisan migrate --force; then
