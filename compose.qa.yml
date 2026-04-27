@@ -23,6 +23,7 @@ services:
     restart: unless-stopped
 
     volumes:
+      - .:/var/www/html
       - ./nginx:/etc/nginx/conf.d
 
     depends_on:
