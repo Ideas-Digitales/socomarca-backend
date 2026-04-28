@@ -216,8 +216,8 @@ class Order extends Model
     /**
      * Random documents relationship
      */
-    public function randomDocuments(): MorphMany
+    public function randomDocuments()
     {
-        return $this->morphMany(RandomDocument::class, 'documentable');
+        return $this->morphToMany(RandomDocument::class, 'documentable', 'random_documentables', 'documentable_id', 'random_document_id');
     }
 }

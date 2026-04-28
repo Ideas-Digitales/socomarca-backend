@@ -165,10 +165,32 @@ class OrderController extends Controller
             throw new \Exception("Random customer doesn't have complete attributes");
         }
 
+        $creditLine = \App\Models\CreditLine::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'branch_code' => $user->branch_code,
+            ],
+            [
+                'is_blocked' => false,
+            ]
+        );
+
+        if ($creditLine->isBlocked()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Línea de crédito bloqueada',
+                'data' => [
+                    'transaction' => ['status' => 'FAILED'],
+                ]
+            ]);
+        }
+
         $creditLineResponse = $randomApiService
             ->getCreditLine($user->rut, $user->branch_code);
 
         $creditLineInfo = $creditLineResponse->json();
+
+        $creditLine->update(['state' => $creditLineInfo]);
 
         $availableCredit = (int) bcsub(
             (string) ($creditLineInfo['CRSD'] ?? 0),
@@ -201,7 +223,7 @@ class OrderController extends Controller
             'datos' => [
                 'empresa' => config('random.business_code'),
                 'codigoEntidad' => $user->rut,
-                'tido' => 'FCV',
+                'tido' => 'NVV',
                 'modalidad' => config('random.modality'),
                 'lineas' => $lines
             ]
@@ -210,15 +232,16 @@ class OrderController extends Controller
         $responseObject = $randomApiService->createDocument($payload);
         $response = $responseObject->json();
 
-        // TODO Procesar FCV
+        // TODO Procesar NVV
 
         if (isset($response['errorId'])) {
             $order->update(['status' => 'failed']);
             $payment = $order->payments()->create([
                 'payment_method_id' => $paymentMethod->id,
+                'status' => 'failed',
                 'response_status' => 'FAILED',
                 'response_message' => [
-                    'message' => 'Error al crear FCV en Random ERP'
+                    'message' => 'Error al crear NVV en Random ERP'
                 ],
                 'token' => uniqid(),
                 'amount' => $order->amount
@@ -226,7 +249,7 @@ class OrderController extends Controller
             $payment->load('order');
             return response()->json([
                 'success' => false,
-                'message' => 'Creación de factura fallida',
+                'message' => 'Creación de nota de venta fallida',
                 'data' => [
                     'transaction' => ['status' => 'FAILED'],
                     'payment' => new \App\Http\Resources\PaymentResource($payment),
@@ -238,6 +261,7 @@ class OrderController extends Controller
         $order->update(['status' => 'completed']);
         $payment = $order->payments()->create([
             'payment_method_id' => $paymentMethod->id,
+            'status' => 'processing',
             'response_status' => 'AUTHORIZED',
             'auth_code' => uniqid(),
             'amount' => $order->amount,
@@ -245,6 +269,21 @@ class OrderController extends Controller
             'token' => uniqid(),
             'paid_at' => now()
         ]);
+
+        $idmaeedo = $response['idmaeedo'] ?? null;
+        if ($idmaeedo) {
+            $randomDocument = \App\Models\RandomDocument::firstOrCreate(
+                ['idmaeedo' => $idmaeedo],
+                [
+                    'type' => 'NVV',
+                    'document' => $response
+                ]
+            );
+            $order->randomDocuments()->attach($randomDocument->idmaeedo);
+        }
+
+        $creditLine->block();
+
         $payment->load('order');
 
         \App\Models\CartItem::where('user_id', $user->id)->delete();

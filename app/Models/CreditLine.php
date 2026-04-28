@@ -24,4 +24,19 @@ class CreditLine extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function isBlocked(): bool
+    {
+        return (bool) $this->is_blocked;
+    }
+
+    public function block(): void
+    {
+        $this->update(['is_blocked' => true]);
+    }
+
+    public function unblock(): void
+    {
+        $this->update(['is_blocked' => false]);
+    }
 }

@@ -16,6 +16,40 @@ uses(RefreshDatabase::class);
 //     $this->seed(\Database\Seeders\PaymentMethodSeeder::class);
 // });
 
+test('it rejects payment if the user credit line is blocked', function () {
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
+    $user->assignRole('customer');
+
+    // Create a blocked CreditLine
+    \App\Models\CreditLine::factory()->create([
+        'user_id' => $user->id,
+        'branch_code' => 'CM',
+        'is_blocked' => true
+    ]);
+
+    $address = Address::factory()->create(['user_id' => $user->id]);
+    $product = Product::factory()->create();
+    \App\Models\Price::factory()->create(['product_id' => $product->id, 'unit' => 'UN']);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'UN'
+    ]);
+
+    PaymentMethod::where('code', 'random_credit')->firstOrFail();
+
+    $response = $this->actingAs($user)->postJson(route('orders.pay'), [
+        'address_id' => $address->id,
+        'payment_method' => 'random_credit'
+    ]);
+
+    $response->assertStatus(200)
+        ->assertJsonPath('success', false)
+        ->assertJsonPath('message', 'Línea de crédito bloqueada');
+});
+
 test('it can process a credit line payment successfully', function () {
     // $this->artisan('db:seed', ['--class' => 'RolesAndPermissionsSeeder']);
     /** @var TestCase $this */
@@ -54,7 +88,7 @@ test('it can process a credit line payment successfully', function () {
         ], 200),
         "{$baseUrl}/web32/documento" => Http::response([
             "numero" => "0000000001",
-            "tido" => "FCV",
+            "tido" => "NVV",
             "idmaeedo" => 657,
             "uidxmaeedo" => "2CEE468D-35B7-4CBA-A243-E2D20C13C8D7",
             "vabrdo" => 7140,
@@ -102,6 +136,16 @@ test('it can process a credit line payment successfully', function () {
 
     // Cart is empty
     expect(CartItem::where('user_id', $user->id)->count())->toBe(0);
+
+    // Assert credit line exists and is blocked
+    $creditLine = \App\Models\CreditLine::where('user_id', $user->id)->first();
+    expect($creditLine)->not->toBeNull();
+    expect($creditLine->isBlocked())->toBeTrue();
+
+    // Assert Random Document morph relation
+    expect($order->randomDocuments()->count())->toBe(1);
+    expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
+    expect($payment->status)->toBe('processing');
 
     // Find order by payment method applying filters
     $response = $this->actingAs($user)->getJson(route('orders.index', [
