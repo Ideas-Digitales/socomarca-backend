@@ -145,14 +145,6 @@ jobs:
       run: |
         ssh $SSH_USER@$SSH_HOST "cd ${{ vars.BASE_DIR }} && docker compose run --rm app php artisan migrate --force --database=pgsql"
 
-    - name: Debug network
-      run: |
-        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
-        cd ${{ vars.BASE_DIR }}
-        docker compose exec app getent hosts db || true
-        docker compose exec app ping -c 1 db || true
-        ENDSSH
-
     # ⚡ Optimización
     - name: Optimize Laravel
       run: |
