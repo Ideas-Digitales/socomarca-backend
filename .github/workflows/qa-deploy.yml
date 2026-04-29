@@ -76,7 +76,7 @@ jobs:
         APP_URL=${{ vars.APP_URL }}
 
         DB_CONNECTION=pgsql
-        DB_HOST=db
+        DB_HOST=${{ secrets.DB_HOST }}
         DB_PORT=5432
         DB_DATABASE=${{ secrets.DB_DATABASE }}
         DB_USERNAME=${{ secrets.DB_USERNAME }}
@@ -118,7 +118,7 @@ jobs:
         docker compose down -v --remove-orphans || true
 
         # eliminar contenedores huérfanos (por si cambió nombre)
-        docker rm -f socomarca_app_qa socomarca_db_qa socomarca_nginx_qa socomarca_worker_qa 2>/dev/null || true
+        docker rm -f socomarca_app_qa socomarca_nginx_qa socomarca_worker_qa 2>/dev/null || true
 
         # limpiar redes no usadas
         docker network prune -f || true
@@ -151,7 +151,6 @@ jobs:
         cd ${{ vars.BASE_DIR }}
         docker compose exec app getent hosts db || true
         docker compose exec app ping -c 1 db || true
-        docker compose logs db --tail=50
         ENDSSH
 
     # ⚡ Optimización

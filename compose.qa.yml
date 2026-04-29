@@ -39,26 +39,7 @@ services:
       - "traefik.http.routers.socomarca.entrypoints=websecure"
       - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
       - "traefik.http.services.socomarca.loadbalancer.server.port=80"
-
-  db:
-    image: postgres:15
-    container_name: socomarca_db_qa
-    restart: unless-stopped
-
-    env_file:
-      - .env
-
-    environment:
-      POSTGRES_USER: socomarca_user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: socomarca_backend
-
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
-    networks:
-      - internal
-
+      
   worker:
     image: ghcr.io/${REPO_NAME}:qa
     container_name: socomarca_worker_qa
