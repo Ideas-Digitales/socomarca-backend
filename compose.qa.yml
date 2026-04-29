@@ -10,9 +10,6 @@ services:
     volumes:
       - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
 
-    depends_on:
-      - db
-
     networks:
       - traefik-public
       - internal
@@ -39,7 +36,7 @@ services:
       - "traefik.http.routers.socomarca.entrypoints=websecure"
       - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
       - "traefik.http.services.socomarca.loadbalancer.server.port=80"
-      
+
   worker:
     image: ghcr.io/${REPO_NAME}:qa
     container_name: socomarca_worker_qa
@@ -50,14 +47,8 @@ services:
     env_file:
       - .env
 
-    depends_on:
-      - db
-
     networks:
       - internal
-
-volumes:
-  db_data:
 
 networks:
   traefik-public:
