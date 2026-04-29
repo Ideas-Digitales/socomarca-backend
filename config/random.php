@@ -19,5 +19,9 @@ return [
         'credit' => [
             'branch' => env('RANDOM_MOCK_CREDIT_BRANCH', false)
         ]
-    ]
+    ],
+    'credit_sync' => [
+        'enabled' => env('RANDOM_CREDIT_SYNC_ENABLED', true),
+        'frequency_minutes' => env('RANDOM_CREDIT_SYNC_FREQUENCY_MINUTES', 5),
+    ],
 ];
