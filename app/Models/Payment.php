@@ -8,7 +8,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Payment extends Model
 {
     use HasFactory;
-    protected $fillable = ['order_id', 'payment_method_id', 'auth_code', 'amount', 'response_status', 'response_message', 'token', 'paid_at'];
+
+    protected $fillable = [
+        'order_id',
+        'payment_method_id',
+        'auth_code',
+        'amount',
+        'response_status',
+        'response_message',
+        'token',
+        'paid_at',
+        'status',
+    ];
 
     protected $casts = [
         'response_message' => 'json'

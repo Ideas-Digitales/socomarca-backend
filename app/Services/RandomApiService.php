@@ -88,10 +88,10 @@ class RandomApiService
 
     /**
      * Get customer credit
-     * 
+     *
      * @param string $koen RUT
      * @param string $suen Branch (Sucursal) code
-     * 
+     *
      * @return \Illuminate\Http\Client\Response
      */
     public function getCreditLine(string $koen, string $suen): \Illuminate\Http\Client\Response
@@ -104,10 +104,17 @@ class RandomApiService
             $token = $this->getToken();
         }
 
-        $response = Http::withToken($token)
-            ->retry(2, 1000, null, false)
-            ->acceptJson()
-            ->get($endpoint);
+        try {
+            $response = Http::withToken($token)
+                ->retry(2, 1000, null, false)
+                ->acceptJson()
+                ->get($endpoint);
+        } catch (\Throwable $e) {
+            Log::error('Random API Error', [
+                'message' => $e->getMessage(),
+            ]);
+            $response = null;
+        }
 
         $exception = new RandomApiServiceErrorException(
             "No se pudo obtener el crédito del cliente",
@@ -118,7 +125,7 @@ class RandomApiService
             $response
         );
 
-        if ($response->failed()) {
+        if ($response === null || $response->failed()) {
             throw $exception;
         }
 
@@ -210,13 +217,13 @@ class RandomApiService
     }
 
     /**
-     * Create a sale invoice document (FCV)
-     * 
+     * Create a document
+     *
      * @param array $data
-     * 
+     *
      * @return \Illuminate\Http\Client\Response
      */
-    public function createFcvDocument(array $data): \Illuminate\Http\Client\Response
+    public function createDocument(array $data): \Illuminate\Http\Client\Response
     {
         $endpoint = '/web32/documento';
 
@@ -228,15 +235,57 @@ class RandomApiService
 
         Log::debug('Random URL (RandomApiService): ' . $this->baseUrl);
 
+        try {
+            $response = Http::withToken($token)
+                ->retry(2, 1000, null, false)
+                ->acceptJson()
+                ->post($this->baseUrl . $endpoint, $data);
+        } catch (\Throwable $e) {
+            Log::error('Random API Error', [
+                'message' => $e->getMessage(),
+            ]);
+            $response = null;
+        }
+
+        if ($response === null || $response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "Falló la creación del documento en Random ERP",
+                $data,
+                $response
+            );
+
+            throw $exception;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Get document trace
+     *
+     * @param int $idmaeedo
+     *
+     * @return \Illuminate\Http\Client\Response
+     */
+    public function getDocumentTrace(int $idmaeedo): \Illuminate\Http\Client\Response
+    {
+        $endpoint = "/documentos/traza/{$idmaeedo}";
+
+        if (!empty(config('random.token'))) {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
         $response = Http::withToken($token)
             ->retry(2, 1000, null, false)
             ->acceptJson()
-            ->post($this->baseUrl . $endpoint, $data);
+            ->get($this->baseUrl . $endpoint);
 
         if ($response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "FCV Document creation failed",
-                $data,
+                "Document trace query failed",
+                ['idmaeedo' => $idmaeedo],
                 $response
             );
 

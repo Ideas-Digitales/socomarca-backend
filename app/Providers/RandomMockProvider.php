@@ -21,10 +21,10 @@ class RandomMockProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (config('random.mock.documents.fcv.enabled')) {
+        if (config('random.mock.documents.enabled')) {
             $baseUrl = config('random.url');
 
-            if (config('random.mock.documents.fcv.response.bad')) {
+            if (config('random.mock.documents.response.bad')) {
                 Http::fake([
                     "{$baseUrl}/web32/documento" => Http::response([
                         "message" => "7BBA50CB-186C-40E7-80DA-D918F4A3E993| No es posible determinar una modalidad para la combinación=> empresa=01 tido=FCV, modalidad=QSDOO",
@@ -36,7 +36,7 @@ class RandomMockProvider extends ServiceProvider
                 Http::fake([
                     "{$baseUrl}/web32/documento" => Http::response([
                         "numero" => "0000000001",
-                        "tido" => "FCV",
+                        "tido" => "FAKEDOC",
                         "idmaeedo" => 657,
                         "uidxmaeedo" => "2CEE468D-35B7-4CBA-A243-E2D20C13C8D7",
                         "vabrdo" => 7140,

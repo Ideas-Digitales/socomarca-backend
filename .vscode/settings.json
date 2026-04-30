@@ -5,5 +5,34 @@
   "phpunit.paths": {
     "${workspaceFolder}": "/var/www/html"
   },
-  "intelephense.environment.phpVersion": "8.4.11"
+  "intelephense.environment.phpVersion": "8.4.11",
+  "pgsql.serverGroups": [
+    {
+      "id": "499CCEE0-36E6-4146-B365-5F4BD414FD45",
+      "name": "Servers"
+    }
+  ],
+  "pgsql.connections": [
+    {
+      "id": "3108AD07-DF26-4983-AB11-4FE5CD246E8B",
+      "groupId": "499CCEE0-36E6-4146-B365-5F4BD414FD45",
+      "authenticationType": "SqlLogin",
+      "connectTimeout": 15,
+      "applicationName": "vscode-pgsql",
+      "clientEncoding": "utf8",
+      "sslmode": "prefer",
+      "sshSavePassword": true,
+      "savePassword": true,
+      "sslRootCertMode": "none",
+      "server": "localhost",
+      "user": "socomarca_user",
+      "password": "",
+      "profileName": "socomarca-dev",
+      "sshPassword": "",
+      "expiresOn": 0,
+      "profileSource": 0,
+      "displayName": "development",
+      "database": "socomarca_backend"
+    }
+  ]
 }

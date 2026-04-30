@@ -9,14 +9,15 @@ use Illuminate\Support\Str;
 class RandomApiServiceErrorException extends Exception
 {
     protected array $data;
-    protected \Illuminate\Http\Client\Response $response;
+    protected ?\Illuminate\Http\Client\Response $response;
 
     public function __construct(
         string $message,
         array $data,
-        \Illuminate\Http\Client\Response $response
+        ?\Illuminate\Http\Client\Response $response = null
     ) {
-        parent::__construct($message, $response->status());
+        $status = $response?->status() ?? 500;
+        parent::__construct($message, $status);
         $this->response = $response;
         $this->data = $data;
     }
@@ -28,8 +29,8 @@ class RandomApiServiceErrorException extends Exception
     {
         Log::error('Random API Error: ' . $this->getMessage(), [
             'data' => $this->data,
-            'status' => $this->response->status(),
-            'body' => Str::limit($this->response->body(), 500),
+            'status' => $this->response?->status() ?? 500,
+            'body' => Str::limit($this->response?->body() ?? "", 500),
         ]);
     }
 
@@ -38,8 +39,8 @@ class RandomApiServiceErrorException extends Exception
      */
     public function render($request)
     {
-        $status = $this->response->status();
-        
+        $status = $this->response?->status() ?? 500;
+
         if (!in_array($status, [401, 403, 404])) {
             $status = 500;
         }

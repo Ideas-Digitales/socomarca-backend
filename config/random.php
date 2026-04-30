@@ -9,15 +9,17 @@ return [
     'modality' => env('RANDOM_ERP_MODALITY', 'ADMIN'),
     'mock' => [
         'documents' => [
-            'fcv' => [
-                'enabled' => env('RANDOM_MOCK_DOCS_FCV', false),
-                'response' => [
-                    'bad' => env('RANDOM_MOCK_DOCS_FCV_RESPONSE_BAD', false)
-                ]
-            ],
+            'enabled' => env('RANDOM_MOCK_DOCS', false),
+            'response' => [
+                'bad' => env('RANDOM_MOCK_DOCS_RESPONSE_BAD', false)
+            ]
         ],
         'credit' => [
             'branch' => env('RANDOM_MOCK_CREDIT_BRANCH', false)
         ]
-    ]
+    ],
+    'credit_sync' => [
+        'enabled' => env('RANDOM_CREDIT_SYNC_ENABLED', true),
+        'frequency_minutes' => env('RANDOM_CREDIT_SYNC_FREQUENCY_MINUTES', 5),
+    ],
 ];

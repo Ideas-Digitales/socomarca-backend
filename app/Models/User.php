@@ -4,6 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
@@ -264,5 +266,21 @@ class User extends Authenticatable
     public function routeNotificationForFcm()
     {
         return $this->fcm_token;
+    }
+
+    /**
+     * Random documents relationship
+     */
+    public function randomDocuments(): MorphMany
+    {
+        return $this->morphMany(RandomDocument::class, 'documentable');
+    }
+
+    /**
+     * Credit lines relationship
+     */
+    public function creditLines(): HasMany
+    {
+        return $this->hasMany(CreditLine::class);
     }
 }
