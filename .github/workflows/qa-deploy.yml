@@ -149,18 +149,19 @@ jobs:
         BASE_DIR: ${{ vars.BASE_DIR }}
         APP_ENV: ${{ vars.APP_ENV }}
       run: |
-        ssh $SSH_USER@$SSH_HOST << 'EOF'
+        ssh $SSH_USER@$SSH_HOST "
+          set -e
           cd $BASE_DIR
 
-          if [ "$APP_ENV" = "production" ]; then
-            echo "Running safe migrations..."
+          if [ '$APP_ENV' = 'production' ]; then
+            echo 'Running safe migrations...'
             docker compose run --rm app php artisan migrate --force --database=pgsql
           else
-            echo "Running fresh migrations with seed..."
+            echo 'Running fresh migrations with seed...'
             docker compose run --rm app php artisan migrate:fresh --seed
           fi
-        EOF
-    
+        "
+
     #Sync random
     - name: Run random sync
       env:
@@ -168,13 +169,13 @@ jobs:
         SSH_HOST: ${{ secrets.SSH_HOST }}
         BASE_DIR: ${{ vars.BASE_DIR }}
       run: |
-        ssh $SSH_USER@$SSH_HOST << 'EOF'
+        ssh $SSH_USER@$SSH_HOST "
           set -e
           cd $BASE_DIR
 
           echo "Running random:sync-all..."
           docker compose run --rm app php artisan random:sync-all
-        EOF
+        "
 
     # ⚡ Optimización
     - name: Optimize Laravel
