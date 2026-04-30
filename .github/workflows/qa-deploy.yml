@@ -157,7 +157,7 @@ jobs:
             docker compose run --rm app php artisan migrate --force --database=pgsql
           else
             echo "Running fresh migrations with seed..."
-            docker compose exec workcontainer php artisan migrate:fresh --seed
+            docker compose -f compose.yml run --rm app php artisan migrate:fresh --seed
           fi
         EOF
     
