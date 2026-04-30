@@ -104,10 +104,17 @@ class RandomApiService
             $token = $this->getToken();
         }
 
-        $response = Http::withToken($token)
-            ->retry(2, 1000, null, false)
-            ->acceptJson()
-            ->get($endpoint);
+        try {
+            $response = Http::withToken($token)
+                ->retry(2, 1000, null, false)
+                ->acceptJson()
+                ->get($endpoint);
+        } catch (\Throwable $e) {
+            Log::error('Random API Error', [
+                'message' => $e->getMessage(),
+            ]);
+            $response = null;
+        }
 
         $exception = new RandomApiServiceErrorException(
             "No se pudo obtener el crédito del cliente",
@@ -118,7 +125,7 @@ class RandomApiService
             $response
         );
 
-        if ($response->failed()) {
+        if ($response === null || $response->failed()) {
             throw $exception;
         }
 
@@ -228,14 +235,21 @@ class RandomApiService
 
         Log::debug('Random URL (RandomApiService): ' . $this->baseUrl);
 
-        $response = Http::withToken($token)
-            ->retry(2, 1000, null, false)
-            ->acceptJson()
-            ->post($this->baseUrl . $endpoint, $data);
+        try {
+            $response = Http::withToken($token)
+                ->retry(2, 1000, null, false)
+                ->acceptJson()
+                ->post($this->baseUrl . $endpoint, $data);
+        } catch (\Throwable $e) {
+            Log::error('Random API Error', [
+                'message' => $e->getMessage(),
+            ]);
+            $response = null;
+        }
 
-        if ($response->failed()) {
+        if ($response === null || $response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "Document creation failed",
+                "Falló la creación del documento en Random ERP",
                 $data,
                 $response
             );
