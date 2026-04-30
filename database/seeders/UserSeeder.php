@@ -8,6 +8,7 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Faker\Factory as Faker;
 
 class UserSeeder extends Seeder
 {
@@ -16,6 +17,9 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
+
+        $faker = Faker::create();
+
         $fakeusers = $this->getFakeUsers();
         $roles = ['superadmin', 'admin', 'supervisor', 'editor'];
 
@@ -24,9 +28,9 @@ class UserSeeder extends Seeder
                 'name' => $fu->name,
                 'email' => $fu->email,
                 'password' => Hash::make('password'),
-                'phone' => fake()->numberBetween(777777777, 999999999),
+                'phone' => $faker->numberBetween(777777777, 999999999),
                 'rut' => $fu->rut,
-                'business_name' => fake()->company(),
+                'business_name' => $faker->company(),
                 'is_active' => true,
 
             ]);
