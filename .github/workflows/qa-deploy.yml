@@ -71,7 +71,7 @@ jobs:
         cat > .env << EOF
         APP_NAME=${{ vars.APP_NAME }}
         APP_KEY=${{ secrets.APP_KEY }}
-        APP_ENV=qa
+        APP_ENV=${{ vars.APP_ENV }}
         APP_DEBUG=true
         APP_URL=${{ vars.APP_URL }}
 
@@ -89,6 +89,11 @@ jobs:
         SESSION_ENCRYPT=${{ vars.SESSION_ENCRYPT }}
         SESSION_LIFETIME=${{ vars.SESSION_LIFETIME }}
         SESSION_PATH="${{ vars.SESSION_PATH }}"
+
+        RANDOM_ERP_TOKEN=${{ secrets.RANDOM_ERP_TOKEN }}
+        RANDOM_ERP_BUSINESS_CODE=${{ secrets.RANDOM_ERP_BUSINESS_CODE }}
+        RANDOM_ERP_PRICES_MODALITY=${{ secrets.RANDOM_ERP_PRICES_MODALITY }}
+        RANDON_ERP_WAREHOUSE_CODE=${{ secrets.RANDON_ERP_WAREHOUSE_CODE }}
 
         EOF
 
@@ -142,8 +147,34 @@ jobs:
         SSH_USER: ${{ secrets.SSH_USER }}
         SSH_HOST: ${{ secrets.SSH_HOST }}
         BASE_DIR: ${{ vars.BASE_DIR }}
+        APP_ENV: ${{ vars.APP_ENV }}
       run: |
-        ssh $SSH_USER@$SSH_HOST "cd ${{ vars.BASE_DIR }} && docker compose run --rm app php artisan migrate --force --database=pgsql"
+        ssh $SSH_USER@$SSH_HOST << 'EOF'
+          cd $BASE_DIR
+
+          if [ "$APP_ENV" = "production" ]; then
+            echo "Running safe migrations..."
+            docker compose run --rm app php artisan migrate --force --database=pgsql
+          else
+            echo "Running fresh migrations with seed..."
+            docker compose exec workcontainer php artisan migrate:fresh --seed
+          fi
+        EOF
+    
+    #Sync random
+    - name: Run random sync
+      env:
+        SSH_USER: ${{ secrets.SSH_USER }}
+        SSH_HOST: ${{ secrets.SSH_HOST }}
+        BASE_DIR: ${{ vars.BASE_DIR }}
+      run: |
+        ssh $SSH_USER@$SSH_HOST << 'EOF'
+          set -e
+          cd $BASE_DIR
+
+          echo "Running random:sync-all..."
+          docker compose run --rm app php artisan random:sync-all
+        EOF
 
     # ⚡ Optimización
     - name: Optimize Laravel
