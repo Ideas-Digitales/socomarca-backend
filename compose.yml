@@ -1,48 +1,37 @@
 services:
-  workcontainer:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: socomarca_php
-    restart: unless-stopped
-    user: developer:developer
-    working_dir: /var/www/html
+    ports:
+      - "8080:80" # HTTP
+      - "8443:443" # HTTPS
+      - "8443:443/udp" # HTTP/3
     volumes:
-      - .:/var/www/html:cached
-      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
-    networks:
-      - socomarca
+      - ./:/app
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # comente la siguiente línea en producción, permite tener logs legibles en desarrollo
+    tty: true
     depends_on:
       - db
-    expose:
-      - 9000
-    environment:
-      - PHP_UPLOAD_MAX_FILESIZE=100M
-      - PHP_POST_MAX_SIZE=100M
-  web:
-    image: nginx:alpine
-    container_name: socomarca_web
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-    volumes:
-      - .:/var/www/html
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
     networks:
       - socomarca
-    depends_on:
-      - workcontainer
 
   db:
     image: postgres
     restart: unless-stopped
     shm_size: 128mb
     volumes:
-     - type: tmpfs
-       target: /dev/shm
-       tmpfs:
-         size: 134217728 # 128MB
-     - ./docker/postgresql/init.sh:/docker-entrypoint-initdb.d/init.sh
+      - socomarca_data:/var/lib/postgresql/data
+      - type: tmpfs
+        target: /dev/shm
+        tmpfs:
+          size: 134217728 # 128MB
+      - ./docker/postgresql/init.sh:/docker-entrypoint-initdb.d/init.sh
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -51,6 +40,7 @@ services:
       - "5432:5432"
     networks:
       - socomarca
+
   localstack:
     image: localstack/localstack
     container_name: socomarca_localstack
@@ -61,26 +51,14 @@ services:
       - DEFAULT_REGION=us-east-1
     networks:
       - socomarca
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: socomarca_worker
-    restart: unless-stopped
-    volumes:
-      - .:/var/www/html:cached
-      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
-    command: "php artisan queue:work"
-    depends_on:
-      - workcontainer
-      - db
-    networks:
-      - socomarca
+
 volumes:
   socomarca_data:
     name: socomarca_data
   socomarca_s3_data:
     name: socomarca_s3_data
+  caddy_config:
+  caddy_data:
 
 networks:
   socomarca:
