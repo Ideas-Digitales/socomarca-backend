@@ -34,7 +34,7 @@ jobs:
       uses: docker/build-push-action@v7
       with:
         context: .
-        file: ./Dockerfile.qa
+        file: ./Dockerfile.deploy
         push: true
         tags: ghcr.io/${{ env.repo_name }}:qa
         cache-from: type=gha
@@ -72,7 +72,7 @@ jobs:
         APP_NAME=${{ vars.APP_NAME }}
         APP_KEY=${{ secrets.APP_KEY }}
         APP_ENV=${{ vars.APP_ENV }}
-        APP_DEBUG=true
+        APP_DEBUG=false
         APP_URL=${{ vars.APP_URL }}
 
         DB_CONNECTION=pgsql
@@ -101,14 +101,14 @@ jobs:
     - name: Upload files
       run: |
         export REPO_NAME=${{ env.repo_name }}
+        export APP_HOST=$(echo "${{ vars.APP_URL }}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
 
-        envsubst < compose.qa.yml > compose.tmp.yml
+        envsubst < compose.deploy.yml > compose.tmp.yml
 
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ vars.BASE_DIR }}"
 
         scp compose.tmp.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/compose.yml
         scp .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/.env
-        scp -r nginx ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/ || true
 
     # 📥 Pull + deploy sin downtime
     - name: Clean and deploy containers
