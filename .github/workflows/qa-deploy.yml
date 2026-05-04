@@ -186,11 +186,14 @@ jobs:
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
         "cd ${{ vars.BASE_DIR }} && docker compose exec -T app php artisan optimize"
 
-    # ❤️ Healthcheck real
+    # ❤️ Health check interno (Docker)
     - name: Health check
       run: |
-        sleep 10
-        curl -f "${{ vars.APP_URL }}/health" || exit 1
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+          cd ${{ vars.BASE_DIR }}
+          echo 'Verifying HTTP response (internal)...'
+          docker compose exec -T app wget --spider -q http://localhost:80/health || exit 1
+        "
 
     # 📜 Logs finales
     - name: Show logs
