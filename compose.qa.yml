@@ -3,39 +3,20 @@ services:
     image: ghcr.io/${REPO_NAME}:qa
     container_name: socomarca_app_qa
     restart: unless-stopped
-
+    environment:
+      - SERVER_NAME=:80
     env_file:
       - .env
-
-    volumes:
-      - ./phpcustom.ini:/usr/local/etc/php/conf.d/custom.ini
-
     networks:
       - traefik-public
       - internal
-
-  nginx:
-    image: nginx:alpine
-    container_name: socomarca_nginx_qa
-    restart: unless-stopped
-
-    volumes:
-      - .:/var/www/html
-      - ./nginx:/etc/nginx/conf.d
-
-    depends_on:
-      - app
-
-    networks:
-      - traefik-public
-      - internal
-
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.socomarca.rule=Host(`qa-api.appsocomarca.cl`)"
       - "traefik.http.routers.socomarca.entrypoints=websecure"
       - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
       - "traefik.http.services.socomarca.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik-public"
 
   worker:
     image: ghcr.io/${REPO_NAME}:qa

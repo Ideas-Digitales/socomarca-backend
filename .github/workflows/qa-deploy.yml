@@ -34,7 +34,7 @@ jobs:
       uses: docker/build-push-action@v7
       with:
         context: .
-        file: ./Dockerfile
+        file: ./Dockerfile.qa
         push: true
         tags: ghcr.io/${{ env.repo_name }}:qa
         cache-from: type=gha
@@ -64,7 +64,7 @@ jobs:
           -o IdentitiesOnly=yes \
           -o StrictHostKeyChecking=no \
           ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo OK"
-        
+
     # 📦 Crear .env
     - name: Generate .env
       run: |
@@ -123,7 +123,7 @@ jobs:
         docker compose down -v --remove-orphans || true
 
         # eliminar contenedores huérfanos (por si cambió nombre)
-        docker rm -f socomarca_app_qa socomarca_nginx_qa socomarca_worker_qa 2>/dev/null || true
+        docker rm -f socomarca_app_qa socomarca_worker_qa 2>/dev/null || true
 
         # limpiar redes no usadas
         docker network prune -f || true
@@ -136,6 +136,9 @@ jobs:
 
         echo "🚀 Starting fresh containers..."
         docker compose up -d --build --remove-orphans
+
+        echo "🧹 Removing old images..."
+        docker image prune -f
 
         echo "📊 Containers status:"
         docker compose ps
