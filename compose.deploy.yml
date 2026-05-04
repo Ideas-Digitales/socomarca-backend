@@ -1,7 +1,7 @@
 services:
   app:
-    image: ghcr.io/${REPO_NAME}:qa
-    container_name: socomarca_app_qa
+    image: ghcr.io/${REPO_NAME}:${IMAGE_TAG}
+    container_name: socomarca_app_${IMAGE_TAG}
     restart: unless-stopped
     environment:
       - SERVER_NAME=:80
@@ -27,8 +27,8 @@ services:
       - log_storage:/app/storage/logs
 
   worker:
-    image: ghcr.io/${REPO_NAME}:qa
-    container_name: socomarca_worker_qa
+    image: ghcr.io/${REPO_NAME}:${IMAGE_TAG}
+    container_name: socomarca_worker_${IMAGE_TAG}
     restart: unless-stopped
 
     command: php artisan queue:work --tries=3 --timeout=90
@@ -58,5 +58,5 @@ volumes:
   firebase_credentials_storage:
     name: firebase_credentials_storage
   log_storage:
-    name: log_storage
+    name: socomarca_logs_${IMAGE_TAG}
 
