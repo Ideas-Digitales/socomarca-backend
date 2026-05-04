@@ -1,9 +1,9 @@
-FROM dunglas/frankenphp:1.12.2-php8.4
+FROM dunglas/frankenphp:1.12.2-php8.4-alpine
 
 ARG USER=developer
 ARG USER_ID=1000
 
-RUN useradd -u ${USER_ID} -m ${USER} || true; \
+RUN adduser -u ${USER_ID} -D ${USER} || true; \
     setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp; \
     mkdir -p /config/caddy /data/caddy; \
     chown -R ${USER}:${USER} /config/caddy /data/caddy
