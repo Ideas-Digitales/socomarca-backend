@@ -94,6 +94,11 @@ jobs:
         RANDOM_ERP_BUSINESS_CODE=${{ secrets.RANDOM_ERP_BUSINESS_CODE }}
         RANDOM_ERP_PRICES_MODALITY=${{ secrets.RANDOM_ERP_PRICES_MODALITY }}
         RANDON_ERP_WAREHOUSE_CODE=${{ secrets.RANDON_ERP_WAREHOUSE_CODE }}
+        RANDOM_MOCK_DOCS=${{ vars.RANDOM_MOCK_DOCS }}
+        RANDOM_MOCK_DOCS_RESPONSE_BAD=${{ vars.RANDOM_MOCK_DOCS_RESPONSE_BAD }}
+        RANDOM_MOCK_CREDIT_BRANCH=${{ vars.RANDOM_MOCK_CREDIT_BRANCH }}
+
+
 
         EOF
 
@@ -103,7 +108,7 @@ jobs:
         export REPO_NAME=${{ env.repo_name }}
         export APP_HOST=$(echo "${{ vars.APP_URL }}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
 
-        envsubst < compose.deploy.yml > compose.tmp.yml
+        envsubst '${REPO_NAME} ${APP_HOST}' < compose.deploy.yml > compose.tmp.yml
 
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ vars.BASE_DIR }}"
 
@@ -117,17 +122,6 @@ jobs:
         set -e
         cd ${{ vars.BASE_DIR }}
 
-        echo "🧹 Cleaning previous deployment..."
-
-        # detener y eliminar contenedores + volúmenes
-        docker compose down -v --remove-orphans || true
-
-        # eliminar contenedores huérfanos (por si cambió nombre)
-        docker rm -f socomarca_app_qa socomarca_worker_qa 2>/dev/null || true
-
-        # limpiar redes no usadas
-        docker network prune -f || true
-
         echo "🔐 Login GHCR..."
         echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
@@ -135,7 +129,7 @@ jobs:
         docker pull ghcr.io/${{ env.repo_name }}:qa
 
         echo "🚀 Starting fresh containers..."
-        docker compose up -d --build --remove-orphans
+        docker compose up -d --remove-orphans
 
         echo "🧹 Removing old images..."
         docker image prune -f
@@ -155,29 +149,8 @@ jobs:
         ssh $SSH_USER@$SSH_HOST "
           set -e
           cd $BASE_DIR
-
-          if [ '$APP_ENV' = 'production' ]; then
-            echo 'Running safe migrations...'
-            docker compose run --rm app php artisan migrate --force --database=pgsql
-          else
-            echo 'Running fresh migrations with seed...'
-            docker compose run --rm app php artisan migrate:fresh --seed
-          fi
-        "
-
-    #Sync random
-    - name: Run random sync
-      env:
-        SSH_USER: ${{ secrets.SSH_USER }}
-        SSH_HOST: ${{ secrets.SSH_HOST }}
-        BASE_DIR: ${{ vars.BASE_DIR }}
-      run: |
-        ssh $SSH_USER@$SSH_HOST "
-          set -e
-          cd $BASE_DIR
-
-          echo "Running random:sync-all..."
-          docker compose run --rm app php artisan random:sync-all
+          echo 'Running safe migrations...'
+          docker compose exec -T app php artisan migrate --force --seed
         "
 
     # ⚡ Optimización
@@ -192,7 +165,7 @@ jobs:
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
           cd ${{ vars.BASE_DIR }}
           echo 'Verifying HTTP response (internal)...'
-          docker compose exec -T app wget --spider -q http://localhost:80/health || exit 1
+          docker compose exec -T app wget --spider -q http://localhost:80/up || exit 1
         "
 
     # 📜 Logs finales

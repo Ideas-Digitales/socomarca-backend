@@ -16,6 +16,11 @@ services:
       - "host.docker.internal:host-gateway"
     # comente la siguiente línea en producción, permite tener logs legibles en desarrollo
     tty: true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - db
     networks:
@@ -24,6 +29,11 @@ services:
   db:
     image: postgres
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     shm_size: 128mb
     volumes:
       - socomarca_data:/var/lib/postgresql/data
@@ -49,6 +59,11 @@ services:
     environment:
       - SERVICES=s3
       - DEFAULT_REGION=us-east-1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - socomarca
 
