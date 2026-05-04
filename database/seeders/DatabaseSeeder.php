@@ -10,31 +10,24 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // RegionSeeder::class,
+        // RolesAndPermissionsSeeder::class,
+        // UserSeeder::class,
+        // AddressSeeder::class,
+        // ProductSeeder::class,
+        // PaymentMethodSeeder::class,
+        // SiteInfoSeeder::class,
+        // OrderSeeder::class,
+        // CartItemSeeder::class,
+        // FavoriteSeeder::class,
+        // FaqSeeder::class,
 
-        if (app()->environment(['local', 'qa','testing'])) {
-            
-            $this->call([
-                RegionSeeder::class,
-                RolesAndPermissionsSeeder::class,
-                UserSeeder::class,
-                AddressSeeder::class,
-                ProductSeeder::class,
-                PaymentMethodSeeder::class,
-                SiteInfoSeeder::class,
-                OrderSeeder::class,
-                CartItemSeeder::class,
-                FavoriteSeeder::class,
-                FaqSeeder::class,
-            ]);
-
-        }else{
-            $this->call([
-                RegionSeeder::class,
-                PaymentMethodSeeder::class,
-                RolesAndPermissionsSeeder::class,
-                SiteInfoSeeder::class,
-            ]);
-        }
+        $this->call([
+            RegionSeeder::class,
+            PaymentMethodSeeder::class,
+            RolesAndPermissionsSeeder::class,
+            SiteInfoSeeder::class,
+        ]);
     }
 
 }
