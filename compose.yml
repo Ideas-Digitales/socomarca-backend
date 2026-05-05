@@ -27,7 +27,7 @@ services:
       - socomarca
 
   db:
-    image: postgres
+    image: postgres:18-alpine3.23
     restart: unless-stopped
     logging:
       driver: "json-file"

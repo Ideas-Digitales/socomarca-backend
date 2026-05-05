@@ -107,3 +107,87 @@ test('it returns 404 when credit is not found', function () {
         ])
         ->assertNotFound();
 });
+
+test('it returns local credit state and skips Random API when credit line is blocked', function () {
+    /** @var TestCase $this */
+
+    /** @var User $user */
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
+    $user->givePermissionTo('read-own-credit-lines');
+    
+    $localState = [
+        'KOEN' => '12345678-9',
+        'SUEN' => 'CM',
+        'CRSD' => 1000,
+        'CRSDVU' => 100,
+        'CRSDVV' => 50,
+        'CRSDCU' => 0,
+        'CRSDCV' => 0
+    ];
+
+    $user->creditLines()->create([
+        'branch_code' => 'CM',
+        'state' => $localState,
+        'is_blocked' => true,
+    ]);
+
+    Http::fake();
+
+    $response = $this->actingAs($user, 'sanctum')->getJson(route('users.credit-lines', $user->id));
+
+    Http::assertNothingSent();
+
+    $response->assertStatus(200)
+        ->assertJson($localState);
+});
+
+test('it calls Random API when local credit line exists but is not blocked', function () {
+    /** @var TestCase $this */
+
+    /** @var User $user */
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
+    $user->givePermissionTo('read-own-credit-lines');
+    
+    $localState = [
+        'KOEN' => '12345678-9',
+        'SUEN' => 'CM',
+        'CRSD' => 500,
+    ];
+
+    $user->creditLines()->create([
+        'branch_code' => 'CM',
+        'state' => $localState,
+        'is_blocked' => false,
+    ]);
+
+    $baseUrl = config('random.url');
+    Http::fake([
+        "{$baseUrl}/login" => Http::response(['token' => 'fake-test-token'], 200),
+        "{$baseUrl}/gestion/credito/resumen/*" => Http::response([
+            'KOEN' => '12345678-9',
+            'SUEN' => 'CM',
+            'CRSD' => 2000,
+            'CRSDVU' => 100,
+            'CRSDVV' => 50,
+            'CRSDCU' => 0,
+            'CRSDCV' => 0
+        ], 200)
+    ]);
+
+    $response = $this->actingAs($user, 'sanctum')->getJson(route('users.credit-lines', $user->id));
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($baseUrl) {
+        return str_starts_with($request->url(), "{$baseUrl}/gestion/credito/resumen/");
+    });
+    
+    $response->assertStatus(200)
+        ->assertJson([
+            'KOEN' => '12345678-9',
+            'SUEN' => 'CM',
+            'CRSD' => 2000,
+            'CRSDVU' => 100,
+            'CRSDVV' => 50,
+            'CRSDCU' => 0,
+            'CRSDCV' => 0
+        ]);
+});
