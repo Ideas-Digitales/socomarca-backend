@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'qa' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'QA' }}
 
     steps:
     - name: Checkout code
@@ -69,42 +69,50 @@ jobs:
           -o StrictHostKeyChecking=no \
           ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo OK"
 
-    # 📦 Crear .env
+    # 📦 Crear .env dinámicamente
     - name: Generate .env
+      env:
+        SECRETS_CONTEXT: ${{ toJson(secrets) }}
+        VARS_CONTEXT: ${{ toJson(vars) }}
       run: |
-        cat > .env << EOF
-        APP_NAME=${{ vars.APP_NAME }}
-        APP_KEY=${{ secrets.APP_KEY }}
-        APP_ENV=${{ vars.APP_ENV }}
-        APP_DEBUG=false
-        APP_URL=${{ vars.APP_URL }}
+        python3 -c '
+        import os, json
 
-        DB_CONNECTION=pgsql
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_PORT=5432
-        DB_DATABASE=${{ secrets.DB_DATABASE }}
-        DB_USERNAME=${{ secrets.DB_USERNAME }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        # Obtener todos los secretos y variables de entorno de GitHub
+        secrets = json.loads(os.environ.get("SECRETS_CONTEXT", "{}"))
+        variables = json.loads(os.environ.get("VARS_CONTEXT", "{}"))
 
-        CACHE_STORE=${{ vars.CACHE_STORE }}
-        QUEUE_CONNECTION=${{ vars.QUEUE_CONNECTION }}
-        SESSION_DRIVER=${{ vars.SESSION_DRIVER }}
-        SESSION_DOMAIN=${{ vars.SESSION_DOMAIN }}
-        SESSION_ENCRYPT=${{ vars.SESSION_ENCRYPT }}
-        SESSION_LIFETIME=${{ vars.SESSION_LIFETIME }}
-        SESSION_PATH="${{ vars.SESSION_PATH }}"
+        # Combinar diccionarios (los secretos tienen prioridad si hay choques)
+        combined = {**variables, **secrets}
 
-        RANDOM_ERP_TOKEN=${{ secrets.RANDOM_ERP_TOKEN }}
-        RANDOM_ERP_BUSINESS_CODE=${{ secrets.RANDOM_ERP_BUSINESS_CODE }}
-        RANDOM_ERP_PRICES_MODALITY=${{ secrets.RANDOM_ERP_PRICES_MODALITY }}
-        RANDON_ERP_WAREHOUSE_CODE=${{ secrets.RANDON_ERP_WAREHOUSE_CODE }}
-        RANDOM_MOCK_DOCS=${{ vars.RANDOM_MOCK_DOCS }}
-        RANDOM_MOCK_DOCS_RESPONSE_BAD=${{ vars.RANDOM_MOCK_DOCS_RESPONSE_BAD }}
-        RANDOM_MOCK_CREDIT_BRANCH=${{ vars.RANDOM_MOCK_CREDIT_BRANCH }}
+        # Leer archivo .env.example del repositorio
+        try:
+            with open(".env.example", "r") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            print("Error: .env.example no encontrado.")
+            exit(1)
 
+        # Crear el archivo .env definitivo
+        with open(".env", "w") as out:
+            for line in lines:
+                line_stripped = line.strip()
+                # Mantener lineas vacías o comentarios
+                if not line_stripped or line_stripped.startswith("#"):
+                    out.write(line)
+                    continue
 
+                # Extraer la llave (ej. APP_NAME=...)
+                key = line_stripped.split("=")[0].strip()
 
-        EOF
+                # Si la llave existe en GitHub (secrets o vars), escribir su valor
+                if key in combined:
+                    val = str(combined[key]).replace("\"", "\\\"")
+                    out.write(f"{key}=\"{val}\"\n")
+                else:
+                    # Si no existe, conservamos el valor por defecto que traía el .env.example
+                    out.write(line)
+        '
 
     # 📤 Subir archivos
     - name: Upload files

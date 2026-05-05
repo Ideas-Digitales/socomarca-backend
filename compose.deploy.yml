@@ -31,7 +31,7 @@ services:
     container_name: socomarca_worker_${IMAGE_TAG}
     restart: unless-stopped
 
-    command: php artisan queue:work --tries=3 --timeout=90
+    command: php artisan queue:work --tries=3 --timeout=300
 
     env_file:
       - .env

@@ -244,19 +244,10 @@ listar el contenido
 aws --endpoint-url=http://localhost:4566/ s3 ls s3://socomarca-bucket/products/
 ```
 
-# Configurar entorno de despliegue QA
+# Configurar **environments** para deploy
 
-Copiar .env.example a .env y editar las variables correspondientes
-
-Construir contenedor fpm:
-```bash
-docker compose -f compose.qa.yml build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --no-cache
-```
-
-Iniciar composición de docker:
-```bash
-docker compose -f compose.qa.yml up -d
-```
+El repositorio dispone del action [deploy](.github/workflows/deploy.yml), el cual
+es funcional tanto para el despliegue en QA como en producción.
 
 ### Variables de Entorno para Mocking de Random API
 
