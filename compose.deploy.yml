@@ -17,10 +17,10 @@ services:
         max-file: "3"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.socomarca.rule=Host(`${APP_HOST}`)"
-      - "traefik.http.routers.socomarca.entrypoints=websecure"
-      - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
-      - "traefik.http.services.socomarca.loadbalancer.server.port=80"
+      - "traefik.http.routers.socomarca_${IMAGE_TAG}.rule=Host(`${APP_HOST}`)"
+      - "traefik.http.routers.socomarca_${IMAGE_TAG}.entrypoints=websecure"
+      - "traefik.http.routers.socomarca_${IMAGE_TAG}.tls.certresolver=myresolver"
+      - "traefik.http.services.socomarca_${IMAGE_TAG}.loadbalancer.server.port=80"
       - "traefik.docker.network=traefik-public"
     volumes:
       - firebase_credentials_storage:/app/storage/app/private/firebase
