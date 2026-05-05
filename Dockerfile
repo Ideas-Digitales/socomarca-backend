@@ -1,10 +1,20 @@
-FROM ideasdigitales/laravel-phpenv:8.4-fpm
+FROM dunglas/frankenphp:1.12.2-php8.4-alpine
 
-ARG USER_ID
-ARG GROUP_ID
+ARG USER=developer
+ARG USER_ID=1000
 
-RUN groupadd --gid ${GROUP_ID} developer && \
-    useradd -u ${USER_ID} -g developer -s /bin/bash --home /home/developer developer && \
-    mkdir -p /home/developer/.config/psysh && chown developer:developer /home/developer/.config/psysh
+RUN adduser -u ${USER_ID} -D ${USER} || true; \
+    setcap CAP_NET_BIND_SERVICE=+eip /usr/local/bin/frankenphp; \
+    mkdir -p /config/caddy /data/caddy; \
+    chown -R ${USER}:${USER} /config/caddy /data/caddy
 
-USER developer
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+RUN install-php-extensions \
+	pdo_pgsql \
+	gd \
+	intl \
+	zip \
+	xdebug
+
+USER ${USER}

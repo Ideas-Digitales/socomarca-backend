@@ -17,17 +17,17 @@ docker compose up -d
 
 Install composer dependencies
 ```bash
-docker compose exec workcontainer composer install
+docker compose exec app composer install
 ```
 
 Setup app encryption key
 ```bash
-docker compose exec workcontainer php artisan key:generate
+docker compose exec app php artisan key:generate
 ```
 
 Run migrations and seeders
 ```bash
-docker compose exec workcontainer php artisan migrate:fresh --seed
+docker compose exec app php artisan migrate:fresh --seed
 ```
 
 ## Development Commands
@@ -35,7 +35,7 @@ docker compose exec workcontainer php artisan migrate:fresh --seed
 ### Container Access
 Get into php container
 ```bash
-docker compose exec -it workcontainer bash
+docker compose exec -it app bash
 ```
 
 ### Development Workflow
@@ -44,10 +44,10 @@ docker compose exec -it workcontainer bash
 composer dev
 
 # Start queue worker
-docker compose exec workcontainer php artisan queue:work
+docker compose exec app php artisan queue:work
 
 # Code quality and linting
-docker compose exec workcontainer ./vendor/bin/pint
+docker compose exec app ./vendor/bin/pint
 ```
 
 
@@ -57,49 +57,49 @@ docker compose exec workcontainer ./vendor/bin/pint
 
 Start queue worker
 ```bash
-docker compose exec workcontainer php artisan queue:work
+docker compose exec app php artisan queue:work
 ```
 
 Run all syncs
 ```bash
-docker compose exec workcontainer php artisan random:sync-all
+docker compose exec app php artisan random:sync-all
 ```
 ## Individual syncs
 
 Sync categories
 ```bash
-docker compose exec workcontainer php artisan random:sync-categories
+docker compose exec app php artisan random:sync-categories
 ```
 
 Sync brands
 ```bash
-docker compose exec workcontainer php artisan random:sync-brands
+docker compose exec app php artisan random:sync-brands
 ```
 
 Sync products
 ```bash
-docker compose exec workcontainer php artisan random:sync-products
+docker compose exec app php artisan random:sync-products
 ```
 
 Sync prices
 ```bash
-docker compose exec workcontainer php artisan random:sync-prices
+docker compose exec app php artisan random:sync-prices
 ```
 
 Sync stock
 ```bash
-docker compose exec workcontainer php artisan random:sync-stock
+docker compose exec app php artisan random:sync-stock
 ```
 
 Sync users
 ```bash
-docker compose exec workcontainer php artisan random:sync-users
+docker compose exec app php artisan random:sync-users
 ```
 
 ### Email Testing
 ```bash
 # Test email sending functionality
-docker compose exec workcontainer php artisan app:test-email-sending {email-address}
+docker compose exec app php artisan app:test-email-sending {email-address}
 ```
 
 
@@ -120,31 +120,31 @@ You can use task "Docker: Run laravel command"
 
 Run a specific test
 ```bash
-docker compose exec workcontainer php artisan test tests/Feature/CartItemTest.php
+docker compose exec app php artisan test tests/Feature/CartItemTest.php
 ```
 
 Run a specific test with a specific filter
 ```bash
-docker compose exec workcontainer ./vendor/bin/pest tests/Feature/CartItemTest.php --filter="puede agregar un item al carrito"
+docker compose exec app ./vendor/bin/pest tests/Feature/CartItemTest.php --filter="puede agregar un item al carrito"
 ```
 
 # Testing Random ERP Sync
 
 ```bash
 # Ejecutar test básico
-docker compose exec workcontainer php artisan test tests/Feature/SyncProductTest.php --env=testing --filter="el job de sincronización procesa productos correctamente" 
+docker compose exec app php artisan test tests/Feature/SyncProductTest.php --env=testing --filter="el job de sincronización procesa productos correctamente" 
 ```
 
 ### Probar rendimiento con muchos productos:
 ```bash
 # Test de volumen
-docker compose exec workcontainer php artisan test tests/Feature/SyncProductIntegrationTest.php --env=testing --filter="sincronización con gran volumen de datos" 
+docker compose exec app php artisan test tests/Feature/SyncProductIntegrationTest.php --env=testing --filter="sincronización con gran volumen de datos" 
 ```
 
 ### Verificar logs y monitoreo:
 ```bash
 # Test de logs
-docker compose exec workcontainer php artisan test tests/Feature/SyncProductMonitoringTest.php --env=testing --filter="registra logs correctos" 
+docker compose exec app php artisan test tests/Feature/SyncProductMonitoringTest.php --env=testing --filter="registra logs correctos" 
 ```
 
 ## Available Artisan Commands
@@ -244,19 +244,10 @@ listar el contenido
 aws --endpoint-url=http://localhost:4566/ s3 ls s3://socomarca-bucket/products/
 ```
 
-# Configurar entorno de despliegue QA
+# Configurar **environments** para deploy
 
-Copiar .env.example a .env y editar las variables correspondientes
-
-Construir contenedor fpm:
-```bash
-docker compose -f compose.qa.yml build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --no-cache
-```
-
-Iniciar composición de docker:
-```bash
-docker compose -f compose.qa.yml up -d
-```
+El repositorio dispone del action [deploy](.github/workflows/deploy.yml), el cual
+es funcional tanto para el despliegue en QA como en producción.
 
 ### Variables de Entorno para Mocking de Random API
 

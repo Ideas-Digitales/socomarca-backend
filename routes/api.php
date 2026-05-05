@@ -295,3 +295,4 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
 Route::any('{url}', function () {
     return response()->json(['message' => 'Method Not Allowed.'], 405);
 })->where('url', '.*');
+

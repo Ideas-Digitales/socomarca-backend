@@ -1,0 +1,38 @@
+FROM dunglas/frankenphp:1.12.2-php8.4-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install PHP extensions
+RUN install-php-extensions \
+    pdo_pgsql \
+    gd \
+    intl \
+    zip \
+    opcache
+
+# Copy project files
+COPY ./app ./app
+COPY ./bootstrap ./bootstrap
+COPY ./config ./config
+COPY ./database ./database
+COPY ./lang ./lang
+COPY ./public ./public
+COPY ./resources ./resources
+COPY ./routes ./routes
+COPY ./storage ./storage
+COPY artisan .
+COPY composer.json .
+COPY composer.lock .
+
+# Install dependencies
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+    && composer install --no-dev --optimize-autoloader
+
+# App permissions
+RUN mkdir -p /config/caddy /data/caddy
+
+# Caddy labels for FrankenPHP
+LABEL org.opencontainers.image.title="Socomarca Backend QA"
+LABEL org.opencontainers.image.description="FrankenPHP powered Laravel API for QA"
+

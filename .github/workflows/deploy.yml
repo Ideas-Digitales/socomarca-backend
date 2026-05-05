@@ -1,0 +1,189 @@
+name: Deployment
+
+on:
+  push:
+    branches: [ "qa", "main" ]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'QA' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Login to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set environment variables
+      run: |
+        echo "repo_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        echo "IMAGE_TAG=${{ github.ref == 'refs/heads/main' && 'prod' || 'qa' }}" >> $GITHUB_ENV
+
+    - name: Build and push image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: ./Dockerfile.deploy
+        push: true
+        tags: ghcr.io/${{ env.repo_name }}:${{ env.IMAGE_TAG }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'qa' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Set environment variables
+      run: |
+        echo "repo_name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+        echo "IMAGE_TAG=${{ github.ref == 'refs/heads/main' && 'prod' || 'qa' }}" >> $GITHUB_ENV
+
+    # 🔐 SSH
+    - name: Test SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+        ssh -vvv -i ~/.ssh/id_ed25519 \
+          -o IdentitiesOnly=yes \
+          -o StrictHostKeyChecking=no \
+          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo OK"
+
+    # 📦 Crear .env dinámicamente
+    - name: Generate .env
+      env:
+        SECRETS_CONTEXT: ${{ toJson(secrets) }}
+        VARS_CONTEXT: ${{ toJson(vars) }}
+      run: |
+        python3 -c '
+        import os, json
+
+        # Obtener todos los secretos y variables de entorno de GitHub
+        secrets = json.loads(os.environ.get("SECRETS_CONTEXT", "{}"))
+        variables = json.loads(os.environ.get("VARS_CONTEXT", "{}"))
+
+        # Combinar diccionarios (los secretos tienen prioridad si hay choques)
+        combined = {**variables, **secrets}
+
+        # Leer archivo .env.example del repositorio
+        try:
+            with open(".env.example", "r") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            print("Error: .env.example no encontrado.")
+            exit(1)
+
+        # Crear el archivo .env definitivo
+        with open(".env", "w") as out:
+            for line in lines:
+                line_stripped = line.strip()
+                # Mantener lineas vacías o comentarios
+                if not line_stripped or line_stripped.startswith("#"):
+                    out.write(line)
+                    continue
+
+                # Extraer la llave (ej. APP_NAME=...)
+                key = line_stripped.split("=")[0].strip()
+
+                # Si la llave existe en GitHub (secrets o vars), escribir su valor
+                if key in combined:
+                    val = str(combined[key]).replace("\"", "\\\"")
+                    out.write(f"{key}=\"{val}\"\n")
+                else:
+                    # Si no existe, conservamos el valor por defecto que traía el .env.example
+                    out.write(line)
+        '
+
+    # 📤 Subir archivos
+    - name: Upload files
+      run: |
+        export REPO_NAME=${{ env.repo_name }}
+        export IMAGE_TAG=${{ env.IMAGE_TAG }}
+        export APP_HOST=$(echo "${{ vars.APP_URL }}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
+
+        envsubst '${REPO_NAME} ${IMAGE_TAG} ${APP_HOST}' < compose.deploy.yml > compose.tmp.yml
+
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p ${{ vars.BASE_DIR }}"
+
+        scp compose.tmp.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/compose.yml
+        scp .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/.env
+
+    # 📥 Pull + deploy sin downtime
+    - name: Clean and deploy containers
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+        set -e
+        cd ${{ vars.BASE_DIR }}
+
+        echo "🔐 Login GHCR..."
+        echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+        echo "📥 Pull image..."
+        docker pull ghcr.io/${{ env.repo_name }}:${{ env.IMAGE_TAG }}
+
+        echo "🚀 Starting fresh containers..."
+        docker compose up -d --remove-orphans
+
+        echo "🧹 Removing old images..."
+        docker image prune -f
+
+        echo "📊 Containers status:"
+        docker compose ps
+        ENDSSH
+
+    # 🧱 Migraciones con rollback automático
+    - name: Run database migrations
+      env:
+        SSH_USER: ${{ secrets.SSH_USER }}
+        SSH_HOST: ${{ secrets.SSH_HOST }}
+        BASE_DIR: ${{ vars.BASE_DIR }}
+        APP_ENV: ${{ vars.APP_ENV }}
+      run: |
+        ssh $SSH_USER@$SSH_HOST "
+          set -e
+          cd $BASE_DIR
+          echo 'Running safe migrations...'
+          docker compose exec -T app php artisan migrate --force --seed
+        "
+
+    # ⚡ Optimización
+    - name: Optimize Laravel
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+        "cd ${{ vars.BASE_DIR }} && docker compose exec -T app php artisan optimize"
+
+    # ❤️ Health check interno (Docker)
+    - name: Health check
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
+          cd ${{ vars.BASE_DIR }}
+          echo 'Verifying HTTP response (internal)...'
+          docker compose exec -T app wget --spider -q http://localhost:80/up || exit 1
+        "
+
+    # 📜 Logs finales
+    - name: Show logs
+      if: always()
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+        "cd ${{ vars.BASE_DIR }} && docker compose logs --tail=100"

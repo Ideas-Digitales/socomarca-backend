@@ -1,0 +1,62 @@
+services:
+  app:
+    image: ghcr.io/${REPO_NAME}:${IMAGE_TAG}
+    container_name: socomarca_app_${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      - SERVER_NAME=:80
+    env_file:
+      - .env
+    networks:
+      - traefik-public
+      - internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.socomarca.rule=Host(`${APP_HOST}`)"
+      - "traefik.http.routers.socomarca.entrypoints=websecure"
+      - "traefik.http.routers.socomarca.tls.certresolver=myresolver"
+      - "traefik.http.services.socomarca.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik-public"
+    volumes:
+      - firebase_credentials_storage:/app/storage/app/private/firebase
+      - log_storage:/app/storage/logs
+
+  worker:
+    image: ghcr.io/${REPO_NAME}:${IMAGE_TAG}
+    container_name: socomarca_worker_${IMAGE_TAG}
+    restart: unless-stopped
+
+    command: php artisan queue:work --tries=3 --timeout=300
+
+    env_file:
+      - .env
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+    volumes:
+      - firebase_credentials_storage:/app/storage/app/private/firebase
+      - log_storage:/app/storage/logs
+
+networks:
+  traefik-public:
+    external: true
+
+  internal:
+    driver: bridge
+
+volumes:
+  firebase_credentials_storage:
+    name: firebase_credentials_storage
+  log_storage:
+    name: socomarca_logs_${IMAGE_TAG}
+
