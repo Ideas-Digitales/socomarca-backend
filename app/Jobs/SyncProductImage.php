@@ -66,7 +66,10 @@ class SyncProductImage implements ShouldQueue
 
         // Construir array de filas (sku, image) a partir de los nombres de archivo
         $rows = [];
-        $imageFiles = glob($imagesPath . '/*.{jpg,jpeg,png,gif,webp,bmp,svg}', GLOB_BRACE);
+        $imageFiles = [];
+        foreach (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'] as $ext) {
+            $imageFiles = array_merge($imageFiles, glob($imagesPath . '/*.' . $ext) ?: []);
+        }
 
         foreach ($imageFiles as $filePath) {
             $imageName = basename($filePath);
