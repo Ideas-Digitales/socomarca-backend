@@ -103,11 +103,22 @@ class ProcessPendingCreditPaymentJob implements ShouldQueue
                 $order->randomDocuments()->attach($fcvRecord->idmaeedo);
             }
 
-            // Desbloqueamos el crédito
-            $this->creditLine->unblock();
+            try {
+                $creditStateResponse = $randomApi->getCreditLine($this->creditLine->user->rut, $this->creditLine->branch_code);
+                $this->creditLine->update([
+                    'state' => $creditStateResponse->json(),
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Error while updating local Random ERP Credit', [
+                    'message' => $e->getMessage()
+                ]);
+            } finally {
+                // Desbloqueamos el crédito
+                $this->creditLine->unblock();
 
-            // Cambiamos el estado del Pago a 'completed'
-            $payment->update(['status' => 'completed']);
+                // Cambiamos el estado del Pago a 'completed'
+                $payment->update(['status' => 'completed']);
+            }
         }
     }
 }
