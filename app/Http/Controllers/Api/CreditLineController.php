@@ -23,7 +23,9 @@ class CreditLineController extends Controller
             ->first();
 
         if ($creditLine && $creditLine->is_blocked) {
-            return response()->json($creditLine->state);
+            $payload = $creditLine->state;
+            $payload['status'] = 'blocked';
+            return response()->json($payload);
         }
 
         $response = $this->randomApiService->getCreditLine(
