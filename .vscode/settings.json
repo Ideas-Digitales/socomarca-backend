@@ -1,9 +1,9 @@
 {
   "phpunit.phpunit": "artisan test",
-  "phpunit.command": "docker compose exec -t workcontainer /usr/bin/bash -c \"${php} ${phpargs} ${phpunit} ${phpunitargs}\"",
+  "phpunit.command": "docker compose exec -t app sh -c \"${php} ${phpargs} ${phpunit} ${phpunitargs}\"",
   "phpunit.debuggerConfig": "Listen for XDebug",
   "phpunit.paths": {
-    "${workspaceFolder}": "/var/www/html"
+    "${workspaceFolder}": "/app"
   },
   "intelephense.environment.phpVersion": "8.4.11",
   "pgsql.serverGroups": [

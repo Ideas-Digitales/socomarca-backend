@@ -8,6 +8,7 @@ use App\Models\CartItem;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
@@ -100,6 +101,9 @@ test('it can process a credit line payment successfully', function () {
         ], 200),
     ]);
 
+    $currentCredit = $this->actingAs($user)->getJson(route('users.credit-lines', ['user' => $user->id]))->json();
+    $CRSDVU = $currentCredit['CRSDVU'];
+
     $response = $this->actingAs($user)->postJson(route('orders.pay'), [
         'address_id' => $address->id,
         'payment_method' => 'random_credit'
@@ -125,6 +129,8 @@ test('it can process a credit line payment successfully', function () {
         ])
         ->assertJsonPath('data.transaction.status', 'AUTHORIZED')
         ->assertJsonPath('data.payment.response_status', 'AUTHORIZED');
+    
+    $CRSDVU = bcadd(strval($CRSDVU), strval($response->json('data.payment.amount')));
 
     expect($response->json('data.payment.amount'))->toEqual($order->amount);
 
@@ -141,6 +147,7 @@ test('it can process a credit line payment successfully', function () {
     $creditLine = \App\Models\CreditLine::where('user_id', $user->id)->first();
     expect($creditLine)->not->toBeNull();
     expect($creditLine->isBlocked())->toBeTrue();
+    expect($creditLine->state['CRSDVU'] == $CRSDVU)->toBeTrue();
 
     // Assert Random Document morph relation
     expect($order->randomDocuments()->count())->toBe(1);

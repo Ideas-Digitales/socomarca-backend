@@ -51,8 +51,8 @@ test('it logs an error if there are more than 2 processing payments', function (
 });
 
 test('it processes trace, finds FCV, unblocks credit and completes payment', function () {
-    $user = User::factory()->create();
-    $creditLine = CreditLine::factory()->create(['user_id' => $user->id, 'is_blocked' => true]);
+    $user = User::factory()->create(['rut' => '12345678-9']);
+    $creditLine = CreditLine::factory()->create(['user_id' => $user->id, 'is_blocked' => true, 'branch_code' => 'CM']);
     $paymentMethod = PaymentMethod::firstOrCreate(['code' => 'random_credit'], ['name' => 'Random', 'active' => true]);
     $order = Order::factory()->create(['user_id' => $user->id]);
 
@@ -70,10 +70,21 @@ test('it processes trace, finds FCV, unblocks credit and completes payment', fun
     ]);
     $order->randomDocuments()->attach($nvvDoc->idmaeedo);
 
+    $expectedCreditState = [
+        'KOEN' => '12345678-9',
+        'SUEN' => 'CM',
+        'CRSD' => 2000,
+        'CRSDVU' => 100,
+        'CRSDVV' => 50,
+        'CRSDCU' => 0,
+        'CRSDCV' => 0
+    ];
+
     // Mock API
     $baseUrl = config('random.url');
     Illuminate\Support\Facades\Http::fake([
         "{$baseUrl}/login" => Illuminate\Support\Facades\Http::response(['token' => 'fake_token'], 200),
+        "{$baseUrl}/gestion/credito/resumen/*" => Illuminate\Support\Facades\Http::response($expectedCreditState, 200),
         "{$baseUrl}/documentos/traza/360" => Illuminate\Support\Facades\Http::response([
             'data' => [
                 [
@@ -89,8 +100,10 @@ test('it processes trace, finds FCV, unblocks credit and completes payment', fun
     $job = new ProcessPendingCreditPaymentJob($creditLine);
     $job->handle(app(RandomApiService::class));
 
-    expect($creditLine->refresh()->isBlocked())->toBeFalse();
+    $creditLine->refresh();
+    expect($creditLine->isBlocked())->toBeFalse();
     expect($payment->refresh()->status)->toBe('completed');
+    expect($creditLine->state)->toEqual($expectedCreditState);
 
     // El documento FCV fue guardado asociado a la orden?
     $fcvDoc = $order->randomDocuments()->where('type', 'FCV')->first();

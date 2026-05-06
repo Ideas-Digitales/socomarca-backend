@@ -190,7 +190,6 @@ class OrderController extends Controller
 
         $creditLineInfo = $creditLineResponse->json();
 
-        $creditLine->update(['state' => $creditLineInfo]);
 
         $availableCredit = (int) bcsub(
             (string) ($creditLineInfo['CRSD'] ?? 0),
@@ -282,7 +281,13 @@ class OrderController extends Controller
             $order->randomDocuments()->attach($randomDocument->idmaeedo);
         }
 
-        $creditLine->block();
+        $localCredit = $creditLineInfo; 
+        $localCredit['CRSDVU'] = bcadd($creditLineInfo['CRSDVU'], $order->amount);
+
+        $creditLine->update([
+            'state' => $localCredit,
+            'is_blocked' => true,
+        ]);
 
         $payment->load('order');
 

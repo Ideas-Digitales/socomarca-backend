@@ -9,7 +9,7 @@
       "hostname": "0.0.0.0",
       "port": 9003,
       "pathMappings": {
-        "/var/www/html": "${workspaceFolder}"
+        "/app": "${workspaceFolder}"
       }
     }
   ]
