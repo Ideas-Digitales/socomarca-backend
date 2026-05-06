@@ -63,9 +63,9 @@ class RandomMockProvider extends ServiceProvider
                     return Http::response([
                         "KOEN"   => $koen,
                         "SUEN"   => $suen,
-                        "CRSD"   => 50092358399999.99,
-                        "CRSDVU" => 5915690,
-                        "CRSDVV" => 1046672,
+                        "CRSD"   => 500000,
+                        "CRSDVU" => 0,
+                        "CRSDVV" => 0,
                         "CRSDCU" => 0,
                         "CRSDCV" => 0
                     ], 200);
