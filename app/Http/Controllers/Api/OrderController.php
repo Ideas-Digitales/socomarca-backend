@@ -281,8 +281,8 @@ class OrderController extends Controller
             $order->randomDocuments()->attach($randomDocument->idmaeedo);
         }
 
-        $localCredit = $creditLineInfo; 
-        $localCredit['CRSDVU'] = bcadd($creditLineInfo['CRSDVU'], $order->amount);
+        $localCredit = $creditLineInfo;
+        $localCredit['CRSDVU'] = floatval(bcadd($creditLineInfo['CRSDVU'], $order->amount));
 
         $creditLine->update([
             'state' => $localCredit,
