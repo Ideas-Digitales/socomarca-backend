@@ -35,7 +35,39 @@ function createTestZipWithImages(array $imageNames): string
 
 describe('Product Image Sync API', function () {
 
-    it('admin can upload ZIP for product image sync', function () {
+    it('admin can generate presigned URL for ZIP upload', function () {
+        Storage::shouldReceive('disk')
+            ->with('s3')
+            ->andReturn(
+                \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class, function ($mock) {
+                    $mock->shouldReceive('temporaryUploadUrl')->andReturn([
+                        'url' => 'https://s3-fake-url.amazonaws.com/product-sync/file.zip',
+                        'headers' => [
+                            'Host' => 's3-fake-url.amazonaws.com',
+                        ]
+                    ]);
+                })
+            );
+
+        $user = User::factory()->create();
+        $user->givePermissionTo('sync-product-images');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->post(route('products.image.presigned-upload-url'), [], [
+                'Accept' => 'application/json'
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'data' => [
+                    'presigned_upload_url',
+                    'host',
+                    'path',
+                ]
+            ]);
+    });
+
+    it('admin can initiate sync providing an existing s3 file path', function () {
         Storage::fake('s3');
         Queue::fake();
 
@@ -45,11 +77,13 @@ describe('Product Image Sync API', function () {
         $product1 = Product::factory()->create(['sku' => '8072']);
         $product2 = Product::factory()->create(['sku' => '3150']);
 
-        $zipFile = UploadedFile::fake()->create('products.zip', 5000, 'application/zip');
+        // Mock an already uploaded file on S3
+        $s3Path = 'product-sync/test-file.zip';
+        Storage::disk('s3')->put($s3Path, 'fake-zip-content');
 
         $response = $this->actingAs($user, 'sanctum')
             ->post('/api/products/images/sync', [
-                'sync_file' => $zipFile
+                'sync_file_path' => $s3Path
             ], [
                 'Accept' => 'application/json'
             ]);
@@ -57,111 +91,74 @@ describe('Product Image Sync API', function () {
         $response->assertStatus(200)
             ->assertJson(['message' => 'Sincronización iniciada.']);
 
-        $zipPath = collect(Storage::disk('s3')->files('product-sync'))
-            ->first(fn($path) => str_ends_with($path, '.zip'));
-
-        expect($zipPath)->not->toBeNull();
-        Storage::disk('s3')->assertExists($zipPath);
-
-        Queue::assertPushed(SyncProductImage::class);
+        Queue::assertPushed(SyncProductImage::class, function ($job) use ($s3Path) {
+            return $job->zipPath === $s3Path;
+        });
     });
 
-    it('superadmin can upload ZIP for product image sync', function () {
-        Storage::fake('s3');
-        Queue::fake();
+    it('user without permissions cannot generate presigned URL or initiate sync', function () {
+        /** @var Tests\TestCase $this */
 
-        $user = User::factory()->create();
-        $user->givePermissionTo('sync-product-images');
-
-        $product1 = Product::factory()->create(['sku' => '8072']);
-        $product2 = Product::factory()->create(['sku' => '3150']);
-
-        $zipFile = UploadedFile::fake()->create('products.zip', 5000, 'application/zip');
-
-        $response = $this->actingAs($user, 'sanctum')
-            ->post('/api/products/images/sync', [
-                'sync_file' => $zipFile
-            ], [
-                'Accept' => 'application/json'
-            ]);
-
-        $response->assertStatus(200)
-            ->assertJson(['message' => 'Sincronización iniciada.']);
-
-        $zipPath = collect(Storage::disk('s3')->files('product-sync'))
-            ->first(fn($path) => str_ends_with($path, '.zip'));
-
-        expect($zipPath)->not->toBeNull();
-        Storage::disk('s3')->assertExists($zipPath);
-
-        Queue::assertPushed(SyncProductImage::class);
-    });
-
-    it('user without permissions cannot upload ZIP for sync', function () {
         $user = User::factory()->create();
         $user->assignRole('customer');
 
-        $zipFile = UploadedFile::fake()->create('products.zip', 1000, 'application/zip');
+        Storage::shouldReceive('disk')
+            ->with('s3')
+            ->andReturn(
+                \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class, function ($mock) {
+                    $mock->shouldReceive('temporaryUploadUrl')->andReturn([
+                        'url' => 'https://s3-fake-url.amazonaws.com/product-sync/file.zip',
+                        'host' => 's3-fake-url.amazonaws.com',
+                    ]);
+                })
+            );
 
-        $response = $this->actingAs($user, 'sanctum')
-            ->post('/api/products/images/sync', [
-                'sync_file' => $zipFile
+        // Test presigned URL endpoint
+        $response1 = $this->actingAs($user, 'sanctum')
+            ->post(route('products.image.presigned-upload-url'), [], [
+                'Accept' => 'application/json'
+            ]);
+        $response1->assertStatus(403);
+
+        // Test sync endpoint
+        $response2 = $this->actingAs($user, 'sanctum')
+            ->post(route('products.image.sync'), [
+                'sync_file_path' => 'dummy-path.zip'
             ], [
                 'Accept' => 'application/json'
-        ]);
-        $response->assertStatus(403);
+            ]);
+        $response2->assertStatus(403);
     });
 
-    it('cannot upload file that is not a ZIP', function () {
+    it('cannot initiate sync if file does not exist on s3', function () {
+        Storage::fake('s3');
         $user = User::factory()->create();
         $user->givePermissionTo('sync-product-images');
 
-        $file = UploadedFile::fake()->create('file.txt', 1000, 'text/plain');
-
         $response = $this->actingAs($user, 'sanctum')
             ->post('/api/products/images/sync', [
-                'sync_file' => $file
+                'sync_file_path' => 'product-sync/non-existent.zip'
             ], [
                 'Accept' => 'application/json'
-        ]);
+            ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['sync_file']);
+            ->assertJsonValidationErrors(['sync_file_path']);
     });
 
-    it('cannot upload file that exceeds the configured max size', function () {
-        \App\Models\Siteinfo::updateOrCreate(
-            ['key' => 'upload_settings'],
-            ['value' => ['max_upload_size' => 1]] // 1MB
-        );
-
-        $user = User::factory()->create();
-        $user->givePermissionTo('sync-product-images');
-
-        $zipFile = UploadedFile::fake()->create('large-products.zip', 2048, 'application/zip');
-
-        $response = $this->actingAs($user, 'sanctum')
-            ->post('/api/products/images/sync', [
-                'sync_file' => $zipFile
-            ], [
-                'Accept' => 'application/json'
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['sync_file']);
-    });
-
-    it('sync_file field is required', function () {
+    it('sync_file_path field is required', function () {
         $user = User::factory()->create();
         $user->givePermissionTo('sync-product-images');
 
         $response = $this->actingAs($user, 'sanctum')
-            ->post('/api/products/images/sync', [],
+            ->post(
+                '/api/products/images/sync',
+                [],
                 ['Accept' => 'application/json']
             );
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['sync_file']);
+            ->assertJsonValidationErrors(['sync_file_path']);
     });
 
     it('the job processes the ZIP with images deriving SKU from filenames', function () {
@@ -269,102 +266,6 @@ describe('Product Image Sync API', function () {
         $tmpFiles = Storage::disk('s3')->allFiles('product-sync/tmp');
         $imageFiles = array_filter($tmpFiles, fn($f) => str_contains($f, 'SKU001.jpg'));
         expect(count($imageFiles))->toBeGreaterThan(0);
-    });
-
-    it('admin can upload ZIP respecting dynamic size configuration', function () {
-        Storage::fake('s3');
-        Queue::fake();
-
-        \App\Models\Siteinfo::updateOrCreate(
-            ['key' => 'upload_settings'],
-            ['value' => ['max_upload_size' => 10]] // 10MB
-        );
-
-        $user = User::factory()->create();
-        $user->givePermissionTo('sync-product-images');
-
-        $zipFile = UploadedFile::fake()->create('products.zip', 5120, 'application/zip');
-
-        $response = $this->actingAs($user, 'sanctum')
-            ->post('/api/products/images/sync', [
-                'sync_file' => $zipFile
-            ], [
-                'Accept' => 'application/json'
-        ]);
-
-        $response->assertStatus(200);
-        Queue::assertPushed(SyncProductImage::class);
-    });
-
-    it('processes real ZIP uploaded via API and dispatches job', function () {
-        Storage::fake('s3');
-        Bus::fake();
-
-        $user = User::factory()->create();
-        $user->givePermissionTo('sync-product-images');
-
-        Product::factory()->create(['sku' => 'PROD-001', 'image' => null]);
-        Product::factory()->create(['sku' => 'PROD-002', 'image' => null]);
-
-        // Create a real ZIP with images named after SKUs
-        $localZip = createTestZipWithImages(['PROD-001.jpg', 'PROD-002.png']);
-
-        $zipFile = new UploadedFile(
-            $localZip,
-            'productos-test.zip',
-            'application/zip',
-            null,
-            true
-        );
-
-        $response = $this->actingAs($user, 'sanctum')
-            ->post('/api/products/images/sync', [
-                'sync_file' => $zipFile
-            ], [
-                'Accept' => 'application/json'
-            ]);
-
-        $response->assertStatus(200)
-            ->assertJson(['message' => 'Sincronización iniciada.']);
-
-        // SyncProductImage is dispatched via queue
-        Queue::fake() || true; // Queue was already faked via Bus
-        $s3ZipPath = collect(Storage::disk('s3')->files('product-sync'))
-            ->first(fn($path) => str_ends_with($path, '.zip'));
-
-        expect($s3ZipPath)->not->toBeNull();
-
-        // Verify the ZIP in S3 contains images directory
-        $zipContent = Storage::disk('s3')->get($s3ZipPath);
-        $tempZipPath = tempnam(sys_get_temp_dir(), 'test_zip_');
-        file_put_contents($tempZipPath, $zipContent);
-
-        $extractPath = sys_get_temp_dir() . '/test_extract_' . uniqid();
-        mkdir($extractPath, 0755, true);
-
-        $zip = new ZipArchive();
-        $res = $zip->open($tempZipPath);
-        expect($res)->toBeTrue();
-        $zip->extractTo($extractPath);
-        $zip->close();
-
-        $imagesDir = $extractPath . '/images';
-        expect(is_dir($imagesDir))->toBeTrue();
-
-        $imageFiles = glob($imagesDir . '/*.{jpg,jpeg,png,gif,webp,bmp,svg}', GLOB_BRACE);
-        expect(count($imageFiles))->toBe(2);
-
-        // Verify SKU derivation from filenames
-        $skus = array_map(fn($f) => pathinfo(basename($f), PATHINFO_FILENAME), $imageFiles);
-        sort($skus);
-        expect($skus)->toBe(['PROD-001', 'PROD-002']);
-
-        unlink($tempZipPath);
-        exec("rm -rf " . escapeshellarg($extractPath));
-
-        if (file_exists($localZip)) {
-            unlink($localZip);
-        }
     });
 
     it('failed method deletes ZIP from S3 if job fails', function () {
