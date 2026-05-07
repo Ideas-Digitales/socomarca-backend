@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -95,6 +96,75 @@ describe('Product Image Sync API', function () {
         Storage::disk('s3')->assertExists($zipPath);
 
         Queue::assertPushed(SyncProductImage::class);
+    });
+
+    it('admin can create a temporary upload session', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo('sync-product-images');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->post('/api/products/images/sync/upload-session', [], [
+                'Accept' => 'application/json'
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure(['upload_session_id', 'expires_in_seconds']);
+
+        $session = $response->json('upload_session_id');
+
+        expect(Cache::get("product-image-sync-upload:{$session}"))->toBeTrue();
+    });
+
+    it('user without permissions cannot create a temporary upload session', function () {
+        $user = User::factory()->create();
+        $user->assignRole('customer');
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->post('/api/products/images/sync/upload-session', [], [
+                'Accept' => 'application/json'
+            ]);
+
+        $response->assertStatus(403);
+    });
+
+    it('can upload ZIP using a valid temporary upload session', function () {
+        Storage::fake('s3');
+        Queue::fake();
+
+        $session = 'test-session';
+        Cache::put("product-image-sync-upload:{$session}", true, now()->addMinutes(10));
+
+        $zipFile = UploadedFile::fake()->create('products.zip', 5000, 'application/zip');
+
+        $response = $this->post("/api/products/images/sync/upload-session/{$session}", [
+            'sync_file' => $zipFile
+        ], [
+            'Accept' => 'application/json'
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson(['message' => 'Sincronización iniciada.']);
+
+        $zipPath = collect(Storage::disk('s3')->files('product-sync'))
+            ->first(fn($path) => str_ends_with($path, '.zip'));
+
+        expect($zipPath)->not->toBeNull();
+        expect(Cache::get("product-image-sync-upload:{$session}"))->toBeNull();
+
+        Queue::assertPushed(SyncProductImage::class);
+    });
+
+    it('cannot upload ZIP with an expired temporary upload session', function () {
+        $zipFile = UploadedFile::fake()->create('products.zip', 5000, 'application/zip');
+
+        $response = $this->post('/api/products/images/sync/upload-session/expired-session', [
+            'sync_file' => $zipFile
+        ], [
+            'Accept' => 'application/json'
+        ]);
+
+        $response->assertStatus(404)
+            ->assertJson(['message' => 'Sesión de carga inválida o expirada.']);
     });
 
     it('user without permissions cannot upload ZIP for sync', function () {

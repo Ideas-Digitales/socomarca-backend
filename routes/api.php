@@ -48,6 +48,9 @@ Route::prefix('auth')->group(function () {
     });
 });
 
+Route::post('/products/images/sync/upload-session/{session}', [ProductImageSyncController::class, 'storeUploadSession'])
+    ->name('products.image.sync.upload-session.store');
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
@@ -135,6 +138,10 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
 
+
+    Route::post('/products/images/sync/upload-session', [ProductImageSyncController::class, 'createUploadSession'])
+        ->middleware(['permission:sync-product-images'])
+        ->name('products.image.sync.upload-session.create');
 
     Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
         ->middleware(['permission:sync-product-images'])
@@ -295,4 +302,3 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
 Route::any('{url}', function () {
     return response()->json(['message' => 'Method Not Allowed.'], 405);
 })->where('url', '.*');
-
