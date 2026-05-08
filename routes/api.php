@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\WebpayController;
 use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\FirebaseConfigController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ProductImagePresignedUrlController;
 use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
 use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\SettingsController;
@@ -136,6 +137,9 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middlewareFor('show', 'permission:read-all-subcategories');
 
 
+    Route::post('/products/images/presigned-upload-url', [ProductImagePresignedUrlController::class, 'store'])
+        ->middleware(['permission:sync-product-images'])
+        ->name('products.image.presigned-upload-url');
     Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
         ->middleware(['permission:sync-product-images'])
         ->name('products.image.sync');

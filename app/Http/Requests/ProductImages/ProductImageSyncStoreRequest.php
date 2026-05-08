@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\ProductImages;
 
-use App\Models\Siteinfo;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Storage;
 
 class ProductImageSyncStoreRequest extends FormRequest
 {
@@ -14,15 +14,16 @@ class ProductImageSyncStoreRequest extends FormRequest
 
     public function rules()
     {
-        $uploadSettings = Siteinfo::where('key', 'upload_settings')->first();
-        $maxUploadSize = $uploadSettings ? ($uploadSettings->value['max_upload_size'] ?? 50) : 50;
-
-        // Convertir de MB a KB para la validación de Laravel
-        $maxUploadSizeKB = $maxUploadSize * 1024;
-
         return [
-            'sync_file' => "required|file|mimes:zip|max:{$maxUploadSizeKB}",
+            'sync_file_path' => [
+                'required',
+                'string',
+                function ($attribute, $value, $fail) {
+                    if (!Storage::disk('s3')->exists($value)) {
+                        $fail('El archivo especificado no existe en el almacenamiento en la nube.');
+                    }
+                },
+            ],
         ];
     }
-
 }

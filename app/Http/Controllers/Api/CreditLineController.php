@@ -34,6 +34,7 @@ class CreditLineController extends Controller
         );
 
         $data = $response->json();
+        $data['status'] = 'unblocked';
         return response()->json($data);
     }
 }

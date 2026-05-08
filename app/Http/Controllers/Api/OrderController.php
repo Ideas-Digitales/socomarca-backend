@@ -20,6 +20,7 @@ use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\Price;
+use App\Services\Random\RandomDocumentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
@@ -27,9 +28,15 @@ class OrderController extends Controller
 {
     protected $webpayService;
 
-    public function __construct(WebpayService $webpayService)
+    /**
+     * @var RandomDocumentService
+     */
+    protected RandomDocumentService $documentService;
+
+    public function __construct(WebpayService $webpayService, RandomDocumentService $randomDocumentService)
     {
         $this->webpayService = $webpayService;
+        $this->documentService = $randomDocumentService;
     }
 
     public function index(Request $request)
@@ -224,16 +231,14 @@ class OrderController extends Controller
                 'codigoEntidad' => $user->rut,
                 'tido' => 'NVV',
                 'modalidad' => config('random.modality'),
-                'lineas' => $lines
+                'lineas' => $lines,
+                'texto1' => 'Venta con pago a crédito',
             ]
         ];
 
-        $responseObject = $randomApiService->createDocument($payload);
-        $response = $responseObject->json();
+        $documentResponse = $this->documentService->createDocument($payload, $order);
 
-        // TODO Procesar NVV
-
-        if (isset($response['errorId'])) {
+        if (isset($documentResponse['errorId'])) {
             $order->update(['status' => 'failed']);
             $payment = $order->payments()->create([
                 'payment_method_id' => $paymentMethod->id,
@@ -268,18 +273,6 @@ class OrderController extends Controller
             'token' => uniqid(),
             'paid_at' => now()
         ]);
-
-        $idmaeedo = $response['idmaeedo'] ?? null;
-        if ($idmaeedo) {
-            $randomDocument = \App\Models\RandomDocument::firstOrCreate(
-                ['idmaeedo' => $idmaeedo],
-                [
-                    'type' => 'NVV',
-                    'document' => $response
-                ]
-            );
-            $order->randomDocuments()->attach($randomDocument->idmaeedo);
-        }
 
         $localCredit = $creditLineInfo;
         $localCredit['CRSDVU'] = floatval(bcadd($creditLineInfo['CRSDVU'], $order->amount));

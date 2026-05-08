@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\CartItem;
+use App\Services\Random\RandomDocumentService;
 use App\Services\WebpayService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,9 +15,15 @@ class WebpayController extends Controller
 {
     protected $webpayService;
 
-    public function __construct(WebpayService $webpayService)
+    /**
+     * @var RandomDocumentService
+     */
+    protected RandomDocumentService $documentService;
+
+    public function __construct(WebpayService $webpayService, RandomDocumentService $randomDocumentService)
     {
         $this->webpayService = $webpayService;
+        $this->documentService = $randomDocumentService;
     }
 
     public function return(Request $request)
@@ -26,17 +33,17 @@ class WebpayController extends Controller
             try {
                 $result = $this->webpayService->getTransactionResult($request->token_ws);
                 $payment = Payment::where('token', $request->token_ws)->first();
-                
+
                 if (!$payment) {
                     Log::error('Webpay return: Pago no encontrado', ['token' => $request->token_ws]);
                     throw new \Exception('Pago no encontrado');
                 }
 
                 $order = Order::find($payment->order_id);
-                
+
                 if ($order) {
                     Log::info('Webpay return: Orden encontrada', ['order_id' => $order->id, 'status' => $result['status']]);
-                    
+
                     // Actualizar el estado de la orden según el resultado
                     $order->status = $result['status'] === 'AUTHORIZED' ? 'completed' : 'failed';
                     $order->save();
@@ -66,7 +73,33 @@ class WebpayController extends Controller
                         'paid_at' => $result['status'] === 'AUTHORIZED' ? now() : null
                     ]);
 
+                    $orderItems = \App\Models\OrderItem::where('order_id', $order->id)->get();
+                    $lines = $orderItems->map(function ($item) {
+                        return [
+                            'cantidad' => $item->quantity,
+                            'codigoProducto' => $item->product->sku
+                        ];
+                    })->toArray();
+                    $payload = [
+                        'datos' => [
+                            'empresa' => config('random.business_code'),
+                            'codigoEntidad' => $order->user->rut,
+                            'tido' => 'NVV',
+                            'modalidad' => config('random.modality'),
+                            'lineas' => $lines,
+                            'texto1' => 'Venta con pago por Webpay Plus',
+                        ]
+                    ];
 
+                    try {
+                        $this->documentService->createDocument($payload, $order);
+                    } catch (\Throwable $th) {
+                        Log::error("Error al crear documento NVV Random para pago por Webpay", [
+                            'order' => $order,
+                            'payment' => $payment,
+                            'exception' => $th,
+                        ]);
+                    }
                 } else {
                     Log::warning('Webpay return: Orden no encontrada', ['order_id' => $payment->order_id]);
                 }
@@ -146,7 +179,7 @@ class WebpayController extends Controller
             $payment->response_status = 'refunded';
             $payment->response_message = json_encode($result);
             $payment->save();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $result
