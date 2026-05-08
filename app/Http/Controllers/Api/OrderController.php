@@ -231,7 +231,8 @@ class OrderController extends Controller
                 'codigoEntidad' => $user->rut,
                 'tido' => 'NVV',
                 'modalidad' => config('random.modality'),
-                'lineas' => $lines
+                'lineas' => $lines,
+                'texto1' => 'Venta con pago a crédito',
             ]
         ];
 

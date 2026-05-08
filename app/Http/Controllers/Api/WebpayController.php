@@ -86,7 +86,8 @@ class WebpayController extends Controller
                             'codigoEntidad' => $order->user->rut,
                             'tido' => 'NVV',
                             'modalidad' => config('random.modality'),
-                            'lineas' => $lines
+                            'lineas' => $lines,
+                            'texto1' => 'Venta con pago por Webpay Plus',
                         ]
                     ];
 
