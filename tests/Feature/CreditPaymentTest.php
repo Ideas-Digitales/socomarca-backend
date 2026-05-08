@@ -149,6 +149,22 @@ test('it can process a credit line payment successfully', function () {
     expect($creditLine->isBlocked())->toBeTrue();
     expect($creditLine->state['CRSDVU'] == $CRSDVU)->toBeTrue();
 
+    // Verify HTTP Call was sent with correct payload to Random API (to create Document)
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($baseUrl, $user, $product) {
+        if (!str_starts_with($request->url(), "{$baseUrl}/web32/documento")) {
+            return false;
+        }
+
+        $payload = $request->data();
+        
+        return isset($payload['datos'])
+            && $payload['datos']['codigoEntidad'] === $user->rut
+            && $payload['datos']['tido'] === 'NVV'
+            && count($payload['datos']['lineas']) === 1
+            && $payload['datos']['lineas'][0]['codigoProducto'] === $product->sku
+            && $payload['datos']['lineas'][0]['cantidad'] === 1;
+    });
+
     // Assert Random Document morph relation
     expect($order->randomDocuments()->count())->toBe(1);
     expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
