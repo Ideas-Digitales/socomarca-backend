@@ -60,7 +60,7 @@
     {
       "label": "Docker: Run laravel command",
       "type": "shell",
-      "command": "docker compose run --rm -it workcontainer php artisan ${input:laravelCommand}",
+      "command": "docker compose run --rm -it app php artisan ${input:laravelCommand}",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -88,7 +88,7 @@
     {
       "label": "Docker: Run migrations testing",
       "type": "shell",
-      "command": "docker compose exec workcontainer php artisan migrate --env=testing",
+      "command": "docker compose exec app php artisan migrate --env=testing",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -104,14 +104,14 @@
     {
       "id": "laravelCommand",
       "type": "promptString",
-      "description": "Command to execute inside the workcontainer (e.g. php artisan test)",
+      "description": "Command to execute inside the app container (e.g. php artisan test)",
       "default": ""
     },
     {
       "id": "service",
       "type": "promptString",
-      "description": "Service to run the command in (e.g. workcontainer)",
-      "default": "workcontainer"
+      "description": "Service to run the command in (e.g. app)",
+      "default": "app"
     }
   ]
 }
