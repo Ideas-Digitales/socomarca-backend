@@ -176,7 +176,7 @@ class RandomApiService
         if (!empty($pfpr)) $params['pfpr'] = $pfpr;
         if (!empty($hfpr)) $params['hfpr'] = $hfpr;
 
-        return $this->makeRequest('get', '/productos', $params);
+        return $this->makeRequest('get', '/productos?tipr=FPN', $params);
     }
 
     public function getCategories()
