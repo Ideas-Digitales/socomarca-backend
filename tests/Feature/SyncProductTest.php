@@ -268,11 +268,12 @@ describe('Product Sync Basic', function () {
     });
 
     test('el servicio RandomApiService obtiene token correctamente', function () {
+        $baseUrl = config('random.url');
         Http::fake([
-            'http://seguimiento.random.cl:3003/login' => Http::response([
+            $baseUrl . '/login' => Http::response([
                 'token' => 'fake-jwt-token'
             ], 200),
-            'http://seguimiento.random.cl:3003/productos*' => Http::response([
+            $baseUrl . '/productos*' => Http::response([
                 'data' => []
             ], 200)
         ]);
@@ -283,19 +284,20 @@ describe('Product Sync Basic', function () {
         expect($result)->toBeArray();
         expect($result)->toHaveKey('data');
 
-        Http::assertSent(function ($request) {
-            return $request->url() === 'http://seguimiento.random.cl:3003/login' &&
+        Http::assertSent(function ($request) use ($baseUrl) {
+            return $request->url() === $baseUrl . '/login' &&
                    $request['username'] === 'demo@random.cl' &&
                    $request['password'] === 'd3m0r4nd0m3RP';
         });
     });
 
     test('el servicio maneja tokens expirados correctamente', function () {
+        $baseUrl = config('random.url');
         Http::fake([
-            'http://seguimiento.random.cl:3003/login' => Http::response([
+            $baseUrl . '/login' => Http::response([
                 'token' => 'fake-jwt-token'
             ], 200),
-            'http://seguimiento.random.cl:3003/productos*' => Http::sequence()
+            $baseUrl . '/productos*' => Http::sequence()
                 ->push(['message' => 'jwt expired'], 401)
                 ->push(['data' => []], 200)
         ]);
@@ -401,6 +403,50 @@ describe('Product Sync Basic', function () {
         expect($product->category_id)->toBeNull();
         expect($product->subcategory_id)->toBeNull();
         expect($product->name)->toBe('Producto Sin Categoría');
+    });
+
+    test('los productos que ya no vienen en la API se desactivan', function () {
+        // 1. Crear dos productos iniciales activos
+        Product::create([
+            'random_product_id' => 'PROD_STAY',
+            'sku' => 'PROD_STAY',
+            'name' => 'Producto que sigue en API',
+            'status' => true
+        ]);
+
+        Product::create([
+            'random_product_id' => 'PROD_GONE',
+            'sku' => 'PROD_GONE',
+            'name' => 'Producto que desaparece',
+            'status' => true
+        ]);
+
+        // 2. Simular que la API SOLO devuelve el primero
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $apiResponse = [
+            'data' => [
+                [
+                    'KOPR' => 'PROD_STAY',
+                    'NOKOPR' => 'Producto que sigue en API',
+                    'FMPR' => '',
+                    'PFPR' => ''
+                ]
+            ]
+        ];
+
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn($apiResponse);
+
+        Log::shouldReceive('info')->twice();
+
+        // 3. Ejecutar el Job
+        $job = new SyncRandomProducts();
+        $job->handle($mockApiService);
+
+        // 4. Verificar resultados
+        expect(Product::where('random_product_id', 'PROD_STAY')->first()->status)->toBe(true);
+        expect(Product::where('random_product_id', 'PROD_GONE')->first()->status)->toBe(false);
     });
 
 });
