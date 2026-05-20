@@ -37,6 +37,7 @@ class SyncRandomProducts implements ShouldQueue
         Log::info('SyncRandomProducts started');
         try {
             $products = $randomApi->getProducts($this->tipr);
+            $syncedProductIds = [];
 
             foreach ($products['data'] as $product) {
 
@@ -50,7 +51,7 @@ class SyncRandomProducts implements ShouldQueue
                 if(!empty($product['MRPR'])){
                     $brand = Brand::where('random_erp_code', $product['MRPR'])->first();
                 }
-    
+
                 $data = [
                     'random_product_id' => $product['KOPR'],
                     'sku' => $product['KOPR'],
@@ -61,13 +62,20 @@ class SyncRandomProducts implements ShouldQueue
                     'subcategory_id' => $subcategory ? $subcategory->id : null,
                     'status' => true,
                 ];
-                
+
                 //Update or create product
                 Product::updateOrCreate(
                     ['random_product_id' => $product['KOPR']], $data
                 );
+
+                $syncedProductIds[] = $product['KOPR'];
             }
-            
+
+            // Deactivate products that are no longer in the API
+            Product::whereNotIn('random_product_id', $syncedProductIds)
+                ->where('status', true)
+                ->update(['status' => false]);
+
             Log::info('SyncRandomProducts finished');
         } catch (\Exception $e) {
             Log::error('Error sincronizando productos: ' . $e->getMessage());
