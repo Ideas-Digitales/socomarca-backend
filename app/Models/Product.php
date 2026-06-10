@@ -111,7 +111,7 @@ class Product extends Model
      */
     public function scopeFilter($query, array $filters)
     {
-        // Filtro de Precio 
+        // Filtro de Precio
         if (isset($filters['price'])) {
             $priceFilter = $filters['price'];
             $query->whereHas('prices', function ($q) use ($priceFilter) {
@@ -127,6 +127,14 @@ class Product extends Model
                 if (isset($priceFilter['unit'])) {
                     $q->where('unit', $priceFilter['unit']);
                 }
+            });
+        }
+
+        // Filtro para ocultar/mostrar productos con precio 0
+        if (!config('random.show_product_zero_price')) {
+            $query->whereHas('prices', function ($q) {
+                $q->where('price', '>', 0)
+                  ->where('is_active', true);
             });
         }
 

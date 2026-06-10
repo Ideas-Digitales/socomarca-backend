@@ -22,4 +22,6 @@ return [
         'enabled' => env('RANDOM_CREDIT_SYNC_ENABLED', true),
         'frequency_minutes' => env('RANDOM_CREDIT_SYNC_FREQUENCY_MINUTES', 5),
     ],
+    'warehouse_code' => env('RANDON_ERP_WAREHOUSE_CODE', 'BEC'),
+    'show_product_zero_price' => env('SHOW_PRODUCT_ZERO_PRICE', false),
 ];

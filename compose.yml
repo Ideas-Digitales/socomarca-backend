@@ -36,7 +36,7 @@ services:
         max-file: "3"
     shm_size: 128mb
     volumes:
-      - socomarca_data:/var/lib/postgresql/data
+      - socomarca_data:/var/lib/postgresql
       - type: tmpfs
         target: /dev/shm
         tmpfs:

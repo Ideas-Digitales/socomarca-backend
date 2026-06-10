@@ -27,7 +27,11 @@ docker compose exec app php artisan key:generate
 
 Run migrations and seeders
 ```bash
-docker compose exec app php artisan migrate:fresh --seed
+## Migrate and seed the database
+docker compose exec app php artisan db:wipe && docker compose exec app php artisan migrate --seed
+
+## Seed Users
+docker compose exec app php artisan db:seed --class=UserSeeder
 ```
 
 ## Development Commands
