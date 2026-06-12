@@ -6,6 +6,7 @@ use App\Exports\CategoriesExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Categories\ShowRequest;
 use App\Http\Resources\Categories\CategoryCollection;
+use App\Http\Resources\Categories\CategoryHierarchyResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -14,15 +15,16 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = $request->input('per_page', 20);
         $sort = $request->input('sort');
         $sortDirection = $request->input('sort_direction', 'asc');
 
-        $categories = Category::withCount(['subcategories', 'products'])
+        $categories = Category::where('level', 1)
             ->filter([], $sort, $sortDirection)
-            ->paginate($perPage);
+            ->get();
 
-        return new CategoryCollection($categories);
+        return response()->json(
+            CategoryHierarchyResource::collection($categories)
+        );
     }
 
     public function show($id)
