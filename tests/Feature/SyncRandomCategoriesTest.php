@@ -109,7 +109,7 @@ test('disables level 1 categories that no longer exist in service', function () 
             ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
             ['CODIGO' => '0002', 'NOMBRE' => 'CAT2', 'NIVEL' => 1, 'LLAVE' => '0002'],
         ]
-    ]);
+    ])->once();
     App::instance(RandomApiService::class, $mock);
 
     Log::shouldReceive('info')->twice();
@@ -119,11 +119,13 @@ test('disables level 1 categories that no longer exist in service', function () 
 
     expect(Category::where('level', 1)->where('enabled', true)->count())->toBe(2);
 
-    $mock->shouldReceive('getCategories')->andReturn([
+    $mock2 = Mockery::mock(RandomApiService::class);
+    $mock2->shouldReceive('getCategories')->andReturn([
         'data' => [
             ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
         ]
-    ]);
+    ])->once();
+    App::instance(RandomApiService::class, $mock2);
 
     Log::shouldReceive('info')->twice();
     Log::shouldReceive('error')->zeroOrMoreTimes();
@@ -142,7 +144,7 @@ test('disables subcategories that no longer exist in service', function () {
             ['CODIGO' => '0001', 'NOMBRE' => 'SUB1', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
             ['CODIGO' => '0002', 'NOMBRE' => 'SUB2', 'NIVEL' => 2, 'LLAVE' => '0001/0002'],
         ]
-    ]);
+    ])->once();
     App::instance(RandomApiService::class, $mock);
 
     Log::shouldReceive('info')->twice();
@@ -152,12 +154,14 @@ test('disables subcategories that no longer exist in service', function () {
 
     expect(Subcategory::where('enabled', true)->count())->toBe(2);
 
-    $mock->shouldReceive('getCategories')->andReturn([
+    $mock2 = Mockery::mock(RandomApiService::class);
+    $mock2->shouldReceive('getCategories')->andReturn([
         'data' => [
             ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
             ['CODIGO' => '0001', 'NOMBRE' => 'SUB1', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
         ]
-    ]);
+    ])->once();
+    App::instance(RandomApiService::class, $mock2);
 
     Log::shouldReceive('info')->twice();
     Log::shouldReceive('error')->zeroOrMoreTimes();
