@@ -165,6 +165,19 @@ docker compose exec app php artisan test tests/Feature/SyncProductMonitoringTest
 ### Utility Commands
 - **`app:test-email-sending {email-address}`**: Tests email functionality by sending a test email
 
+### User Management Commands
+- **`user:create`**: Interactively creates a new user with role assignment
+  - Prompts for: name, email, password, phone, RUT, business name, and role
+  - Available roles are extracted from `config/authorization/roles.php`
+  - Password is hashed using `Hash::make()` and displayed in plain text in console
+  - Phone defaults to empty string
+  - Business name defaults to the user's name
+  - User is created with `is_active = true`
+
+  ```bash
+  docker compose exec -it app php artisan user:create
+  ```
+
 ## Background Jobs (Queue System)
 
 ### ERP Synchronization Jobs
