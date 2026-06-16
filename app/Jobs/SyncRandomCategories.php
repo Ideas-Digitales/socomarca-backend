@@ -22,34 +22,35 @@ class SyncRandomCategories implements ShouldQueue
         try {
             $categories = $randomApi->getCategories();
 
-            foreach ($categories['data'] as $category) {
-                if($category['NIVEL'] == 1){
-                    Category::updateOrCreate(
-                        ['code' => $category['CODIGO']],
-                        [
-                            'name' => $category['NOMBRE'],
-                            'level' => $category['NIVEL'],
-                            'key' => $category['LLAVE']
-                        ]
-                    );
-                }
-                if($category['NIVEL'] == 2){
-                    $parent = explode("/", $category['LLAVE']);
-                    $parentCategory = Category::where('code', $parent[0])->first();
-                    Subcategory::updateOrCreate(
-                        ['key' => $category['LLAVE']],
-                        [
-                            'code' => $category['CODIGO'],
-                            'name' => $category['NOMBRE'],
-                            'level' => $category['NIVEL'],
-                            'category_id' => $parentCategory->id
-                        ]
-                    );
-                }
+            $nivel1 = [];
+            $nivel2 = [];
+            $nivel3 = [];
 
-                if($category['NIVEL'] == 3){
-                    $parent = explode("/", $category['LLAVE']);
-                    $parentCategory = Category::where('code', $parent[0])->first();
+            foreach ($categories['data'] as $category) {
+                if ($category['NIVEL'] == 1) {
+                    $nivel1[] = $category;
+                } elseif ($category['NIVEL'] == 2) {
+                    $nivel2[] = $category;
+                } elseif ($category['NIVEL'] == 3) {
+                    $nivel3[] = $category;
+                }
+            }
+
+            foreach ($nivel1 as $category) {
+                Category::updateOrCreate(
+                    ['code' => $category['CODIGO'], 'level' => 1],
+                    [
+                        'name' => $category['NOMBRE'],
+                        'key' => $category['LLAVE']
+                    ]
+                );
+            }
+
+            foreach ($nivel2 as $category) {
+                $parts = explode("/", $category['LLAVE']);
+                $parentCategory = Category::where('code', $parts[0])->where('level', 1)->first();
+
+                if ($parentCategory) {
                     Subcategory::updateOrCreate(
                         ['key' => $category['LLAVE']],
                         [
@@ -61,11 +62,29 @@ class SyncRandomCategories implements ShouldQueue
                     );
                 }
             }
-            
+
+            foreach ($nivel3 as $category) {
+                $parts = explode("/", $category['LLAVE']);
+                $parentKey = $parts[0] . '/' . $parts[1];
+                $parentSubcategory = Subcategory::where('key', $parentKey)->first();
+
+                if ($parentSubcategory) {
+                    Subcategory::updateOrCreate(
+                        ['key' => $category['LLAVE']],
+                        [
+                            'code' => $category['CODIGO'],
+                            'name' => $category['NOMBRE'],
+                            'level' => $category['NIVEL'],
+                            'category_id' => $parentSubcategory->category_id
+                        ]
+                    );
+                }
+            }
+
             Log::info('SyncRandomCategories finished');
         } catch (\Exception $e) {
             Log::error('Error sincronizando categorías: ' . $e->getMessage());
             throw $e;
         }
     }
-} 
+}

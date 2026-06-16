@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Category;
+use App\Models\Subcategory;
 use App\Services\RandomApiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
@@ -8,11 +10,8 @@ use Illuminate\Support\Facades\Log;
 uses(RefreshDatabase::class);
 
 test('command executes job immediately', function () {
-    // Mock del servicio
     $mock = Mockery::mock(RandomApiService::class);
-    $mock->shouldReceive('getCategories')->andReturn([
-        'data' => []
-    ]);
+    $mock->shouldReceive('getCategories')->andReturn(['data' => []]);
     App::instance(RandomApiService::class, $mock);
 
     Log::shouldReceive('info')
@@ -29,33 +28,19 @@ test('command executes job immediately', function () {
         ->assertExitCode(0);
 });
 
-test('command executes job and creates categories', function () {
-    // Mock del servicio con datos de categorías
+test('command creates 3-level category hierarchy', function () {
     $mock = Mockery::mock(RandomApiService::class);
     $mock->shouldReceive('getCategories')->andReturn([
         'data' => [
-            [
-                'CODIGO' => 'ACTF',
-                'NOMBRE' => 'ACTUADORES FLUIDICOS',
-                'NIVEL' => 1,
-                'LLAVE' => 'ACTF'
-            ],
-            [
-                'CODIGO' => 'ASES',
-                'NOMBRE' => 'ASIENTO ESCOTICO',
-                'NIVEL' => 2,
-                'LLAVE' => 'ACTF/ASES'
-            ]
+            ['CODIGO' => '0001', 'NOMBRE' => 'CONGELADOS', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'CARNES', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'PESCADOS', 'NIVEL' => 3, 'LLAVE' => '0001/0001/0001'],
+            ['CODIGO' => '0002', 'NOMBRE' => 'FRUTAS', 'NIVEL' => 3, 'LLAVE' => '0001/0001/0002'],
         ]
     ]);
     App::instance(RandomApiService::class, $mock);
 
-    Log::shouldReceive('info')
-        ->with('SyncRandomCategories started')
-        ->once();
-    Log::shouldReceive('info')
-        ->with('SyncRandomCategories finished')
-        ->once();
+    Log::shouldReceive('info')->twice();
     Log::shouldReceive('error')->zeroOrMoreTimes();
 
     $this->artisan('random:sync-categories')
@@ -63,13 +48,56 @@ test('command executes job and creates categories', function () {
         ->expectsOutput('Proceso de sincronización encolado correctamente.')
         ->assertExitCode(0);
 
-    // Verificar que se crearon las categorías y subcategorías
-    $this->assertDatabaseHas('categories', [
-        'code' => 'ACTF',
-        'name' => 'ACTUADORES FLUIDICOS'
+    $this->assertDatabaseHas('categories', ['code' => '0001', 'level' => 1]);
+    $this->assertDatabaseHas('subcategories', ['code' => '0001', 'level' => 2, 'key' => '0001/0001']);
+    $this->assertDatabaseHas('subcategories', ['code' => '0001', 'level' => 3, 'key' => '0001/0001/0001']);
+    $this->assertDatabaseHas('subcategories', ['code' => '0002', 'level' => 3, 'key' => '0001/0001/0002']);
+});
+
+test('command correctly links level 3 to parent level 1 category', function () {
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CONGELADOS', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'CARNES', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'ROJO', 'NIVEL' => 3, 'LLAVE' => '0001/0001/0001'],
+        ]
     ]);
-    $this->assertDatabaseHas('subcategories', [
-        'code' => 'ASES',
-        'name' => 'ASIENTO ESCOTICO'
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    $category = Category::where('code', '0001')->where('level', 1)->first();
+    $level3 = Subcategory::where('level', 3)->where('key', '0001/0001/0001')->first();
+
+    expect($level3->category_id)->toBe($category->id);
+});
+
+test('command handles multiple categories at each level', function () {
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0002', 'NOMBRE' => 'CAT2', 'NIVEL' => 1, 'LLAVE' => '0002'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'SUB1', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
+            ['CODIGO' => '0002', 'NOMBRE' => 'SUB2', 'NIVEL' => 2, 'LLAVE' => '0001/0002'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'SUB3', 'NIVEL' => 2, 'LLAVE' => '0002/0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'CHILD1', 'NIVEL' => 3, 'LLAVE' => '0001/0001/0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'CHILD2', 'NIVEL' => 3, 'LLAVE' => '0001/0002/0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'CHILD3', 'NIVEL' => 3, 'LLAVE' => '0002/0001/0001'],
+        ]
     ]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    expect(Category::where('level', 1)->count())->toBe(2);
+    expect(Subcategory::where('level', 2)->count())->toBe(3);
+    expect(Subcategory::where('level', 3)->count())->toBe(3);
 });
