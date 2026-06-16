@@ -157,9 +157,8 @@ class SiteinfoController extends Controller
                 "content" => ""
             ],
             "banner" => [
-                "desktop_image" => "",
-                "mobile_image" => "",
-                "enabled" => false
+                "enabled" => false,
+                "slides" => []
             ],
             "modal" => [
                 "image" => "",
@@ -182,6 +181,15 @@ class SiteinfoController extends Controller
             'banner_desktop_image' => 'nullable|image',
             'banner_mobile_image' => 'nullable|image',
             'banner_enabled' => 'required|boolean',
+            'banner_slides' => 'nullable|array',
+            'banner_slides.*.id' => 'nullable|string',
+            'banner_slides.*.desktop_image' => 'nullable|image',
+            'banner_slides.*.mobile_image' => 'nullable|image',
+            'banner_slides.*.existing_desktop_image' => 'nullable|string',
+            'banner_slides.*.existing_mobile_image' => 'nullable|string',
+            'banner_slides.*.alt' => 'nullable|string',
+            'banner_slides.*.order' => 'nullable|integer',
+            'banner_slides.*.enabled' => 'nullable|boolean',
             'modal_image' => 'nullable|image',
             'modal_enabled' => 'required|boolean',
             'message_enabled' => 'required|boolean',
@@ -190,11 +198,7 @@ class SiteinfoController extends Controller
         $customerMessage = Siteinfo::where('key', 'customer_message')->first();
         $oldValue = $customerMessage ? $customerMessage->value : [];
 
-        $bannerDesktopImage = $this->saveImage($request, 'banner_desktop_image', 'customer-message/banner-desktop')
-            ?? ($oldValue['banner']['desktop_image'] ?? '');
-
-        $bannerMobileImage = $this->saveImage($request, 'banner_mobile_image', 'customer-message/banner-mobile')
-            ?? ($oldValue['banner']['mobile_image'] ?? '');
+        $bannerSlides = $this->buildBannerSlides($request, $oldValue['banner']['slides'] ?? []);
 
         $modalImage = $this->saveImage($request, 'modal_image', 'customer-message/modal')
             ?? ($oldValue['modal']['image'] ?? '');
@@ -205,9 +209,8 @@ class SiteinfoController extends Controller
                 'content' => $data['header_content'] ?? '',
             ],
             'banner' => [
-                'desktop_image' => $bannerDesktopImage,
-                'mobile_image' => $bannerMobileImage,
                 'enabled' => (bool)$data['banner_enabled'],
+                'slides' => $bannerSlides,
             ],
             'modal' => [
                 'image' => $modalImage,
@@ -229,6 +232,55 @@ class SiteinfoController extends Controller
         );
 
         return response()->json(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
+    }
+
+    private function buildBannerSlides(Request $request, array $oldSlides): array
+    {
+        if (!$request->has('banner_slides')) {
+            $desktopImage = $this->saveImage($request, 'banner_desktop_image', 'customer-message/banner-desktop')
+                ?? ($oldSlides[0]['desktop_image'] ?? '');
+
+            $mobileImage = $this->saveImage($request, 'banner_mobile_image', 'customer-message/banner-mobile')
+                ?? ($oldSlides[0]['mobile_image'] ?? '');
+
+            if (!$desktopImage && !$mobileImage) {
+                return [];
+            }
+
+            return [[
+                'id' => $oldSlides[0]['id'] ?? uniqid('banner_', true),
+                'desktop_image' => $desktopImage,
+                'mobile_image' => $mobileImage,
+                'alt' => $oldSlides[0]['alt'] ?? 'Banner principal',
+                'order' => 1,
+                'enabled' => true,
+            ]];
+        }
+
+        $slides = [];
+
+        foreach ($request->input('banner_slides', []) as $index => $slide) {
+            $desktopImage = $this->saveImage($request, "banner_slides.$index.desktop_image", 'customer-message/banner-desktop')
+                ?? ($slide['existing_desktop_image'] ?? '');
+
+            $mobileImage = $this->saveImage($request, "banner_slides.$index.mobile_image", 'customer-message/banner-mobile')
+                ?? ($slide['existing_mobile_image'] ?? '');
+
+            if (!$desktopImage && !$mobileImage) {
+                continue;
+            }
+
+            $slides[] = [
+                'id' => $slide['id'] ?? uniqid('banner_', true),
+                'desktop_image' => $desktopImage,
+                'mobile_image' => $mobileImage,
+                'alt' => $slide['alt'] ?? 'Banner principal',
+                'order' => (int)($slide['order'] ?? $index + 1),
+                'enabled' => array_key_exists('enabled', $slide) ? (bool)$slide['enabled'] : true,
+            ];
+        }
+
+        return collect($slides)->sortBy('order')->values()->all();
     }
 
     private function saveImage(Request $request, string $requestFileName, string $s3path)

@@ -6,6 +6,7 @@ use App\Models\Siteinfo;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -166,9 +167,37 @@ describe('Customer Message API', function () {
                 ->assertOk()
                 ->assertJsonStructure([
                     'header' => ['color', 'content'],
-                    'banner' => ['desktop_image', 'mobile_image', 'enabled'],
+                    'banner' => ['enabled', 'slides'],
                     'modal' => ['image', 'enabled']
                 ]);
+        });
+
+        it('migrates legacy banner structure to slides', function () {
+            Siteinfo::create([
+                'key' => 'customer_message',
+                'value' => [
+                    'header' => ['color' => '#fff', 'content' => 'Hola'],
+                    'banner' => [
+                        'desktop_image' => 'https://example.test/desktop.jpg',
+                        'mobile_image' => 'https://example.test/mobile.jpg',
+                        'enabled' => true,
+                    ],
+                    'modal' => ['image' => '', 'enabled' => false],
+                ],
+            ]);
+
+            Artisan::call('migrate', [
+                '--path' => 'database/migrations/2026_06_16_210000_migrate_customer_message_banner_to_slides.php',
+                '--realpath' => false,
+                '--force' => true,
+            ]);
+
+            $record = Siteinfo::where('key', 'customer_message')->first();
+
+            expect($record->value['banner']['enabled'])->toBeTrue();
+            expect($record->value['banner']['slides'][0]['desktop_image'])->toBe('https://example.test/desktop.jpg');
+            expect($record->value['banner']['slides'][0]['mobile_image'])->toBe('https://example.test/mobile.jpg');
+            expect($record->value['banner']['slides'][0]['enabled'])->toBeTrue();
         });
     });
 
@@ -230,9 +259,52 @@ describe('Customer Message API', function () {
             expect($record->value['modal']['enabled'])->toBeBool();
             expect($record->value['message']['enabled'])->toBeBool();
             
-            expect($record->value['banner']['desktop_image'])->toStartWith('http');
-            expect($record->value['banner']['mobile_image'])->toStartWith('http');
+            expect($record->value['banner']['slides'][0]['desktop_image'])->toStartWith('http');
+            expect($record->value['banner']['slides'][0]['mobile_image'])->toStartWith('http');
             expect($record->value['modal']['image'])->toStartWith('http');
+        });
+
+        it('stores multiple banner slides and preserves existing images', function () {
+            $user = User::factory()->create();
+            $user->givePermissionTo('update-content-settings');
+
+            $payload = [
+                'header_color' => '#fff',
+                'header_content' => '<h1>Hola</h1>',
+                'banner_enabled' => true,
+                'modal_enabled' => false,
+                'message_enabled' => true,
+                'banner_slides' => [
+                    [
+                        'id' => 'slide-a',
+                        'existing_desktop_image' => 'https://example.test/a-desktop.jpg',
+                        'existing_mobile_image' => 'https://example.test/a-mobile.jpg',
+                        'alt' => 'Slide A',
+                        'order' => 2,
+                        'enabled' => true,
+                    ],
+                    [
+                        'id' => 'slide-b',
+                        'existing_desktop_image' => 'https://example.test/b-desktop.jpg',
+                        'existing_mobile_image' => 'https://example.test/b-mobile.jpg',
+                        'alt' => 'Slide B',
+                        'order' => 1,
+                        'enabled' => false,
+                    ],
+                ],
+            ];
+
+            $this->actingAs($user, 'sanctum')
+                ->putJson(route('siteinfo.customer-message.update'), $payload)
+                ->assertOk();
+
+            $record = Siteinfo::where('key', 'customer_message')->first();
+
+            expect($record->value['banner']['slides'])->toHaveCount(2);
+            expect($record->value['banner']['slides'][0]['id'])->toBe('slide-b');
+            expect($record->value['banner']['slides'][0]['desktop_image'])->toBe('https://example.test/b-desktop.jpg');
+            expect($record->value['banner']['slides'][1]['id'])->toBe('slide-a');
+            expect($record->value['banner']['slides'][1]['enabled'])->toBeTrue();
         });
 
         it('allows superadmin to update customer message without images', function () {
@@ -261,8 +333,7 @@ describe('Customer Message API', function () {
             expect($record->value['message']['enabled'])->toBeBool();
 
             // Verifica que las imágenes sean string vacíos (no concatenados)
-            expect($record->value['banner']['desktop_image'])->toBe('');
-            expect($record->value['banner']['mobile_image'])->toBe('');
+            expect($record->value['banner']['slides'])->toBe([]);
             expect($record->value['modal']['image'])->toBe('');
         });
     });
