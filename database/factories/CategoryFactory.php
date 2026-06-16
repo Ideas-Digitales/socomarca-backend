@@ -25,6 +25,7 @@ class CategoryFactory extends Factory
             'code' => fake()->regexify('[A-Z]{10}'),
             'level' => fake()->numberBetween(1, 10),
             'key' => fake()->regexify('[A-Z]{4}'),
+            'enabled' => true
         ];
     }
 }

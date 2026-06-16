@@ -32,6 +32,10 @@ class Category extends Model
             'field' => 'level',
             'operators' => ['=', '!=', '>', '<', '>=', '<='],
         ],
+        [
+            'field' => 'enabled',
+            'operators' => ['=', '!='],
+        ],
     ];
 
     /**

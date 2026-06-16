@@ -19,7 +19,13 @@ class CategoryController extends Controller
         $sortDirection = $request->input('sort_direction', 'asc');
 
         $categories = Category::where('level', 1)
-            ->filter([], $sort, $sortDirection)
+            ->filter([
+                [
+                    'field' => 'enabled',
+                    'operator' => '=',
+                    'value' => 'true',
+                ]
+            ], $sort, $sortDirection)
             ->get();
 
         return response()->json(
@@ -55,6 +61,13 @@ class CategoryController extends Controller
     {
         $perPage = $request->input('per_page', 20);
         $filters = $request->input('filters', []);
+        $filters = array_merge($filters,[
+                [
+                    'field' => 'enabled',
+                    'operator' => '=',
+                    'value' => 'true',
+                ]
+        ] );
         $sort = $request->input('sort');
         $sortDirection = $request->input('sort_direction', 'asc');
 
