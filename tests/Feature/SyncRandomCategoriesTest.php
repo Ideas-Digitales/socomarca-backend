@@ -101,3 +101,90 @@ test('command handles multiple categories at each level', function () {
     expect(Subcategory::where('level', 2)->count())->toBe(3);
     expect(Subcategory::where('level', 3)->count())->toBe(3);
 });
+
+test('disables level 1 categories that no longer exist in service', function () {
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0002', 'NOMBRE' => 'CAT2', 'NIVEL' => 1, 'LLAVE' => '0002'],
+        ]
+    ]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    expect(Category::where('level', 1)->where('enabled', true)->count())->toBe(2);
+
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
+        ]
+    ]);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    expect(Category::where('level', 1)->where('enabled', true)->count())->toBe(1);
+    expect(Category::where('code', '0002')->where('level', 1)->first()->enabled)->toBeFalse();
+});
+
+test('disables subcategories that no longer exist in service', function () {
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'SUB1', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
+            ['CODIGO' => '0002', 'NOMBRE' => 'SUB2', 'NIVEL' => 2, 'LLAVE' => '0001/0002'],
+        ]
+    ]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    expect(Subcategory::where('enabled', true)->count())->toBe(2);
+
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'SUB1', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
+        ]
+    ]);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    expect(Subcategory::where('enabled', true)->count())->toBe(1);
+    expect(Subcategory::where('key', '0001/0002')->first()->enabled)->toBeFalse();
+});
+
+test('marks all synced categories and subcategories as enabled', function () {
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getCategories')->andReturn([
+        'data' => [
+            ['CODIGO' => '0001', 'NOMBRE' => 'CAT1', 'NIVEL' => 1, 'LLAVE' => '0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'SUB1', 'NIVEL' => 2, 'LLAVE' => '0001/0001'],
+            ['CODIGO' => '0001', 'NOMBRE' => 'CHILD1', 'NIVEL' => 3, 'LLAVE' => '0001/0001/0001'],
+        ]
+    ]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->twice();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $this->artisan('random:sync-categories')->assertExitCode(0);
+
+    expect(Category::where('code', '0001')->where('level', 1)->first()->enabled)->toBeTrue();
+    expect(Subcategory::where('key', '0001/0001')->first()->enabled)->toBeTrue();
+    expect(Subcategory::where('key', '0001/0001/0001')->first()->enabled)->toBeTrue();
+});
