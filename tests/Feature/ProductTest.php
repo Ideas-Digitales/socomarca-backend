@@ -394,4 +394,88 @@ describe('Product search endpoint', function () {
         expect($response->json('extra.categories'))->toBe([]);
         expect($response->json('extra.subcategories'))->toBe([]);
     });
+
+    it('should hide products with zero price by default', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con precio 0
+        $productZeroPrice = Product::factory()
+            ->has(Price::factory(['price' => 0, 'is_active' => true]))
+            ->create(['name' => 'Free Product']);
+
+        // Crear producto con precio mayor a 0
+        $productNormalPrice = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Normal Product']);
+
+        // Por defecto, SHOW_PRODUCT_ZERO_PRICE es false, así que debe ocultarse
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($productNormalPrice->id);
+        expect($response->json('data.0.name'))->toBe('Normal Product');
+    });
+
+    it('should show products with zero price when config is enabled', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con precio 0
+        $productZeroPrice = Product::factory()
+            ->has(Price::factory(['price' => 0, 'is_active' => true]))
+            ->create(['name' => 'Free Product']);
+
+        // Crear producto con precio mayor a 0
+        $productNormalPrice = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Normal Product']);
+
+        // Habilitar la configuración
+        config(['random.show_product_zero_price' => true]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(2);
+
+        $ids = array_column($response->json('data'), 'id');
+        expect($ids)->toContain($productZeroPrice->id, $productNormalPrice->id);
+    });
+
+    it('should exclude inactive prices when filtering zero price products', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con precio 0 inactivo
+        $productInactiveZero = Product::factory()
+            ->has(Price::factory(['price' => 0, 'is_active' => false]))
+            ->create(['name' => 'Inactive Zero Product']);
+
+        // Crear producto con precio 0 activo
+        $productActiveZero = Product::factory()
+            ->has(Price::factory(['price' => 0, 'is_active' => true]))
+            ->create(['name' => 'Active Zero Product']);
+
+        config(['random.show_product_zero_price' => true]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($productActiveZero->id);
+    });
 });

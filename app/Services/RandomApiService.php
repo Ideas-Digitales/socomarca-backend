@@ -195,7 +195,10 @@ class RandomApiService
 
     public function getStock($kopr = null, $fields = null, $warehouse = null, $business_code = null, $mode = null)
     {
-        $params = [];
+        $params = [
+            'modalidad' => config('random.modality'),
+            'kobo' => config('random.warehouse_code'),
+        ];
 
         if ($kopr !== null) $params['kopr'] = $kopr;
         if ($fields !== null) $params['fields'] = $fields;

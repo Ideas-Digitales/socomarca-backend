@@ -43,7 +43,7 @@ class SyncRandomUsers implements ShouldQueue
                     }
 
                     // Validar que no exista otro usuario con el mismo email
-                    if (\App\Models\User::where('email', $email)->exists()) {
+                    if (\App\Models\User::where('email', $email)->where('rut', '!=', $user->rut ?? null)->exists()) {
                         Log::warning('Email ya existe en la base de datos: ' . $email . ' - Omitiendo usuario RUT: ' . ($entidad['KOEN'] ?? 'N/A'));
                         continue;
                     }

@@ -27,7 +27,11 @@ docker compose exec app php artisan key:generate
 
 Run migrations and seeders
 ```bash
-docker compose exec app php artisan migrate:fresh --seed
+## Migrate and seed the database
+docker compose exec app php artisan db:wipe && docker compose exec app php artisan migrate --seed
+
+## Seed Users
+docker compose exec app php artisan db:seed --class=UserSeeder
 ```
 
 ## Development Commands
@@ -256,4 +260,6 @@ Para facilitar el desarrollo y las pruebas (QA) sin depender de la API real de R
 - `RANDOM_MOCK_DOCS=true` : Activa el mock para la creación de documentos.
 - `RANDOM_MOCK_DOCS_RESPONSE_BAD=true` : Fuerza una respuesta de error en el mock de creación de documentos, útil para probar flujos de fallo.
 - `RANDOM_MOCK_CREDIT_BRANCH=true` : Activa el flujo simulado (mock) para las operaciones de crédito y consultas de sucursal.
+- `SHOW_PRODUCT_ZERO_PRICE=false` : Configura si se muestran productos con precio cero en los listados
+
 
