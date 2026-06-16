@@ -36,16 +36,20 @@ class SyncRandomCategories implements ShouldQueue
                 }
             }
 
+            $nivel1Codes = [];
             foreach ($nivel1 as $category) {
                 Category::updateOrCreate(
                     ['code' => $category['CODIGO'], 'level' => 1],
                     [
                         'name' => $category['NOMBRE'],
-                        'key' => $category['LLAVE']
+                        'key' => $category['LLAVE'],
+                        'enabled' => true
                     ]
                 );
+                $nivel1Codes[] = $category['CODIGO'];
             }
 
+            $subcategoryKeys = [];
             foreach ($nivel2 as $category) {
                 $parts = explode("/", $category['LLAVE']);
                 $parentCategory = Category::where('code', $parts[0])->where('level', 1)->first();
@@ -57,9 +61,11 @@ class SyncRandomCategories implements ShouldQueue
                             'code' => $category['CODIGO'],
                             'name' => $category['NOMBRE'],
                             'level' => $category['NIVEL'],
-                            'category_id' => $parentCategory->id
+                            'category_id' => $parentCategory->id,
+                            'enabled' => true
                         ]
                     );
+                    $subcategoryKeys[] = $category['LLAVE'];
                 }
             }
 
@@ -75,11 +81,20 @@ class SyncRandomCategories implements ShouldQueue
                             'code' => $category['CODIGO'],
                             'name' => $category['NOMBRE'],
                             'level' => $category['NIVEL'],
-                            'category_id' => $parentSubcategory->category_id
+                            'category_id' => $parentSubcategory->category_id,
+                            'enabled' => true
                         ]
                     );
+                    $subcategoryKeys[] = $category['LLAVE'];
                 }
             }
+
+            Category::where('level', 1)
+                ->whereNotIn('code', $nivel1Codes)
+                ->update(['enabled' => false]);
+
+            Subcategory::whereNotIn('key', $subcategoryKeys)
+                ->update(['enabled' => false]);
 
             Log::info('SyncRandomCategories finished');
         } catch (\Exception $e) {
