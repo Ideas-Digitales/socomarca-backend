@@ -6,7 +6,6 @@ use App\Models\Favorite;
 use App\Models\FavoriteList;
 use App\Models\Price;
 use App\Models\Product;
-use App\Models\Subcategory;
 
 beforeEach(function () {
     // Estructura de la respuesta para la búsqueda, incluyendo los filtros devueltos
@@ -27,11 +26,12 @@ beforeEach(function () {
             ],
         ],
         'extra' => [
+            'supercategories',
             'categories',
             'subcategories',
         ],
-        'meta', // Estructura de paginación
-        'filters' => [ // Filtros devueltos
+        'meta',
+        'filters' => [
             'min_price',
             'max_price',
         ]
@@ -87,38 +87,37 @@ describe('Product list endpoint', function () {
         $user = \App\Models\User::factory()->create();
         $user->givePermissionTo('read-all-products');
         Product::truncate();
-        $category = Category::factory()->create();
-        $subcategory = Subcategory::factory()->create(['category_id' => $category->id]);
+        $supercategory = Category::factory()->create(['level' => 1]);
+        $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+        $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
         $brand = Brand::factory()->create();
 
-        // Producto que coincide con todos los filtros
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
             ->create([
                 'name' => 'Producto Estrella',
+                'supercategory_id' => $supercategory->id,
                 'category_id' => $category->id,
                 'subcategory_id' => $subcategory->id,
                 'brand_id' => $brand->id,
             ]);
 
-        // Producto que no coincide
         Product::factory()->has(Price::factory(['price' => 5000, 'is_active' => true]))->create(['name' => 'Otro Producto']);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
                 'filters' => [
-                    'price' => ['min' => 1000, 'max' => 10000], // Rango obligatorio
+                    'price' => ['min' => 1000, 'max' => 10000],
                     'category_id' => $category->id,
                     'subcategory_id' => $subcategory->id,
                     'brand_id' => [$brand->id],
-                    'name' => 'Estrella', // Búsqueda parcial por nombre
+                    'name' => 'Estrella',
                 ]
             ]);
 
         $response->assertStatus(200)
             ->assertJsonStructure($this->searchResponseStructure);
 
-        // Debería encontrar solo 1 producto
         expect($response->json('data'))->toHaveCount(1);
         $foundProduct = $response->json('data.0');
         expect($foundProduct['name'])->toBe('Producto Estrella');
@@ -352,18 +351,23 @@ describe('Product search endpoint', function () {
         $user->givePermissionTo('read-all-products');
         Product::truncate();
 
-        $category = Category::factory()->create();
-        $subcategory = Subcategory::factory()->create(['category_id' => $category->id]);
+        $supercategory = Category::factory()->create(['level' => 1]);
+        $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+        $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['category_id' => $category->id, 'subcategory_id' => $subcategory->id]);
+            ->create([
+                'supercategory_id' => $supercategory->id,
+                'category_id' => $category->id,
+                'subcategory_id' => $subcategory->id,
+            ]);
 
         // Producto fuera del rango de precio (no debe aportar categorías)
-        $otherCategory = Category::factory()->create();
+        $otherSupercategory = Category::factory()->create(['level' => 1]);
         Product::factory()
             ->has(Price::factory(['price' => 50000, 'is_active' => true]))
-            ->create(['category_id' => $otherCategory->id]);
+            ->create(['supercategory_id' => $otherSupercategory->id]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -373,6 +377,8 @@ describe('Product search endpoint', function () {
         $response->assertStatus(200)
             ->assertJsonStructure($this->searchResponseStructure);
 
+        expect($response->json('extra.supercategories'))->toHaveCount(1);
+        expect($response->json('extra.supercategories.0.id'))->toBe($supercategory->id);
         expect($response->json('extra.categories'))->toHaveCount(1);
         expect($response->json('extra.categories.0.id'))->toBe($category->id);
         expect($response->json('extra.subcategories'))->toHaveCount(1);
@@ -391,6 +397,7 @@ describe('Product search endpoint', function () {
 
         $response->assertStatus(200);
 
+        expect($response->json('extra.supercategories'))->toBe([]);
         expect($response->json('extra.categories'))->toBe([]);
         expect($response->json('extra.subcategories'))->toBe([]);
     });
