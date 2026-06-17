@@ -18,28 +18,17 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->where(function ($query) {
-                $query->whereHas('products')
-                    ->orWhereHas('children', function ($q) {
-                        $q->where('enabled', true)
-                            ->where(function ($q2) {
-                                $q2->has('products')
-                                    ->orWhereHas('children', function ($q3) {
-                                        $q3->where('enabled', true)->has('productsBySubcategory');
-                                    });
-                            });
-                    });
-            })
+            ->whereHas('productsBySupercategory')
+            ->withCount('productsBySupercategory')
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
-                    ->where(function ($q) {
-                        $q->has('products')
-                            ->orWhereHas('children', function ($subQ) {
-                                $subQ->where('enabled', true)->has('productsBySubcategory');
-                            });
-                    })
+                    ->whereHas('products')
+                    ->withCount('products')
                     ->with(['children' => function ($query) {
-                        $query->where('enabled', true)->has('productsBySubcategory');
+                        $query
+                            ->where('enabled', true)
+                            ->whereHas('productsBySubcategory')
+                            ->withCount('productsBySubcategory');
                     }]);
             }])
             ->filter([], $sort, $sortDirection)
@@ -89,32 +78,17 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->where(function ($query) {
-                $query->whereHas('products')
-                    ->orWhereHas('children', function ($q) {
-                        $q->where('enabled', true)
-                            ->where(function ($q2) {
-                                $q2->has('products')
-                                    ->orWhereHas('children', function ($q3) {
-                                        $q3->where('enabled', true)->has('productsBySubcategory');
-                                    });
-                            });
-                    });
-            })
+            ->whereHas('productsBySupercategory')
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
-                    ->where(function ($q) {
-                        $q->has('products')
-                            ->orWhereHas('children', function ($subQ) {
-                                $subQ->where('enabled', true)->has('productsBySubcategory');
-                            });
-                    })
+                    ->whereHas('products')
                     ->with(['children' => function ($query) {
-                        $query->where('enabled', true)->has('productsBySubcategory');
+                        $query->where('enabled', true)->whereHas('productsBySubcategory');
                     }]);
             }])
             ->filter($filters, $sort, $sortDirection)
             ->get();
+
 
         return response()->json(
             SuperCategoryResource::collection($categories)

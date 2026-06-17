@@ -23,7 +23,7 @@ class SubCategoryResource extends JsonResource
             'level' => $this->level,
             'key' => $this->key,
             'parent' => $this->whenLoaded('parent'),
-            'products_count' => $this->products_count ?? ($this->productsBySubcategory ? $this->productsBySubcategory->count() : 0),
+            'products_count' => $this->products_by_subcategory_count ?? 0,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

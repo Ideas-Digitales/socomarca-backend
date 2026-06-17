@@ -72,6 +72,11 @@ class Category extends Model
         return $this->hasMany(Product::class);
     }
 
+    public function productsBySupercategory()
+    {
+        return $this->hasMany(Product::class, 'supercategory_id');
+    }
+
     public function productsBySubcategory()
     {
         return $this->hasMany(Product::class, 'subcategory_id');

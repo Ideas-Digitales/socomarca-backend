@@ -24,7 +24,7 @@ class SuperCategoryResource extends JsonResource
             'key' => $this->key,
             'categories' => CategoryResource::collection($this->whenLoaded('children')),
             'categories_count' => $this->whenLoaded('children')->count(),
-            'products_count' => $this->products_count ?? ($this->products ? $this->products->count() : 0),
+            'products_count' => $this->products_by_supercategory_count ?? 0,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
