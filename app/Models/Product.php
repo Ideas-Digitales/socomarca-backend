@@ -15,6 +15,7 @@ class Product extends Model
         'random_product_id',
         'name',
         'description',
+        'supercategory_id',
         'category_id',
         'subcategory_id',
         'brand_id',
@@ -28,6 +29,10 @@ class Product extends Model
      * Allowed filters for the filter scope.
      */
     protected $allowedFilters = [
+        [
+            'field' => 'supercategory_id',
+            'operators' => ['=', '!=',],
+        ],
         [
             'field' => 'category_id',
             'operators' => ['=', '!=',],
@@ -60,6 +65,11 @@ class Product extends Model
         'updated_at',
     ];
 
+    public function supercategory()
+    {
+        return $this->belongsTo(Category::class, 'supercategory_id');
+    }
+
     public function category()
     {
         return $this->belongsTo(Category::class);
@@ -67,7 +77,7 @@ class Product extends Model
 
     public function subcategory()
     {
-        return $this->belongsTo(Subcategory::class);
+        return $this->belongsTo(Category::class, 'subcategory_id');
     }
 
     public function brand()
@@ -136,6 +146,11 @@ class Product extends Model
                 $q->where('price', '>', 0)
                   ->where('is_active', true);
             });
+        }
+
+        // Filtro de Super Categoría
+        if (isset($filters['supercategory_id'])) {
+            $query->where('supercategory_id', $filters['supercategory_id']);
         }
 
         // Filtro de Categoría
