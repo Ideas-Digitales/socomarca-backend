@@ -485,4 +485,86 @@ describe('Product search endpoint', function () {
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data.0.id'))->toBe($productActiveZero->id);
     });
+
+    it('should hide products with zero stock by default', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con stock 0
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'stock' => 0, 'is_active' => true]))
+            ->create(['name' => 'Out of Stock Product']);
+
+        // Crear producto con stock mayor a 0
+        $productInStock = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'stock' => 10, 'is_active' => true]))
+            ->create(['name' => 'In Stock Product']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($productInStock->id);
+        expect($response->json('data.0.name'))->toBe('In Stock Product');
+    });
+
+    it('should show products with zero stock when config is enabled', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con stock 0
+        $productZeroStock = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'stock' => 0, 'is_active' => true]))
+            ->create(['name' => 'Zero Stock Product']);
+
+        // Crear producto con stock mayor a 0
+        $productInStock = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'stock' => 10, 'is_active' => true]))
+            ->create(['name' => 'In Stock Product']);
+
+        config(['random.show_product_zero_stock' => true]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(2);
+
+        $ids = array_column($response->json('data'), 'id');
+        expect($ids)->toContain($productZeroStock->id, $productInStock->id);
+    });
+
+    it('should exclude inactive prices when filtering zero stock products', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        // Crear producto con stock 0 inactivo
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'stock' => 0, 'is_active' => false]))
+            ->create(['name' => 'Inactive Zero Stock Product']);
+
+        // Crear producto con stock 0 activo
+        $productActiveZeroStock = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'stock' => 0, 'is_active' => true]))
+            ->create(['name' => 'Active Zero Stock Product']);
+
+        config(['random.show_product_zero_stock' => true]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($productActiveZeroStock->id);
+    });
 });
