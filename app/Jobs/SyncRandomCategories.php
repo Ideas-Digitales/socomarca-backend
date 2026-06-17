@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Category;
-use App\Models\Subcategory;
 use App\Services\RandomApiService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -49,43 +48,41 @@ class SyncRandomCategories implements ShouldQueue
                 $nivel1Codes[] = $category['CODIGO'];
             }
 
-            $subcategoryKeys = [];
+            $categoryKeys = [];
             foreach ($nivel2 as $category) {
                 $parts = explode("/", $category['LLAVE']);
                 $parentCategory = Category::where('code', $parts[0])->where('level', 1)->first();
 
                 if ($parentCategory) {
-                    Subcategory::updateOrCreate(
-                        ['key' => $category['LLAVE']],
+                    Category::updateOrCreate(
+                        ['key' => $category['LLAVE'], 'level' => 2],
                         [
                             'code' => $category['CODIGO'],
                             'name' => $category['NOMBRE'],
-                            'level' => $category['NIVEL'],
-                            'category_id' => $parentCategory->id,
+                            'parent_category_id' => $parentCategory->id,
                             'enabled' => true
                         ]
                     );
-                    $subcategoryKeys[] = $category['LLAVE'];
+                    $categoryKeys[] = $category['LLAVE'];
                 }
             }
 
             foreach ($nivel3 as $category) {
                 $parts = explode("/", $category['LLAVE']);
                 $parentKey = $parts[0] . '/' . $parts[1];
-                $parentSubcategory = Subcategory::where('key', $parentKey)->first();
+                $parentCategory = Category::where('key', $parentKey)->where('level', 2)->first();
 
-                if ($parentSubcategory) {
-                    Subcategory::updateOrCreate(
-                        ['key' => $category['LLAVE']],
+                if ($parentCategory) {
+                    Category::updateOrCreate(
+                        ['key' => $category['LLAVE'], 'level' => 3],
                         [
                             'code' => $category['CODIGO'],
                             'name' => $category['NOMBRE'],
-                            'level' => $category['NIVEL'],
-                            'category_id' => $parentSubcategory->category_id,
+                            'parent_category_id' => $parentCategory->id,
                             'enabled' => true
                         ]
                     );
-                    $subcategoryKeys[] = $category['LLAVE'];
+                    $categoryKeys[] = $category['LLAVE'];
                 }
             }
 
@@ -93,7 +90,8 @@ class SyncRandomCategories implements ShouldQueue
                 ->whereNotIn('code', $nivel1Codes)
                 ->update(['enabled' => false]);
 
-            Subcategory::whereNotIn('key', $subcategoryKeys)
+            Category::whereIn('level', [2, 3])
+                ->whereNotIn('key', $categoryKeys)
                 ->update(['enabled' => false]);
 
             Log::info('SyncRandomCategories finished');
