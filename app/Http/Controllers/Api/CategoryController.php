@@ -18,20 +18,25 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->whereHas('children', function ($query) {
+            ->where(function ($query) {
+                $query->whereHas('products')
+                    ->orWhereHas('children', function ($q) {
+                        $q->where('enabled', true)
+                            ->where(function ($q2) {
+                                $q2->has('products')
+                                    ->orWhereHas('children', function ($q3) {
+                                        $q3->where('enabled', true)->has('productsBySubcategory');
+                                    });
+                            });
+                    });
+            })
+            ->with(['children' => function ($query) {
                 $query->where('enabled', true)
                     ->where(function ($q) {
                         $q->has('products')
                             ->orWhereHas('children', function ($subQ) {
                                 $subQ->where('enabled', true)->has('productsBySubcategory');
                             });
-                    });
-            })
-            ->with(['children' => function ($query) {
-                $query->where('enabled', true)
-                    ->whereHas('products')
-                    ->orWhereHas('children', function ($subQ) {
-                        $subQ->where('enabled', true)->has('productsBySubcategory');
                     })
                     ->with(['children' => function ($query) {
                         $query->where('enabled', true)->has('productsBySubcategory');
@@ -84,20 +89,25 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->whereHas('children', function ($query) {
+            ->where(function ($query) {
+                $query->whereHas('products')
+                    ->orWhereHas('children', function ($q) {
+                        $q->where('enabled', true)
+                            ->where(function ($q2) {
+                                $q2->has('products')
+                                    ->orWhereHas('children', function ($q3) {
+                                        $q3->where('enabled', true)->has('productsBySubcategory');
+                                    });
+                            });
+                    });
+            })
+            ->with(['children' => function ($query) {
                 $query->where('enabled', true)
                     ->where(function ($q) {
                         $q->has('products')
                             ->orWhereHas('children', function ($subQ) {
                                 $subQ->where('enabled', true)->has('productsBySubcategory');
                             });
-                    });
-            })
-            ->with(['children' => function ($query) {
-                $query->where('enabled', true)
-                    ->whereHas('products')
-                    ->orWhereHas('children', function ($subQ) {
-                        $subQ->where('enabled', true)->has('productsBySubcategory');
                     })
                     ->with(['children' => function ($query) {
                         $query->where('enabled', true)->has('productsBySubcategory');
