@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -27,21 +28,37 @@ describe('Category API', function () {
         $sub2 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
         $sub3 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat2->id, 'enabled' => true]);
 
+        // Create products for subcategories
+        for ($i = 0; $i < 2; $i++) {
+            Product::create(['name' => "Product Sub1 {$i}", 'subcategory_id' => $sub1->id, 'sku' => "SKU-SUB1-{$i}", 'status' => true]);
+            Product::create(['name' => "Product Sub2 {$i}", 'subcategory_id' => $sub2->id, 'sku' => "SKU-SUB2-{$i}", 'status' => true]);
+            Product::create(['name' => "Product Sub3 {$i}", 'subcategory_id' => $sub3->id, 'sku' => "SKU-SUB3-{$i}", 'status' => true]);
+        }
+
         // Create disabled supercategory (should not appear)
         $super2 = Category::factory()->create(['level' => 1, 'enabled' => false]);
         $cat3 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super2->id, 'enabled' => true]);
         $sub4 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat3->id, 'enabled' => true]);
+        for ($i = 0; $i < 2; $i++) {
+            Product::create(['name' => "Product Sub4 {$i}", 'subcategory_id' => $sub4->id, 'sku' => "SKU-SUB4-{$i}", 'status' => true]);
+        }
 
         // Create enabled supercategory with disabled category child
         $super3 = Category::factory()->create(['level' => 1, 'enabled' => true]);
         $cat4 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super3->id, 'enabled' => false]);
         $sub5 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id, 'enabled' => true]);
+        for ($i = 0; $i < 2; $i++) {
+            Product::create(['name' => "Product Sub5 {$i}", 'subcategory_id' => $sub5->id, 'sku' => "SKU-SUB5-{$i}", 'status' => true]);
+        }
 
         // Create enabled supercategory with enabled category but disabled subcategory
         $super4 = Category::factory()->create(['level' => 1, 'enabled' => true]);
         $cat5 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super4->id, 'enabled' => true]);
         $sub6 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => false]);
         $sub7 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => true]);
+        for ($i = 0; $i < 2; $i++) {
+            Product::create(['name' => "Product Sub7 {$i}", 'subcategory_id' => $sub7->id, 'sku' => "SKU-SUB7-{$i}", 'status' => true]);
+        }
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->withHeaders(['Accept' => 'application/json'])
@@ -81,8 +98,9 @@ describe('Category API', function () {
 
         $data = $response->json();
 
-        // Should only return enabled supercategories (super1, super3, super4)
-        expect($data)->toHaveCount(3);
+        // Should only return enabled supercategories with products (super1, super4)
+        // super3 is not returned because its only category (cat4) is disabled
+        expect($data)->toHaveCount(2);
 
         $supers = collect($data)->keyBy('name');
 
@@ -105,10 +123,6 @@ describe('Category API', function () {
         expect($super1Cats->get($cat2->name)['subcategories'])->toHaveCount(1);
         expect($super1Cats->get($cat2->name)['subcategories'][0]['id'])->toBe($sub3->id);
 
-        // Validate Super3 exists but disabled category (cat4) should not appear
-        expect($supers->get($super3->name)['id'])->toBe($super3->id);
-        expect($supers->get($super3->name)['categories'])->toHaveCount(0);
-
         // Validate Super4 has enabled category but only enabled subcategories
         expect($supers->get($super4->name)['id'])->toBe($super4->id);
         expect($supers->get($super4->name)['categories'])->toHaveCount(1);
@@ -121,8 +135,151 @@ describe('Category API', function () {
         // Verify disabled supercategory (super2) is not in response
         $super2InResponse = collect($data)->firstWhere('id', $super2->id);
         expect($super2InResponse)->toBeNull();
+
+        // Verify super3 is not in response because its category is disabled
+        $super3InResponse = collect($data)->firstWhere('id', $super3->id);
+        expect($super3InResponse)->toBeNull();
     });
 
+    it('should return categories with associated products only', function () {
+        // Super1: tiene productos a través de cat2
+        $super1 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat1 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $cat2 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        $sub2 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        $sub3 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat2->id, 'enabled' => true]);
+
+        // Productos asociados a cat2 y sub3
+        for ($i = 0; $i < 3; $i++) {
+            Product::create([
+                'name' => "Product Cat2 {$i}",
+                'category_id' => $cat2->id,
+                'sku' => "SKU-CAT2-{$i}",
+                'status' => true,
+            ]);
+        }
+        for ($i = 0; $i < 2; $i++) {
+            Product::create([
+                'name' => "Product Sub3 {$i}",
+                'subcategory_id' => $sub3->id,
+                'sku' => "SKU-SUB3-{$i}",
+                'status' => true,
+            ]);
+        }
+
+        // Super2: disabled, no debe aparecer
+        $super2 = Category::factory()->create(['level' => 1, 'enabled' => false]);
+        $cat3 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super2->id, 'enabled' => true]);
+        $sub4 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat3->id, 'enabled' => true]);
+        for ($i = 0; $i < 5; $i++) {
+            Product::create([
+                'name' => "Product Cat3 {$i}",
+                'category_id' => $cat3->id,
+                'sku' => "SKU-CAT3-{$i}",
+                'status' => true,
+            ]);
+        }
+
+        // Super3: enabled pero sin productos en ninguna categoría hija
+        $super3 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat4 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super3->id, 'enabled' => true]);
+        $sub5 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id, 'enabled' => true]);
+
+        // Super4: enabled, tiene productos solo a través de sub7
+        $super4 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat5 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super4->id, 'enabled' => true]);
+        $sub6 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => true]);
+        $sub7 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => true]);
+        for ($i = 0; $i < 4; $i++) {
+            Product::create([
+                'name' => "Product Sub7 {$i}",
+                'subcategory_id' => $sub7->id,
+                'sku' => "SKU-SUB7-{$i}",
+                'status' => true,
+            ]);
+        }
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                '*' => [
+                    'id',
+                    'name',
+                    'code',
+                    'level',
+                    'key',
+                    'products_count',
+                    'categories' => [
+                        '*' => [
+                            'id',
+                            'name',
+                            'code',
+                            'level',
+                            'key',
+                            'products_count',
+                            'subcategories' => [
+                                '*' => [
+                                    'id',
+                                    'name',
+                                    'code',
+                                    'level',
+                                    'key',
+                                    'products_count',
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]);
+
+        $data = $response->json();
+
+        // Should only return supercategories with products (super1, super4)
+        expect($data)->toHaveCount(2);
+
+        $supers = collect($data)->keyBy('name');
+
+        // Validate Super1 hierarchy (has products through cat2 and sub3)
+        expect($supers->get($super1->name)['id'])->toBe($super1->id);
+        expect($supers->get($super1->name)['level'])->toBe(1);
+
+        $super1Cats = collect($supers->get($super1->name)['categories'])->keyBy('name');
+
+        // cat1 has no products, should not appear
+        expect($super1Cats->has($cat1->name))->toBeFalse();
+
+        // cat2 has products, should appear
+        expect($super1Cats->get($cat2->name)['id'])->toBe($cat2->id);
+        expect($super1Cats->get($cat2->name)['level'])->toBe(2);
+        expect($super1Cats->get($cat2->name)['products_count'])->toBe(3);
+
+        // sub3 has products, should appear
+        expect($super1Cats->get($cat2->name)['subcategories'])->toHaveCount(1);
+        expect($super1Cats->get($cat2->name)['subcategories'][0]['id'])->toBe($sub3->id);
+        expect($super1Cats->get($cat2->name)['subcategories'][0]['products_count'])->toBe(2);
+
+        // Validate Super4 has products only through sub7
+        expect($supers->get($super4->name)['id'])->toBe($super4->id);
+        expect($supers->get($super4->name)['categories'])->toHaveCount(1);
+
+        $super4Cats = collect($supers->get($super4->name)['categories'])->keyBy('name');
+        expect($super4Cats->get($cat5->name)['id'])->toBe($cat5->id);
+        expect($super4Cats->get($cat5->name)['subcategories'])->toHaveCount(1);
+        expect($super4Cats->get($cat5->name)['subcategories'][0]['id'])->toBe($sub7->id);
+        expect($super4Cats->get($cat5->name)['subcategories'][0]['products_count'])->toBe(4);
+
+        // Verify disabled supercategory (super2) is not in response
+        $super2InResponse = collect($data)->firstWhere('id', $super2->id);
+        expect($super2InResponse)->toBeNull();
+
+        // Verify supercategory without products (super3) is not in response
+        $super3InResponse = collect($data)->firstWhere('id', $super3->id);
+        expect($super3InResponse)->toBeNull();
+    });
 
     it('should return categories with subcategories', function () {
         $super1 = Category::factory()->create(['level' => 1]);
@@ -139,6 +296,14 @@ describe('Category API', function () {
         $sub6 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat3->id]);
         $sub7 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id]);
         $sub8 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id]);
+
+        // Create products for all subcategories
+        $subs = [$sub1, $sub2, $sub3, $sub4, $sub5, $sub6, $sub7, $sub8];
+        foreach ($subs as $idx => $sub) {
+            for ($i = 0; $i < 2; $i++) {
+                Product::create(['name' => "Product Sub{$idx} {$i}", 'subcategory_id' => $sub->id, 'sku' => "SKU-SUB{$idx}-{$i}", 'status' => true]);
+            }
+        }
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->withHeaders(['Accept' => 'application/json'])

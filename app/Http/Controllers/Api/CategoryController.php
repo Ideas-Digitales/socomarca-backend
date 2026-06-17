@@ -18,10 +18,23 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
+            ->whereHas('children', function ($query) {
+                $query->where('enabled', true)
+                    ->where(function ($q) {
+                        $q->has('products')
+                            ->orWhereHas('children', function ($subQ) {
+                                $subQ->where('enabled', true)->has('productsBySubcategory');
+                            });
+                    });
+            })
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
+                    ->whereHas('products')
+                    ->orWhereHas('children', function ($subQ) {
+                        $subQ->where('enabled', true)->has('productsBySubcategory');
+                    })
                     ->with(['children' => function ($query) {
-                        $query->where('enabled', true);
+                        $query->where('enabled', true)->has('productsBySubcategory');
                     }]);
             }])
             ->filter([], $sort, $sortDirection)
