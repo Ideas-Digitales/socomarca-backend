@@ -4,9 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exports\CategoriesExport;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Categories\ShowRequest;
-use App\Http\Resources\Categories\CategoryCollection;
-use App\Http\Resources\Categories\CategoryHierarchyResource;
+use App\Http\Resources\Categories\SuperCategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -19,17 +17,18 @@ class CategoryController extends Controller
         $sortDirection = $request->input('sort_direction', 'asc');
 
         $categories = Category::where('level', 1)
-            ->filter([
-                [
-                    'field' => 'enabled',
-                    'operator' => '=',
-                    'value' => 'true',
-                ]
-            ], $sort, $sortDirection)
+            ->where('enabled', true)
+            ->with(['children' => function ($query) {
+                $query->where('enabled', true)
+                    ->with(['children' => function ($query) {
+                        $query->where('enabled', true);
+                    }]);
+            }])
+            ->filter([], $sort, $sortDirection)
             ->get();
 
         return response()->json(
-            CategoryHierarchyResource::collection($categories)
+            SuperCategoryResource::collection($categories)
         );
     }
 
@@ -45,9 +44,9 @@ class CategoryController extends Controller
 
         $categories = Category::where('id', $id)->get();
 
-        $data = new CategoryCollection($categories);
-
-        return response()->json($data[0]);
+        return response()->json(
+            SuperCategoryResource::make($categories->first())
+        );
     }
 
     /**
@@ -55,27 +54,35 @@ class CategoryController extends Controller
      *
      * @param Request $request
      *
-     * @return CategoryCollection
+     * @return \Illuminate\Http\JsonResponse
      */
     public function search(Request $request)
     {
-        $perPage = $request->input('per_page', 20);
         $filters = $request->input('filters', []);
-        $filters = array_merge($filters,[
-                [
-                    'field' => 'enabled',
-                    'operator' => '=',
-                    'value' => 'true',
-                ]
-        ] );
+        $filters = array_merge($filters, [
+            [
+                'field' => 'enabled',
+                'operator' => '=',
+                'value' => 'true',
+            ]
+        ]);
         $sort = $request->input('sort');
         $sortDirection = $request->input('sort_direction', 'asc');
 
-        $result = Category::withCount(['subcategories', 'products'])
+        $categories = Category::where('level', 1)
+            ->where('enabled', true)
+            ->with(['children' => function ($query) {
+                $query->where('enabled', true)
+                    ->with(['children' => function ($query) {
+                        $query->where('enabled', true);
+                    }]);
+            }])
             ->filter($filters, $sort, $sortDirection)
-            ->paginate($perPage);
+            ->get();
 
-        return new CategoryCollection($result);
+        return response()->json(
+            SuperCategoryResource::collection($categories)
+        );
     }
 
     public function export(Request $request)
