@@ -4,7 +4,6 @@ namespace Database\Factories;
 
 use App\Models\Brand;
 use App\Models\Category;
-use App\Models\Subcategory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -12,23 +11,18 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ProductFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition()
     {
+        $supercategory = Category::factory()->create(['level' => 1]);
+        $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+        $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
+
         return [
             'name' => $this->faker->words(3, true),
             'description' => $this->faker->paragraph(),
-            'category_id' => Category::factory(),
-            'subcategory_id' => function(array $attributes) {
-                $category = Category::find($attributes['category_id']);
-                return Subcategory::factory([
-                        'category_id' => $category->id
-                    ])->create();
-            },
+            'supercategory_id' => $supercategory->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
             'brand_id' => Brand::factory(),
             'sku' => $this->generateSku(),
             'status' => $this->faker->boolean(90),
