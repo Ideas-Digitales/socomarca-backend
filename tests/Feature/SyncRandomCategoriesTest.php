@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Category;
-use App\Models\Subcategory;
 use App\Services\RandomApiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
@@ -49,12 +48,12 @@ test('command creates 3-level category hierarchy', function () {
         ->assertExitCode(0);
 
     $this->assertDatabaseHas('categories', ['code' => '0001', 'level' => 1]);
-    $this->assertDatabaseHas('subcategories', ['code' => '0001', 'level' => 2, 'key' => '0001/0001']);
-    $this->assertDatabaseHas('subcategories', ['code' => '0001', 'level' => 3, 'key' => '0001/0001/0001']);
-    $this->assertDatabaseHas('subcategories', ['code' => '0002', 'level' => 3, 'key' => '0001/0001/0002']);
+    $this->assertDatabaseHas('categories', ['code' => '0001', 'level' => 2, 'key' => '0001/0001']);
+    $this->assertDatabaseHas('categories', ['code' => '0001', 'level' => 3, 'key' => '0001/0001/0001']);
+    $this->assertDatabaseHas('categories', ['code' => '0002', 'level' => 3, 'key' => '0001/0001/0002']);
 });
 
-test('command correctly links level 3 to parent level 1 category', function () {
+test('command correctly links level 3 to parent level 2 category', function () {
     $mock = Mockery::mock(RandomApiService::class);
     $mock->shouldReceive('getCategories')->andReturn([
         'data' => [
@@ -70,10 +69,10 @@ test('command correctly links level 3 to parent level 1 category', function () {
 
     $this->artisan('random:sync-categories')->assertExitCode(0);
 
-    $category = Category::where('code', '0001')->where('level', 1)->first();
-    $level3 = Subcategory::where('level', 3)->where('key', '0001/0001/0001')->first();
+    $level2 = Category::where('code', '0001')->where('level', 2)->first();
+    $level3 = Category::where('level', 3)->where('key', '0001/0001/0001')->first();
 
-    expect($level3->category_id)->toBe($category->id);
+    expect($level3->parent_category_id)->toBe($level2->id);
 });
 
 test('command handles multiple categories at each level', function () {
@@ -98,8 +97,8 @@ test('command handles multiple categories at each level', function () {
     $this->artisan('random:sync-categories')->assertExitCode(0);
 
     expect(Category::where('level', 1)->count())->toBe(2);
-    expect(Subcategory::where('level', 2)->count())->toBe(3);
-    expect(Subcategory::where('level', 3)->count())->toBe(3);
+    expect(Category::where('level', 2)->count())->toBe(3);
+    expect(Category::where('level', 3)->count())->toBe(3);
 });
 
 test('disables level 1 categories that no longer exist in service', function () {
@@ -136,7 +135,7 @@ test('disables level 1 categories that no longer exist in service', function () 
     expect(Category::where('code', '0002')->where('level', 1)->first()->enabled)->toBeFalse();
 });
 
-test('disables subcategories that no longer exist in service', function () {
+test('disables level 2 and 3 categories that no longer exist in service', function () {
     $mock = Mockery::mock(RandomApiService::class);
     $mock->shouldReceive('getCategories')->andReturn([
         'data' => [
@@ -152,7 +151,7 @@ test('disables subcategories that no longer exist in service', function () {
 
     $this->artisan('random:sync-categories')->assertExitCode(0);
 
-    expect(Subcategory::where('enabled', true)->count())->toBe(2);
+    expect(Category::whereIn('level', [2, 3])->where('enabled', true)->count())->toBe(2);
 
     $mock2 = Mockery::mock(RandomApiService::class);
     $mock2->shouldReceive('getCategories')->andReturn([
@@ -168,11 +167,11 @@ test('disables subcategories that no longer exist in service', function () {
 
     $this->artisan('random:sync-categories')->assertExitCode(0);
 
-    expect(Subcategory::where('enabled', true)->count())->toBe(1);
-    expect(Subcategory::where('key', '0001/0002')->first()->enabled)->toBeFalse();
+    expect(Category::whereIn('level', [2, 3])->where('enabled', true)->count())->toBe(1);
+    expect(Category::where('key', '0001/0002')->whereIn('level', [2, 3])->first()->enabled)->toBeFalse();
 });
 
-test('marks all synced categories and subcategories as enabled', function () {
+test('marks all synced categories as enabled', function () {
     $mock = Mockery::mock(RandomApiService::class);
     $mock->shouldReceive('getCategories')->andReturn([
         'data' => [
@@ -189,6 +188,6 @@ test('marks all synced categories and subcategories as enabled', function () {
     $this->artisan('random:sync-categories')->assertExitCode(0);
 
     expect(Category::where('code', '0001')->where('level', 1)->first()->enabled)->toBeTrue();
-    expect(Subcategory::where('key', '0001/0001')->first()->enabled)->toBeTrue();
-    expect(Subcategory::where('key', '0001/0001/0001')->first()->enabled)->toBeTrue();
+    expect(Category::where('key', '0001/0001')->where('level', 2)->first()->enabled)->toBeTrue();
+    expect(Category::where('key', '0001/0001/0001')->where('level', 3)->first()->enabled)->toBeTrue();
 });
