@@ -148,14 +148,6 @@ class Product extends Model
             });
         }
 
-        // Filtro para ocultar/mostrar productos con stock 0
-        if (!config('random.show_product_zero_stock')) {
-            $query->whereHas('prices', function ($q) {
-                $q->where('stock', '>', 0)
-                  ->where('is_active', true);
-            });
-        }
-
         // Filtro de Super Categoría
         if (isset($filters['supercategory_id'])) {
             $query->where('supercategory_id', $filters['supercategory_id']);
