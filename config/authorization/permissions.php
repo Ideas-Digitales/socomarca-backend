@@ -137,4 +137,7 @@ return [
     //Credit Line permissions
     'read-all-credit-lines', // [superadmin, admin]
     'read-own-credit-lines', // [customer]
+
+    // API Documentation permissions
+    'api-doc.read.all', // [superadmin, admin, developer]
 ];

@@ -142,7 +142,7 @@ return [
 
     'middleware' => [
         'web',
-        RestrictedDocsAccess::class,
+        \App\Http\Middleware\ApiDocAccess::class,
     ],
 
     'extensions' => [],
