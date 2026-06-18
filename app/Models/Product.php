@@ -150,17 +150,20 @@ class Product extends Model
 
         // Filtro de Super Categoría
         if (isset($filters['supercategory_id'])) {
-            $query->where('supercategory_id', $filters['supercategory_id']);
+            $supercategoryIds = is_array($filters['supercategory_id']) ? $filters['supercategory_id'] : [$filters['supercategory_id']];
+            $query->whereIn('supercategory_id', $supercategoryIds);
         }
 
         // Filtro de Categoría
         if (isset($filters['category_id'])) {
-            $query->where('category_id', $filters['category_id']);
+            $categoryIds = is_array($filters['category_id']) ? $filters['category_id'] : [$filters['category_id']];
+            $query->whereIn('category_id', $categoryIds);
         }
 
         // Filtro de Subcategoría
         if (isset($filters['subcategory_id'])) {
-            $query->where('subcategory_id', $filters['subcategory_id']);
+            $subcategoryIds = is_array($filters['subcategory_id']) ? $filters['subcategory_id'] : [$filters['subcategory_id']];
+            $query->whereIn('subcategory_id', $subcategoryIds);
         }
 
         // Filtro de Marca

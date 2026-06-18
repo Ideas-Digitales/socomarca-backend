@@ -108,8 +108,8 @@ describe('Product list endpoint', function () {
             ->postJson(route('products.search'), [
                 'filters' => [
                     'price' => ['min' => 1000, 'max' => 10000],
-                    'category_id' => $category->id,
-                    'subcategory_id' => $subcategory->id,
+                    'category_id' => [$category->id],
+                    'subcategory_id' => [$subcategory->id],
                     'brand_id' => [$brand->id],
                     'name' => 'Estrella',
                 ]
@@ -124,6 +124,127 @@ describe('Product list endpoint', function () {
         expect($foundProduct['category']['id'])->toBe($category->id);
         expect($foundProduct['subcategory']['id'])->toBe($subcategory->id);
         expect($foundProduct['brand']['id'])->toBe($brand->id);
+    });
+
+    it('should filter products by multiple categories', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        $supercategory = Category::factory()->create(['level' => 1]);
+        $category1 = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id, 'name' => 'Cat 1']);
+        $category2 = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id, 'name' => 'Cat 2']);
+        $category3 = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id, 'name' => 'Cat 3']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Cat 1', 'category_id' => $category1->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Cat 2', 'category_id' => $category2->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Cat 3', 'category_id' => $category3->id]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 1000, 'max' => 10000],
+                    'category_id' => [$category1->id, $category2->id],
+                ]
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure($this->searchResponseStructure);
+
+        expect($response->json('data'))->toHaveCount(2);
+        $ids = array_column($response->json('data'), 'category');
+        $categoryIds = array_column($ids, 'id');
+        expect($categoryIds)->toContain($category1->id, $category2->id);
+        expect($categoryIds)->not->toContain($category3->id);
+    });
+
+    it('should filter products by multiple subcategories', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        $supercategory = Category::factory()->create(['level' => 1]);
+        $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id, 'name' => 'Sub 1']);
+        $sub2 = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id, 'name' => 'Sub 2']);
+        $sub3 = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id, 'name' => 'Sub 3']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Sub 1', 'subcategory_id' => $sub1->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Sub 2', 'subcategory_id' => $sub2->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Sub 3', 'subcategory_id' => $sub3->id]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 1000, 'max' => 10000],
+                    'subcategory_id' => [$sub1->id, $sub3->id],
+                ]
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure($this->searchResponseStructure);
+
+        expect($response->json('data'))->toHaveCount(2);
+        $ids = array_column($response->json('data'), 'subcategory');
+        $subcategoryIds = array_column($ids, 'id');
+        expect($subcategoryIds)->toContain($sub1->id, $sub3->id);
+        expect($subcategoryIds)->not->toContain($sub2->id);
+    });
+
+    it('should filter products by multiple supercategories', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        $super1 = Category::factory()->create(['level' => 1, 'name' => 'Super 1']);
+        $super2 = Category::factory()->create(['level' => 1, 'name' => 'Super 2']);
+        $super3 = Category::factory()->create(['level' => 1, 'name' => 'Super 3']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Super 1', 'supercategory_id' => $super1->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Super 2', 'supercategory_id' => $super2->id]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['name' => 'Product Super 3', 'supercategory_id' => $super3->id]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => [
+                    'price' => ['min' => 1000, 'max' => 10000],
+                    'supercategory_id' => [$super1->id, $super2->id],
+                ]
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure($this->searchResponseStructure);
+
+        expect($response->json('data'))->toHaveCount(2);
+        $ids = array_column($response->json('data'), 'id');
+        $products = Product::whereIn('id', $ids)->get();
+        $superIds = $products->pluck('supercategory_id')->toArray();
+        expect($superIds)->toContain($super1->id, $super2->id);
+        expect($superIds)->not->toContain($super3->id);
     });
 
     it('should filter products by SKU', function () {
