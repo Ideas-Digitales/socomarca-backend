@@ -5,6 +5,14 @@ Setup environment configuration
 cp .env.example .env
 ```
 
+Relevant environment variables:
+
+```env
+FIXED_SHIPPING_COST=5990
+```
+
+`FIXED_SHIPPING_COST` defines the fixed shipping cost used when an order subtotal is below `$70.000`. Shipping remains free from `$70.000`.
+
 Build docker composition
 ```bash
 docker compose build --build-arg USER_ID=$(id -u) --build-arg GROUP_ID=$(id -g) --no-cache
@@ -274,5 +282,4 @@ Para facilitar el desarrollo y las pruebas (QA) sin depender de la API real de R
 - `RANDOM_MOCK_DOCS_RESPONSE_BAD=true` : Fuerza una respuesta de error en el mock de creación de documentos, útil para probar flujos de fallo.
 - `RANDOM_MOCK_CREDIT_BRANCH=true` : Activa el flujo simulado (mock) para las operaciones de crédito y consultas de sucursal.
 - `SHOW_PRODUCT_ZERO_PRICE=false` : Configura si se muestran productos con precio cero en los listados
-
 
