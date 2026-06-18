@@ -79,7 +79,7 @@ class OrderController extends Controller
                 return $price->price * $cart->quantity;
             });
 
-            $shippingCost = $subtotal >= 70000 ? 0 : (int) round($subtotal * 0.1);
+            $shippingCost = $subtotal >= 70000 ? 0 : 5990;
             $total = $subtotal + $shippingCost;
 
             $user = User::find(Auth::user()->id);
