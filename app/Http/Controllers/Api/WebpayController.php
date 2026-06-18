@@ -85,6 +85,7 @@ class WebpayController extends Controller
                             'empresa' => config('random.business_code'),
                             'codigoEntidad' => $order->user->rut,
                             'tido' => 'NVV',
+                            "moneda" => "CLP",
                             'modalidad' => config('random.modality'),
                             'lineas' => $lines,
                             'texto1' => 'Venta con pago por Webpay Plus',
