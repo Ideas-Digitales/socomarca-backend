@@ -48,7 +48,7 @@ class OrderFactory extends Factory
             'billing_address_details' => fake()->address(),
         ];
         
-        $shippingCost = $subtotal >= 70000 ? 0 : (int) round($subtotal * 0.1);
+        $shippingCost = $subtotal >= 70000 ? 0 : config('random.fixed_shipping_cost');
 
         return [
             'user_id' => User::factory(),

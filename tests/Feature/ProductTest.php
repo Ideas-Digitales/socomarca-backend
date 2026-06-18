@@ -60,8 +60,8 @@ describe('Product list endpoint', function () {
         $maxSearch = 90000;
 
         // Crea productos, uno de ellos garantizado dentro del rango
-        Product::factory()->has(Price::factory(['price' => 75000, 'is_active' => true]))->create();
-        Product::factory()->has(Price::factory(['price' => 40000, 'is_active' => true]))->create(); // Fuera de rango
+        Product::factory()->has(Price::factory(['price' => 75000, 'is_active' => true]))->create(['status' => true]);
+        Product::factory()->has(Price::factory(['price' => 40000, 'is_active' => true]))->create(['status' => true]); // Fuera de rango
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -100,9 +100,10 @@ describe('Product list endpoint', function () {
                 'category_id' => $category->id,
                 'subcategory_id' => $subcategory->id,
                 'brand_id' => $brand->id,
+                'status' => true,
             ]);
 
-        Product::factory()->has(Price::factory(['price' => 5000, 'is_active' => true]))->create(['name' => 'Otro Producto']);
+        Product::factory()->has(Price::factory(['price' => 5000, 'is_active' => true]))->create(['name' => 'Otro Producto', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -138,15 +139,15 @@ describe('Product list endpoint', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Cat 1', 'category_id' => $category1->id]);
+            ->create(['name' => 'Product Cat 1', 'category_id' => $category1->id, 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Cat 2', 'category_id' => $category2->id]);
+            ->create(['name' => 'Product Cat 2', 'category_id' => $category2->id, 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Cat 3', 'category_id' => $category3->id]);
+            ->create(['name' => 'Product Cat 3', 'category_id' => $category3->id, 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -179,15 +180,15 @@ describe('Product list endpoint', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Sub 1', 'subcategory_id' => $sub1->id]);
+            ->create(['name' => 'Product Sub 1', 'subcategory_id' => $sub1->id, 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Sub 2', 'subcategory_id' => $sub2->id]);
+            ->create(['name' => 'Product Sub 2', 'subcategory_id' => $sub2->id, 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Sub 3', 'subcategory_id' => $sub3->id]);
+            ->create(['name' => 'Product Sub 3', 'subcategory_id' => $sub3->id, 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -218,15 +219,15 @@ describe('Product list endpoint', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Super 1', 'supercategory_id' => $super1->id]);
+            ->create(['name' => 'Product Super 1', 'supercategory_id' => $super1->id, 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Super 2', 'supercategory_id' => $super2->id]);
+            ->create(['name' => 'Product Super 2', 'supercategory_id' => $super2->id, 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Product Super 3', 'supercategory_id' => $super3->id]);
+            ->create(['name' => 'Product Super 3', 'supercategory_id' => $super3->id, 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -255,11 +256,11 @@ describe('Product list endpoint', function () {
         // Crear productos con SKUs diferentes
         $targetProduct = Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['sku' => 'SKU-12345']);
+            ->create(['sku' => 'SKU-12345', 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 6000, 'is_active' => true]))
-            ->create(['sku' => 'SKU-67890']);
+            ->create(['sku' => 'SKU-67890', 'status' => true]);
 
         // Buscar por SKU usando query parameter
         $response = $this->actingAs($user, 'sanctum')
@@ -279,7 +280,7 @@ describe('Product list endpoint', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['sku' => 'SKU-12345']);
+            ->create(['sku' => 'SKU-12345', 'status' => true]);
 
         // Buscar por SKU inexistente
         $response = $this->actingAs($user, 'sanctum')
@@ -300,9 +301,9 @@ describe('Product list endpoint', function () {
         $catB = \App\Models\Category::factory()->create(['name' => 'Bebidas']);
 
         // Crea productos con precios y stock distintos
-        $p1 = Product::factory()->for($catA)->has(Price::factory(['price' => 1000, 'stock' => 5, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 1']);
-        $p2 = Product::factory()->for($catB)->has(Price::factory(['price' => 2000, 'stock' => 10, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 2']);
-        $p3 = Product::factory()->for($catA)->has(Price::factory(['price' => 1500, 'stock' => 7, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 3']);
+        $p1 = Product::factory()->for($catA)->has(Price::factory(['price' => 1000, 'stock' => 5, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 1', 'status' => true]);
+        $p2 = Product::factory()->for($catB)->has(Price::factory(['price' => 2000, 'stock' => 10, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 2', 'status' => true]);
+        $p3 = Product::factory()->for($catA)->has(Price::factory(['price' => 1500, 'stock' => 7, 'is_active' => true, 'unit' => 'kg']))->create(['name' => 'Producto 3', 'status' => true]);
 
         // Ordenar por price asc
         $response = $this->actingAs($user, 'sanctum')
@@ -341,16 +342,16 @@ describe('Product list endpoint', function () {
         $user->givePermissionTo('read-all-products');
         $favoriteList = FavoriteList::factory()->create(['user_id' => $user->id]);
         $favoriteProduct = Product::factory()
-            ->has(Price::factory(['price' => 5000]))
-            ->create();
+            ->has(Price::factory(['price' => 5000, 'is_active' => true]))
+            ->create(['status' => true]);
         Favorite::factory()->create([
             'favorite_list_id' => $favoriteList->id,
             'product_id' => $favoriteProduct->id,
         ]);
 
         $nonFavoriteProduct = Product::factory()
-            ->has(Price::factory(['price' => 6000]))
-            ->create();
+            ->has(Price::factory(['price' => 6000, 'is_active' => true]))
+            ->create(['status' => true]);
 
         $responseFavorite = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -421,12 +422,12 @@ describe('Product search endpoint', function () {
         // Crear producto con SKU específico
         $targetProduct = Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['sku' => 'SKU-123']);
+            ->create(['sku' => 'SKU-123', 'status' => true]);
 
         // Crear otro producto
         Product::factory()
             ->has(Price::factory(['price' => 6000, 'is_active' => true]))
-            ->create(['sku' => 'SKU-456']);
+            ->create(['sku' => 'SKU-456', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -482,13 +483,14 @@ describe('Product search endpoint', function () {
                 'supercategory_id' => $supercategory->id,
                 'category_id' => $category->id,
                 'subcategory_id' => $subcategory->id,
+                'status' => true,
             ]);
 
         // Producto fuera del rango de precio (no debe aportar categorías)
         $otherSupercategory = Category::factory()->create(['level' => 1]);
         Product::factory()
             ->has(Price::factory(['price' => 50000, 'is_active' => true]))
-            ->create(['supercategory_id' => $otherSupercategory->id]);
+            ->create(['supercategory_id' => $otherSupercategory->id, 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -531,12 +533,12 @@ describe('Product search endpoint', function () {
         // Crear producto con precio 0
         $productZeroPrice = Product::factory()
             ->has(Price::factory(['price' => 0, 'is_active' => true]))
-            ->create(['name' => 'Free Product']);
+            ->create(['name' => 'Free Product', 'status' => true]);
 
         // Crear producto con precio mayor a 0
         $productNormalPrice = Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Normal Product']);
+            ->create(['name' => 'Normal Product', 'status' => true]);
 
         // Por defecto, SHOW_PRODUCT_ZERO_PRICE es false, así que debe ocultarse
         $response = $this->actingAs($user, 'sanctum')
@@ -558,12 +560,12 @@ describe('Product search endpoint', function () {
         // Crear producto con precio 0
         $productZeroPrice = Product::factory()
             ->has(Price::factory(['price' => 0, 'is_active' => true]))
-            ->create(['name' => 'Free Product']);
+            ->create(['name' => 'Free Product', 'status' => true]);
 
         // Crear producto con precio mayor a 0
         $productNormalPrice = Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true]))
-            ->create(['name' => 'Normal Product']);
+            ->create(['name' => 'Normal Product', 'status' => true]);
 
         // Habilitar la configuración
         config(['random.show_product_zero_price' => true]);
@@ -588,12 +590,12 @@ describe('Product search endpoint', function () {
         // Crear producto con precio 0 inactivo
         $productInactiveZero = Product::factory()
             ->has(Price::factory(['price' => 0, 'is_active' => false]))
-            ->create(['name' => 'Inactive Zero Product']);
+            ->create(['name' => 'Inactive Zero Product', 'status' => true]);
 
         // Crear producto con precio 0 activo
         $productActiveZero = Product::factory()
             ->has(Price::factory(['price' => 0, 'is_active' => true]))
-            ->create(['name' => 'Active Zero Product']);
+            ->create(['name' => 'Active Zero Product', 'status' => true]);
 
         config(['random.show_product_zero_price' => true]);
 
@@ -616,11 +618,11 @@ describe('Product stock filter', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 0]))
-            ->create(['name' => 'No Stock Product']);
+            ->create(['name' => 'No Stock Product', 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
-            ->create(['name' => 'In Stock Product']);
+            ->create(['name' => 'In Stock Product', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->getJson(route('products.index'));
@@ -638,11 +640,11 @@ describe('Product stock filter', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => -5]))
-            ->create(['name' => 'Negative Stock Product']);
+            ->create(['name' => 'Negative Stock Product', 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
-            ->create(['name' => 'In Stock Product']);
+            ->create(['name' => 'In Stock Product', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->getJson(route('products.index'));
@@ -660,11 +662,11 @@ describe('Product stock filter', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 0]))
-            ->create(['name' => 'No Stock Product']);
+            ->create(['name' => 'No Stock Product', 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
-            ->create(['name' => 'In Stock Product']);
+            ->create(['name' => 'In Stock Product', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -684,11 +686,11 @@ describe('Product stock filter', function () {
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => -10]))
-            ->create(['name' => 'Negative Stock Product']);
+            ->create(['name' => 'Negative Stock Product', 'status' => true]);
 
         Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
-            ->create(['name' => 'In Stock Product']);
+            ->create(['name' => 'In Stock Product', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -708,7 +710,7 @@ describe('Product stock filter', function () {
 
         $product = Product::factory()
             ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 100]))
-            ->create(['name' => 'Stocked Product']);
+            ->create(['name' => 'Stocked Product', 'status' => true]);
 
         $response = $this->actingAs($user, 'sanctum')
             ->postJson(route('products.search'), [
@@ -719,5 +721,53 @@ describe('Product stock filter', function () {
         expect($response->json('data'))->toHaveCount(1);
         expect($response->json('data.0.id'))->toBe($product->id);
         expect($response->json('data.0.stock'))->toBe(100);
+    });
+});
+
+describe('Product active filter', function () {
+    it('should not return inactive products in index', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'Inactive Product', 'status' => false]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'Active Product', 'status' => true]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('products.index'));
+
+        $response->assertStatus(200);
+        $names = array_column($response->json('data'), 'name');
+        expect($names)->not->toContain('Inactive Product');
+        expect($names)->toContain('Active Product');
+    });
+
+    it('should not return inactive products in search', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'Inactive Product', 'status' => false]);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'Active Product', 'status' => true]);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        $names = array_column($response->json('data'), 'name');
+        expect($names)->not->toContain('Inactive Product');
+        expect($names)->toContain('Active Product');
     });
 });

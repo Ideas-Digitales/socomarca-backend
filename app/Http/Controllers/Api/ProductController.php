@@ -17,7 +17,9 @@ class ProductController extends Controller
         $perPage = $request->input('per_page', 20);
         $filters = $request->all();
 
-        $products = Product::filter($filters)->paginate($perPage);
+        $products = Product::filter($filters)
+            ->active()
+            ->paginate($perPage);
 
         return new ProductCollection($products);
     }
@@ -65,11 +67,14 @@ class ProductController extends Controller
         $validatedFilters = $validator->validated()['filters'];
         $perPage = $request->input('per_page', 20);
 
-        $result = Product::filter($validatedFilters)->paginate($perPage);
+        $result = Product::filter($validatedFilters)
+            ->active()
+            ->paginate($perPage);
 
         // Obtener categorías de todos los resultados (sin paginación ni sorting)
         $filtersForExtra = array_diff_key($validatedFilters, array_flip(['sort', 'sort_direction']));
         $matchingProducts = Product::filter($filtersForExtra)
+            ->active()
             ->select('supercategory_id', 'category_id', 'subcategory_id')
             ->get();
 
