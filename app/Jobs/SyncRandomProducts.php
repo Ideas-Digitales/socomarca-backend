@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Product;
 use App\Models\Category;
-use App\Models\Subcategory;
 use App\Models\Brand;
 
 use App\Services\RandomApiService;
@@ -41,12 +40,15 @@ class SyncRandomProducts implements ShouldQueue
 
             foreach ($products['data'] as $product) {
 
-                $category = $subcategory = $brand = null;
+                $supercategory = $category = $subcategory = $brand = null;
                 if(!empty($product['FMPR'])){
-                    $category = Category::where('code', $product['FMPR'])->first();
+                    $supercategory = Category::where('code', $product['FMPR'])->where('level', 1)->first();
                 }
                 if(!empty($product['PFPR'])){
-                    $subcategory = Subcategory::where('code', $product['PFPR'])->first();
+                    $category = Category::where('code', $product['PFPR'])->where('level', 2)->first();
+                }
+                if(!empty($product['HFPR'])){
+                    $subcategory = Category::where('code', $product['HFPR'])->where('level', 3)->first();
                 }
                 if(!empty($product['MRPR'])){
                     $brand = Brand::where('random_erp_code', $product['MRPR'])->first();
@@ -58,6 +60,7 @@ class SyncRandomProducts implements ShouldQueue
                     'name' => $product['NOKOPR'],
                     'description' => null,
                     'brand_id' => $brand ? $brand->id : null,
+                    'supercategory_id' => $supercategory ? $supercategory->id : null,
                     'category_id' => $category ? $category->id : null,
                     'subcategory_id' => $subcategory ? $subcategory->id : null,
                     'status' => true,
@@ -82,4 +85,4 @@ class SyncRandomProducts implements ShouldQueue
             throw $e;
         }
     }
-} 
+}

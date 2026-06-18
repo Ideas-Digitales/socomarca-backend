@@ -5,25 +5,22 @@ use App\Models\CartItem;
 use App\Models\Category;
 use App\Models\Price;
 use App\Models\Product;
-use App\Models\Subcategory;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\OrderItem;
 
 beforeEach(function () {
-    // Crear usuario autenticado con permisos de customer
     $this->user = User::factory()->create();
     $this->user->givePermissionTo(['create-cart-items', 'delete-cart-items', 'create-orders']);
     $this->actingAs($this->user, 'sanctum');
 
-    // Crear datos necesarios para los productos
-    $category = Category::factory()->create();
-    $subcategory = Subcategory::factory()->create([
-        'category_id' => $category->id
-    ]);
+    $supercategory = Category::factory()->create(['level' => 1]);
+    $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+    $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
     $brand = Brand::factory()->create();
 
     $this->product = Product::factory()->create([
+        'supercategory_id' => $supercategory->id,
         'category_id' => $category->id,
         'subcategory_id' => $subcategory->id,
         'brand_id' => $brand->id
@@ -569,6 +566,7 @@ test('puede agregar productos de una orden al carrito vacío', function () {
     ]);
 
     $product2 = Product::factory()->create([
+        'supercategory_id' => $this->product->supercategory_id,
         'category_id' => $this->product->category_id,
         'subcategory_id' => $this->product->subcategory_id,
         'brand_id' => $this->product->brand_id
@@ -687,6 +685,7 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
     ]);
 
     $product2 = Product::factory()->create([
+        'supercategory_id' => $this->product->supercategory_id,
         'category_id' => $this->product->category_id,
         'subcategory_id' => $this->product->subcategory_id,
         'brand_id' => $this->product->brand_id

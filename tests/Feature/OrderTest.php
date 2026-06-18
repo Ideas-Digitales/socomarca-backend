@@ -4,7 +4,6 @@ use App\Models\User;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Category;
-use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\CartItem;
 use App\Models\Price;
@@ -25,16 +24,15 @@ beforeEach(function () {
     $this->actingAs($this->user);
 });
 
-// Función helper para crear productos en el carrito
 function createProductCart($precio = 100, $cantidad = 2, $unidad = 'kg')
 {
-    $category = Category::factory()->create();
-    $subcategory = Subcategory::factory()->create([
-        'category_id' => $category->id
-    ]);
+    $supercategory = Category::factory()->create(['level' => 1]);
+    $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+    $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
     $brand = Brand::factory()->create();
 
     $product = Product::factory()->create([
+        'supercategory_id' => $supercategory->id,
         'category_id' => $category->id,
         'subcategory_id' => $subcategory->id,
         'brand_id' => $brand->id

@@ -7,7 +7,6 @@ use App\Http\Resources\Products\ProductCollection;
 use App\Http\Resources\Products\ProductResource;
 use App\Models\Category;
 use App\Models\Product;
-use App\Models\Subcategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -43,8 +42,12 @@ class ProductController extends Controller
             'filters.price.min' => 'required|numeric|min:0',
             'filters.price.max' => 'required|numeric|gt:filters.price.min',
             'filters.price.unit' => 'sometimes|string|max:10',
-            'filters.category_id' => 'sometimes|integer|exists:categories,id',
-            'filters.subcategory_id' => 'sometimes|integer|exists:subcategories,id',
+            'filters.supercategory_id' => 'sometimes|array',
+            'filters.supercategory_id.*' => 'integer|exists:categories,id',
+            'filters.category_id' => 'sometimes|array',
+            'filters.category_id.*' => 'integer|exists:categories,id',
+            'filters.subcategory_id' => 'sometimes|array',
+            'filters.subcategory_id.*' => 'integer|exists:categories,id',
             'filters.brand_id' => 'sometimes|array',
             'filters.brand_id.*' => 'integer|exists:brands,id',
             'filters.sku' => 'sometimes|string|max:255',
@@ -64,25 +67,49 @@ class ProductController extends Controller
 
         $result = Product::filter($validatedFilters)->paginate($perPage);
 
-        // Obtener categorías y subcategorías de todos los resultados (sin paginación ni sorting)
+        // Obtener categorías de todos los resultados (sin paginación ni sorting)
         $filtersForExtra = array_diff_key($validatedFilters, array_flip(['sort', 'sort_direction']));
         $matchingProducts = Product::filter($filtersForExtra)
-            ->select('category_id', 'subcategory_id')
+            ->select('supercategory_id', 'category_id', 'subcategory_id')
             ->get();
 
+        $supercategories = [];
         $categories = [];
         $subcategories = [];
 
         if ($matchingProducts->isNotEmpty()) {
+            $supercategoryIds = $matchingProducts->pluck('supercategory_id')->filter()->unique()->values();
             $categoryIds = $matchingProducts->pluck('category_id')->filter()->unique()->values();
             $subcategoryIds = $matchingProducts->pluck('subcategory_id')->filter()->unique()->values();
 
-            $categories = Category::whereIn('id', $categoryIds)->select('id', 'name')->get()->toArray();
-            $subcategories = Subcategory::whereIn('id', $subcategoryIds)->select('id', 'name')->get()->toArray();
+            if ($supercategoryIds->isNotEmpty()) {
+                $supercategories = Category::whereIn('id', $supercategoryIds)
+                    ->where('level', 1)
+                    ->select('id', 'name')
+                    ->get()
+                    ->toArray();
+            }
+
+            if ($categoryIds->isNotEmpty()) {
+                $categories = Category::whereIn('id', $categoryIds)
+                    ->where('level', 2)
+                    ->select('id', 'name')
+                    ->get()
+                    ->toArray();
+            }
+
+            if ($subcategoryIds->isNotEmpty()) {
+                $subcategories = Category::whereIn('id', $subcategoryIds)
+                    ->where('level', 3)
+                    ->select('id', 'name')
+                    ->get()
+                    ->toArray();
+            }
         }
 
         $data = new ProductCollection($result)->additional([
             'extra' => [
+                'supercategories' => $supercategories,
                 'categories' => $categories,
                 'subcategories' => $subcategories,
             ],

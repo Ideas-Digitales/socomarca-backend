@@ -1,42 +1,31 @@
 <?php
 
 use App\Models\Category;
-use App\Models\User;
+use App\Models\Price;
+use App\Models\Product;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-beforeEach(function ()
-{
+uses(RefreshDatabase::class);
+
+beforeEach(function () {
     $this->user = createUser();
-    $this->category = createCategory();
-
-    $this->categoryListJsonStructure = [
-        'data' => [
-            [
-                'id',
-                'name',
-                'description',
-                'code',
-                'level',
-                'key',
-                'subcategories_count',
-                'products_count',
-                'created_at',
-                'updated_at',
-            ],
-        ],
-        'meta' => [
-            'current_page',
-            'from',
-            'last_page',
-            'path',
-            'per_page',
-            'to',
-            'total',
-            'links' => [
-                ['url', 'label', 'active']
-            ],
-        ]
-    ];
+    $this->user->givePermissionTo('read-all-categories');
 });
+
+function createProductWithPrice(array $attributes = []): Product
+{
+    $product = Product::create($attributes);
+    Price::create([
+        'product_id' => $product->id,
+        'price_list_id' => fake()->regexify('[A-Z]{10}'),
+        'unit' => 'un',
+        'price' => 5000,
+        'stock' => $attributes['stock'] ?? 50,
+        'is_active' => $attributes['price_is_active'] ?? true,
+        'valid_from' => now()->subDays(10),
+    ]);
+    return $product;
+}
 
 describe('Category API', function () {
     it('should require authentication for index', function () {
@@ -45,147 +34,340 @@ describe('Category API', function () {
         $response->assertStatus(401);
     });
 
-    it('should return categories with correct structure', function () {
-        $this->user->givePermissionTo('read-all-categories');
+    it('should return enabled categories only', function () {
+        // Super1: enabled, has products through cat1 and cat2
+        $super1 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat1 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $cat2 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        $sub2 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        $sub3 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat2->id, 'enabled' => true]);
+
+        // Products for categories (level 2) - matches real data pattern
+        for ($i = 0; $i < 2; $i++) {
+            createProductWithPrice(['name' => "Product Cat1 {$i}", 'supercategory_id' => $super1->id, 'category_id' => $cat1->id, 'sku' => "SKU-CAT1-{$i}", 'status' => true]);
+            createProductWithPrice(['name' => "Product Cat2 {$i}", 'supercategory_id' => $super1->id, 'category_id' => $cat2->id, 'sku' => "SKU-CAT2-{$i}", 'status' => true]);
+        }
+
+        // Super2: disabled, should not appear
+        $super2 = Category::factory()->create(['level' => 1, 'enabled' => false]);
+        $cat3 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super2->id, 'enabled' => true]);
+        $sub4 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat3->id, 'enabled' => true]);
+        for ($i = 0; $i < 2; $i++) {
+            createProductWithPrice(['name' => "Product Cat3 {$i}", 'category_id' => $cat3->id, 'sku' => "SKU-CAT3-{$i}", 'status' => true]);
+        }
+
+        // Super3: enabled but category is disabled, should not appear
+        $super3 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat4 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super3->id, 'enabled' => false]);
+        $sub5 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id, 'enabled' => true]);
+        for ($i = 0; $i < 2; $i++) {
+            createProductWithPrice(['name' => "Product Cat4 {$i}", 'category_id' => $cat4->id, 'sku' => "SKU-CAT4-{$i}", 'status' => true]);
+        }
+
+        // Super4: enabled, has products through cat5
+        $super4 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat5 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super4->id, 'enabled' => true]);
+        $sub6 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => false]);
+        $sub7 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => true]);
+        for ($i = 0; $i < 2; $i++) {
+            createProductWithPrice(['name' => "Product Cat5 {$i}", 'supercategory_id' => $super4->id, 'category_id' => $cat5->id, 'sku' => "SKU-CAT5-{$i}", 'status' => true]);
+        }
+
         $response = $this->actingAs($this->user, 'sanctum')
             ->withHeaders(['Accept' => 'application/json'])
             ->get(route('categories.index'));
 
-        $response
-            ->assertStatus(200)
+        $response->assertStatus(200)
             ->assertJsonStructure([
-                'data' => [
-                    [
-                        'id',
-                        'name',
-                        'description',
-                        'code',
-                        'level',
-                        'key',
-                        'subcategories_count',
-                        'products_count',
-                        'created_at',
-                        'updated_at',
-                    ],
-                ],
+                '*' => [
+                    'id',
+                    'name',
+                    'code',
+                    'level',
+                    'key',
+                    'products_count',
+                    'categories' => [
+                        '*' => [
+                            'id',
+                            'name',
+                            'code',
+                            'level',
+                            'key',
+                            'products_count',
+                            'subcategories' => [
+                                '*' => [
+                                    'id',
+                                    'name',
+                                    'code',
+                                    'level',
+                                    'key',
+                                    'products_count',
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
             ]);
+
+        $data = $response->json();
+
+        // Should only return enabled supercategories with products (super1, super4)
+        // super2 is disabled, super3's only category is disabled
+        expect($data)->toHaveCount(2);
+
+        $supers = collect($data)->keyBy('name');
+
+        // Validate Super1 hierarchy
+        expect($supers->get($super1->name)['id'])->toBe($super1->id);
+        expect($supers->get($super1->name)['level'])->toBe(1);
+        expect($supers->get($super1->name)['categories'])->toHaveCount(2);
+
+        $super1Cats = collect($supers->get($super1->name)['categories'])->keyBy('name');
+        expect($super1Cats->get($cat1->name)['id'])->toBe($cat1->id);
+        expect($super1Cats->get($cat1->name)['level'])->toBe(2);
+        expect($super1Cats->get($cat1->name)['products_count'])->toBe(2);
+
+        expect($super1Cats->get($cat2->name)['id'])->toBe($cat2->id);
+        expect($super1Cats->get($cat2->name)['products_count'])->toBe(2);
+
+        // Validate Super4
+        expect($supers->get($super4->name)['id'])->toBe($super4->id);
+        expect($supers->get($super4->name)['categories'])->toHaveCount(1);
+
+        $super4Cats = collect($supers->get($super4->name)['categories'])->keyBy('name');
+        expect($super4Cats->get($cat5->name)['id'])->toBe($cat5->id);
+        expect($super4Cats->get($cat5->name)['products_count'])->toBe(2);
+
+        // Verify disabled supercategory (super2) is not in response
+        $super2InResponse = collect($data)->firstWhere('id', $super2->id);
+        expect($super2InResponse)->toBeNull();
+
+        // Verify super3 is not in response because its category is disabled
+        $super3InResponse = collect($data)->firstWhere('id', $super3->id);
+        expect($super3InResponse)->toBeNull();
     });
 
-    it('should return 404 for non-existent category', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        $id = $this->category->id;
-        Category::truncate();
+    it('should return categories with associated products only', function () {
+        // Super1: has products directly via supercategory_id
+        $super1 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat1 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $cat2 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        $sub2 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        $sub3 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat2->id, 'enabled' => true]);
+
+        // Products directly on super1 (via supercategory_id)
+        for ($i = 0; $i < 3; $i++) {
+            createProductWithPrice(['name' => "Product Super1 {$i}", 'supercategory_id' => $super1->id, 'sku' => "SKU-SUPER1-{$i}", 'status' => true]);
+        }
+        // Products on cat2 (via category_id)
+        for ($i = 0; $i < 2; $i++) {
+            createProductWithPrice(['name' => "Product Cat2 {$i}", 'category_id' => $cat2->id, 'sku' => "SKU-CAT2-{$i}", 'status' => true]);
+        }
+
+        // Super2: disabled, should not appear even with products
+        $super2 = Category::factory()->create(['level' => 1, 'enabled' => false]);
+        $cat3 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super2->id, 'enabled' => true]);
+        for ($i = 0; $i < 5; $i++) {
+            createProductWithPrice(['name' => "Product Cat3 {$i}", 'category_id' => $cat3->id, 'sku' => "SKU-CAT3-{$i}", 'status' => true]);
+        }
+
+        // Super3: enabled but NO products at any level, should not appear
+        $super3 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat4 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super3->id, 'enabled' => true]);
+        $sub5 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id, 'enabled' => true]);
+
+        // Super4: has products directly via supercategory_id
+        $super4 = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat5 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super4->id, 'enabled' => true]);
+        $sub6 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => true]);
+        $sub7 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat5->id, 'enabled' => true]);
+        // Products directly on super4
+        for ($i = 0; $i < 4; $i++) {
+            createProductWithPrice(['name' => "Product Super4 {$i}", 'supercategory_id' => $super4->id, 'sku' => "SKU-SUPER4-{$i}", 'status' => true]);
+        }
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->withHeaders(['Accept' => 'application/json'])
-            ->get(route('categories.show', ['category' => $id]));
+            ->get(route('categories.index'));
 
-        $response->assertStatus(404);
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                '*' => [
+                    'id',
+                    'name',
+                    'code',
+                    'level',
+                    'key',
+                    'products_count',
+                    'categories' => [
+                        '*' => [
+                            'id',
+                            'name',
+                            'code',
+                            'level',
+                            'key',
+                            'products_count',
+                            'subcategories' => [
+                                '*' => [
+                                    'id',
+                                    'name',
+                                    'code',
+                                    'level',
+                                    'key',
+                                    'products_count',
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]);
+
+        $data = $response->json();
+
+        // Should only return supercategories with products (super1, super4)
+        expect($data)->toHaveCount(2);
+
+        $supers = collect($data)->keyBy('name');
+
+        // Validate Super1
+        expect($supers->get($super1->name)['id'])->toBe($super1->id);
+        expect($supers->get($super1->name)['level'])->toBe(1);
+        expect($supers->get($super1->name)['products_count'])->toBe(3);
+
+        $super1Cats = collect($supers->get($super1->name)['categories'])->keyBy('name');
+
+        // cat1 has no products, should not appear
+        expect($super1Cats->has($cat1->name))->toBeFalse();
+
+        // cat2 has products, should appear
+        expect($super1Cats->get($cat2->name)['id'])->toBe($cat2->id);
+        expect($super1Cats->get($cat2->name)['products_count'])->toBe(2);
+
+        // Validate Super4
+        expect($supers->get($super4->name)['id'])->toBe($super4->id);
+        expect($supers->get($super4->name)['products_count'])->toBe(4);
+        expect($supers->get($super4->name)['categories'])->toHaveCount(0);
+
+        // Verify disabled supercategory (super2) is not in response
+        $super2InResponse = collect($data)->firstWhere('id', $super2->id);
+        expect($super2InResponse)->toBeNull();
+
+        // Verify supercategory without products (super3) is not in response
+        $super3InResponse = collect($data)->firstWhere('id', $super3->id);
+        expect($super3InResponse)->toBeNull();
     });
 
-    it('should require authentication for category search', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        $response = $this->withHeaders(['Accept' => 'application/json'])
-            ->postJson(route('categories.search'));
-        $response->assertStatus(401);
-    });
+    it('should return categories with subcategories', function () {
+        $super1 = Category::factory()->create(['level' => 1]);
+        $super2 = Category::factory()->create(['level' => 1]);
+        $cat1 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id]);
+        $cat2 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id]);
+        $cat3 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super2->id]);
+        $cat4 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super2->id]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id]);
+        $sub2 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id]);
+        $sub3 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat2->id]);
+        $sub4 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat2->id]);
+        $sub5 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat3->id]);
+        $sub6 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat3->id]);
+        $sub7 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id]);
+        $sub8 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat4->id]);
 
-    it('should return correct structure for category search', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
-        Category::factory()->count(5)->create();
+        // Create products for all categories (level 2) - matches real data pattern
+        $cats = [$cat1, $cat2, $cat3, $cat4];
+        $supers = [$super1, $super2];
+        foreach ($supers as $super) {
+            foreach ($cats as $idx => $cat) {
+                for ($i = 0; $i < 2; $i++) {
+                    createProductWithPrice(['name' => "Product Cat{$idx} {$i}", 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'sku' => "SKU-CAT{$idx}-{$i}", 'status' => true]);
+                }
+            }
+        }
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->withHeaders(['Accept' => 'application/json'])
-            ->postJson(route('categories.search'));
+            ->get(route('categories.index'));
 
-        expect($response->json('data'))->toHaveCount(5);
-        $response
-            ->assertStatus(200)
-            ->assertJsonStructure($this->categoryListJsonStructure);
-    });
 
-    it('should filter categories by exact name', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
-
-        Category::factory()->create(['name' => 'Dairy and Derivatives']);
-        Category::factory()->create(['name' => 'Drinks']);
-        Category::factory()->create(['name' => 'Meats and Fish']);
-
-        $response = $this->actingAs($this->user, 'sanctum')
-            ->postJson(route('categories.search'), [
-                'filters' => [
-                    [
-                        'field' => 'name',
-                        'operator' => '=',
-                        'value' => 'Dairy and Derivatives',
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                '*' => [
+                    'id',
+                    'name',
+                    'code',
+                    'level',
+                    'key',
+                    'products_count',
+                    'categories' => [
+                        '*' => [
+                            'id',
+                            'name',
+                            'code',
+                            'level',
+                            'key',
+                            'products_count',
+                            'subcategories' => [
+                                '*' => [
+                                    'id',
+                                    'name',
+                                    'code',
+                                    'level',
+                                    'key',
+                                    'products_count',
+                                ]
+                            ]
+                        ]
                     ]
                 ]
             ]);
 
-        expect($response->json('data'))->toHaveCount(1);
-        expect($response->json('data')[0]['name'])->toBe('Dairy and Derivatives');
-        $response->assertStatus(200);
+        $data = $response->json();
+
+        // Validate number of supercategories
+        expect($data)->toHaveCount(2);
+
+        // Collect supercategories by name for flexible matching
+        $supers = collect($data)->keyBy('name');
+
+        // Validate Super1 hierarchy
+        expect($supers->get($super1->name)['id'])->toBe($super1->id);
+        expect($supers->get($super1->name)['level'])->toBe(1);
+        expect($supers->get($super1->name)['categories'])->toHaveCount(2);
+
+        $super1Cats = collect($supers->get($super1->name)['categories'])->keyBy('name');
+        expect($super1Cats->get($cat1->name)['id'])->toBe($cat1->id);
+        expect($super1Cats->get($cat1->name)['level'])->toBe(2);
+        expect($super1Cats->get($cat1->name)['products_count'])->toBe(4);
+
+        expect($super1Cats->get($cat2->name)['id'])->toBe($cat2->id);
+        expect($super1Cats->get($cat2->name)['level'])->toBe(2);
+        expect($super1Cats->get($cat2->name)['products_count'])->toBe(4);
+
+        // Validate Super2 hierarchy
+        expect($supers->get($super2->name)['id'])->toBe($super2->id);
+        expect($supers->get($super2->name)['level'])->toBe(1);
+        expect($supers->get($super2->name)['categories'])->toHaveCount(2);
+
+        $super2Cats = collect($supers->get($super2->name)['categories'])->keyBy('name');
+        expect($super2Cats->get($cat3->name)['id'])->toBe($cat3->id);
+        expect($super2Cats->get($cat3->name)['level'])->toBe(2);
+        expect($super2Cats->get($cat3->name)['products_count'])->toBe(4);
+
+        expect($super2Cats->get($cat4->name)['id'])->toBe($cat4->id);
+        expect($super2Cats->get($cat4->name)['level'])->toBe(2);
+        expect($super2Cats->get($cat4->name)['products_count'])->toBe(4);
     });
 
-    it('should filter categories by partial name', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
 
-        Category::factory()->create(['name' => 'Dairy Products']);
-        Category::factory()->create(['name' => 'Lactose Free Dairy']);
-        Category::factory()->create(['name' => 'Drinks']);
+    it('should filter categories by name', function () {
+        $super1 = Category::factory()->create(['level' => 1, 'name' => 'CONGELADOS', 'code' => '0001', 'key' => '0001']);
+        $cat1 = Category::factory()->create(['level' => 2, 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        createProductWithPrice(['name' => 'Product Cat1', 'supercategory_id' => $super1->id, 'category_id' => $cat1->id, 'sku' => 'SKU-CAT1', 'status' => true]);
 
-        $response = $this->actingAs($this->user, 'sanctum')
-        ->postJson(route('categories.search'), [
-                'filters' => [
-                    [
-                        'field' => 'name',
-                        'operator' => 'ILIKE',
-                        'value' => '%dairy%',
-                    ]
-                ]
-            ]);
-
-        expect($response->json('data'))->toHaveCount(2);
-        foreach ($response->json('data') as $category) {
-            expect(stripos($category['name'], 'dairy'))->not->toBeFalse();
-        }
-        $response->assertStatus(200);
-    });
-
-    it('should filter categories by description', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
-
-        Category::factory()->create(['name' => 'Dairy', 'description' => 'Dairy products and derivatives']);
-        Category::factory()->create(['name' => 'Drinks', 'description' => 'Non-alcoholic drinks']);
-        Category::factory()->create(['name' => 'Meats', 'description' => 'Red and white meats']);
-
-        $response = $this->actingAs($this->user, 'sanctum')
-            ->postJson(route('categories.search'), [
-                'filters' => [
-                    [
-                        'field' => 'description',
-                        'operator' => 'ILIKE',
-                        'value' => '%dairy%',
-                    ]
-                ]
-            ]);
-
-        expect($response->json('data'))->toHaveCount(1);
-        expect($response->json('data')[0]['description'])->toMatch('/dairy/i');
-        $response->assertStatus(200);
-    });
-
-    it('should sort categories by name', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
-
-        Category::factory()->create(['name' => 'Zebra']);
-        Category::factory()->create(['name' => 'Alpha']);
-        Category::factory()->create(['name' => 'Beta']);
+        Category::factory()->create(['level' => 1, 'name' => 'REFRIGERADOS', 'code' => '0002', 'key' => '0002']);
 
         $response = $this->actingAs($this->user, 'sanctum')
             ->postJson(route('categories.search'), [
@@ -193,105 +375,206 @@ describe('Category API', function () {
                     [
                         'field' => 'name',
                         'operator' => 'ILIKE',
-                        'value' => '%',
-                        'sort' => 'ASC'
+                        'value' => '%CONG%',
                     ]
                 ]
             ]);
 
-        $data = $response->json('data');
-        expect($data)->toHaveCount(3);
-        expect($data[0]['name'])->toBe('Alpha');
-        expect($data[1]['name'])->toBe('Beta');
-        expect($data[2]['name'])->toBe('Zebra');
-        $response->assertStatus(200);
-    });
-
-    it('should filter categories by level', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
-
-        Category::factory()->create(['level' => 1]);
-        Category::factory()->create(['level' => 2]);
-        Category::factory()->create(['level' => 1]);
-
-        $response = $this->actingAs($this->user, 'sanctum')
-            ->postJson(route('categories.search'), [
-                'filters' => [
-                    [
-                        'field' => 'level',
-                        'operator' => '=',
-                        'value' => 1,
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                '*' => [
+                    'id',
+                    'name',
+                    'code',
+                    'level',
+                    'key',
+                    'products_count',
+                    'categories' => [
+                        '*' => [
+                            'id',
+                            'name',
+                            'code',
+                            'level',
+                            'key',
+                            'products_count',
+                            'subcategories' => [
+                                '*' => [
+                                    'id',
+                                    'name',
+                                    'code',
+                                    'level',
+                                    'key',
+                                    'products_count',
+                                ]
+                            ]
+                        ]
                     ]
                 ]
             ]);
 
-        expect($response->json('data'))->toHaveCount(2);
-        foreach ($response->json('data') as $category) {
-            expect($category['level'])->toBe(1);
-        }
-        $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toHaveCount(1);
+        expect($data[0]['name'])->toBe('CONGELADOS');
+        expect($data[0]['id'])->toBe($super1->id);
+        expect($data[0]['categories'])->toHaveCount(1);
+        expect($data[0]['categories'][0]['id'])->toBe($cat1->id);
+        expect($data[0]['categories'][0]['products_count'])->toBe(1);
     });
 
-    it('should sort categories by id ascending and descending', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
 
-        $catA = Category::factory()->create(['name' => 'First']);
-        $catB = Category::factory()->create(['name' => 'Second']);
-        $catC = Category::factory()->create(['name' => 'Third']);
+    it('should filter categories by name without disabled categories', function () {
+        $super1 = Category::factory()->create(['level' => 1, 'name' => 'CONGELADOS', 'code' => '0001', 'key' => '0001', 'enabled' => true]);
+        $cat1 = Category::factory()->create(['level' => 2, 'name' => 'Categoría Congelados', 'parent_category_id' => $super1->id, 'enabled' => true]);
+        $sub1 = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat1->id, 'enabled' => true]);
+        createProductWithPrice([
+            'name' => 'Product Cat1',
+            'supercategory_id' => $super1->id,
+            'category_id' => $cat1->id,
+            'subcategory_id' => $sub1->id,
+            'sku' => 'SKU-CAT1',
+            'status' => true
+        ]);
 
-        // Ascending order
-        $responseAsc = $this->actingAs($this->user, 'sanctum')
-            ->postJson(route('categories.search'), [
-                'sort' => 'id',
-                'sort_direction' => 'asc'
-            ]);
-        $idsAsc = array_column($responseAsc->json('data'), 'id');
-        expect($idsAsc)->toBe([min($catA->id, $catB->id, $catC->id), ...array_diff([$catA->id, $catB->id, $catC->id], [min($catA->id, $catB->id, $catC->id), max($catA->id, $catB->id, $catC->id)]), max($catA->id, $catB->id, $catC->id)]);
+        Category::factory()->create(['level' => 1, 'name' => 'REFRIGERADOS', 'code' => '0002', 'key' => '0002']);
+        Category::factory()->create(['level' => 1, 'name' => 'CONGELADOS 2', 'code' => '0003', 'key' => '0003', 'enabled' => false]);
 
-        // Descending order
-        $responseDesc = $this->actingAs($this->user, 'sanctum')
-            ->postJson('/api/categories/search', [
-                'sort' => 'id',
-                'sort_direction' => 'desc'
-            ]);
-        $idsDesc = array_column($responseDesc->json('data'), 'id');
-        expect($idsDesc)->toBe([max($catA->id, $catB->id, $catC->id), ...array_diff([$catA->id, $catB->id, $catC->id], [min($catA->id, $catB->id, $catC->id), max($catA->id, $catB->id, $catC->id)]), min($catA->id, $catB->id, $catC->id)]);
-    });
-
-    it('should filter and sort categories by name and id', function () {
-        $this->user->givePermissionTo('read-all-categories');
-        Category::truncate();
-
-        $catA = Category::factory()->create(['name' => 'Food']);
-        $catB = Category::factory()->create(['name' => 'Drinks']);
-        $catC = Category::factory()->create(['name' => 'Meats']);
-
-        // Filter by partial name and sort by id descending
+        // $this->actingAs($this->user, 'sanctum')
+        //     ->getJson(route('categories.index'))->ddJson();
         $response = $this->actingAs($this->user, 'sanctum')
             ->postJson(route('categories.search'), [
                 'filters' => [
                     [
                         'field' => 'name',
                         'operator' => 'ILIKE',
-                        'value' => '%a%',
+                        'value' => '%CONG%',
                     ]
-                ],
-                'sort' => 'id',
-                'sort_direction' => 'desc'
+                ]
             ]);
 
-        $data = $response->json('data');
-        $expected = collect([$catA, $catB, $catC])
-            ->filter(fn($cat) => stripos($cat->name, 'a') !== false)
-            ->sortByDesc('id')
-            ->pluck('id')
-            ->values()
-            ->all();
+        $data = $response->json();
+        expect($data)->toHaveCount(1);
+        expect($data[0]['name'])->toBe('CONGELADOS');
+        expect($data[0]['id'])->toBe($super1->id);
+        expect($data[0]['categories'])->toHaveCount(1);
+        expect($data[0]['categories'][0]['id'])->toBe($cat1->id);
+        expect($data[0]['categories'][0]['products_count'])->toBe(1);
+    });
+});
 
-        $ids = array_column($data, 'id');
-        expect($ids)->toBe($expected);
+describe('Category stock filter', function () {
+    it('should not return supercategory with products stock equal to 0 in index', function () {
+        $super = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true]);
+
+        createProductWithPrice(['name' => 'Zero Stock Product', 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'sku' => 'SKU-ZERO', 'status' => true, 'stock' => 0]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
+
         $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toBeEmpty();
+    });
+
+    it('should not return supercategory with products stock less than 0 in index', function () {
+        $super = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true]);
+
+        createProductWithPrice(['name' => 'Negative Stock Product', 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'sku' => 'SKU-NEG', 'status' => true, 'stock' => -5]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
+
+        $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toBeEmpty();
+    });
+
+    it('should not return category (level 2) with products stock equal to 0', function () {
+        $super = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $catWithStock = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true, 'name' => 'Cat With Stock']);
+        $catNoStock = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true, 'name' => 'Cat No Stock']);
+
+        createProductWithPrice(['name' => 'Stocked Product', 'supercategory_id' => $super->id, 'category_id' => $catWithStock->id, 'sku' => 'SKU-STOCK', 'status' => true, 'stock' => 50]);
+        createProductWithPrice(['name' => 'Zero Stock Product', 'supercategory_id' => $super->id, 'category_id' => $catNoStock->id, 'sku' => 'SKU-ZERO', 'status' => true, 'stock' => 0]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
+
+        $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toHaveCount(1);
+        $catNames = array_column($data[0]['categories'], 'name');
+        expect($catNames)->toContain('Cat With Stock');
+        expect($catNames)->not->toContain('Cat No Stock');
+    });
+
+    it('should not return subcategory with products stock equal to 0', function () {
+        $super = Category::factory()->create(['level' => 1, 'enabled' => true]);
+        $cat = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true]);
+        $subWithStock = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat->id, 'enabled' => true, 'name' => 'Sub With Stock']);
+        $subNoStock = Category::factory()->create(['level' => 3, 'parent_category_id' => $cat->id, 'enabled' => true, 'name' => 'Sub No Stock']);
+
+        createProductWithPrice(['name' => 'Stocked Sub Product', 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'subcategory_id' => $subWithStock->id, 'sku' => 'SKU-SUB-STOCK', 'status' => true, 'stock' => 50]);
+        createProductWithPrice(['name' => 'Zero Stock Sub Product', 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'subcategory_id' => $subNoStock->id, 'sku' => 'SKU-SUB-ZERO', 'status' => true, 'stock' => 0]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->withHeaders(['Accept' => 'application/json'])
+            ->get(route('categories.index'));
+
+        $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toHaveCount(1);
+        $subNames = array_column($data[0]['categories'][0]['subcategories'], 'name');
+        expect($subNames)->toContain('Sub With Stock');
+        expect($subNames)->not->toContain('Sub No Stock');
+    });
+
+    it('should not return supercategory with products stock equal to 0 in search', function () {
+        $super = Category::factory()->create(['level' => 1, 'enabled' => true, 'name' => 'TEST SUPER']);
+        $cat = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true]);
+
+        createProductWithPrice(['name' => 'Zero Stock Product', 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'sku' => 'SKU-ZERO', 'status' => true, 'stock' => 0]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'name',
+                        'operator' => 'ILIKE',
+                        'value' => '%TEST%',
+                    ]
+                ]
+            ]);
+
+        $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toBeEmpty();
+    });
+
+    it('should return supercategory with products stock greater than 0 in search', function () {
+        $super = Category::factory()->create(['level' => 1, 'enabled' => true, 'name' => 'TEST SUPER']);
+        $cat = Category::factory()->create(['level' => 2, 'parent_category_id' => $super->id, 'enabled' => true]);
+
+        createProductWithPrice(['name' => 'Stocked Product', 'supercategory_id' => $super->id, 'category_id' => $cat->id, 'sku' => 'SKU-STOCK', 'status' => true, 'stock' => 100]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson(route('categories.search'), [
+                'filters' => [
+                    [
+                        'field' => 'name',
+                        'operator' => 'ILIKE',
+                        'value' => '%TEST%',
+                    ]
+                ]
+            ]);
+
+        $response->assertStatus(200);
+        $data = $response->json();
+        expect($data)->toHaveCount(1);
+        expect($data[0]['name'])->toBe('TEST SUPER');
     });
 });

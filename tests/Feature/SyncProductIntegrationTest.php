@@ -7,7 +7,6 @@ use App\Jobs\SyncRandomCategories;
 use App\Services\RandomApiService;
 use App\Models\Product;
 use App\Models\Category;
-use App\Models\Subcategory;
 use App\Models\Price;
 use App\Models\Brand;
 use Illuminate\Support\Facades\Queue;
@@ -17,18 +16,17 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
-    // Limpiar todas las tablas relacionadas
     DB::table('prices')->truncate();
     DB::table('products')->truncate();
-    DB::table('subcategories')->truncate();
-    DB::table('categories')->truncate();
+    Category::where('level', 1)->delete();
+    Category::where('level', 2)->delete();
+    Category::where('level', 3)->delete();
     DB::table('brands')->truncate();
 });
 
 describe('Product Sync Integration', function () {
 
     test('flujo completo de sincronización funciona correctamente', function () {
-        // 1. Primero sincronizar categorías
         $categoriesResponse = [
             'data' => [
                 [
@@ -57,27 +55,27 @@ describe('Product Sync Integration', function () {
         $categoriesJob = new SyncRandomCategories();
         $categoriesJob->handle($mockApiService);
 
-        // Verificar categorías creadas
-        expect(Category::count())->toBe(1);
-        expect(Subcategory::count())->toBe(1);
+        expect(Category::where('level', 1)->count())->toBe(1);
+        expect(Category::where('level', 2)->count())->toBe(1);
 
-        $category = Category::where('code', 'CAT001')->first();
-        $subcategory = Subcategory::where('code', 'SUBCAT001')->first();
+        $supercategory = Category::where('code', 'CAT001')->where('level', 1)->first();
+        $category = Category::where('code', 'SUBCAT001')->where('level', 2)->first();
 
-        // 2. Sincronizar productos
         $productsResponse = [
             'data' => [
                 [
                     'KOPR' => 'PROD001',
                     'NOKOPR' => 'Leche Descremada 1L',
                     'FMPR' => 'CAT001',
-                    'PFPR' => 'SUBCAT001'
+                    'PFPR' => 'SUBCAT001',
+                    'HFPR' => ''
                 ],
                 [
                     'KOPR' => 'PROD002',
                     'NOKOPR' => 'Yogurt Natural 150g',
                     'FMPR' => 'CAT001',
-                    'PFPR' => 'SUBCAT001'
+                    'PFPR' => 'SUBCAT001',
+                    'HFPR' => ''
                 ]
             ]
         ];
@@ -89,12 +87,11 @@ describe('Product Sync Integration', function () {
         $productsJob = new SyncRandomProducts();
         $productsJob->handle($mockApiService);
 
-        // Verificar productos creados
         expect(Product::count())->toBe(2);
 
         $product1 = Product::where('random_product_id', 'PROD001')->first();
+        expect($product1->supercategory_id)->toBe($supercategory->id);
         expect($product1->category_id)->toBe($category->id);
-        expect($product1->subcategory_id)->toBe($subcategory->id);
 
         // 3. Sincronizar precios
         $pricesResponse = [
@@ -164,11 +161,11 @@ describe('Product Sync Integration', function () {
         expect($price2->stock)->toBe(23);
 
         // Verificar integridad de datos completa
-        $products = Product::with(['category', 'subcategory', 'prices'])->get();
+        $products = Product::with(['supercategory', 'category', 'prices'])->get();
         
         foreach ($products as $product) {
+            expect($product->supercategory)->not->toBeNull();
             expect($product->category)->not->toBeNull();
-            expect($product->subcategory)->not->toBeNull();
             expect($product->prices)->not->toBeEmpty();
             expect($product->prices->first()->stock)->toBeGreaterThan(0);
         }
@@ -202,7 +199,8 @@ describe('Product Sync Integration', function () {
                 'KOPR' => "PROD" . str_pad($i, 3, '0', STR_PAD_LEFT),
                 'NOKOPR' => "Producto Test $i",
                 'FMPR' => '',
-                'PFPR' => ''
+                'PFPR' => '',
+                'HFPR' => ''
             ];
         }
 
@@ -235,9 +233,8 @@ describe('Product Sync Integration', function () {
     });
 
     test('sincronización preserva relaciones existentes', function () {
-        // Crear datos iniciales
-        $category = Category::create([
-            'name' => 'Categoría Existente',
+        $supercategory = Category::create([
+            'name' => 'Super Categoría Existente',
             'code' => 'CAT001',
             'level' => 1,
             'key' => 'CAT1'
@@ -251,19 +248,19 @@ describe('Product Sync Integration', function () {
             'random_product_id' => 'PROD001',
             'sku' => 'PROD001',
             'name' => 'Producto Original',
-            'category_id' => $category->id,
+            'supercategory_id' => $supercategory->id,
             'brand_id' => $brand->id,
             'status' => true
         ]);
 
-        // Simular actualización que mantiene relaciones
         $apiResponse = [
             'data' => [
                 [
                     'KOPR' => 'PROD001',
                     'NOKOPR' => 'Producto Actualizado',
                     'FMPR' => 'CAT001',
-                    'PFPR' => ''
+                    'PFPR' => '',
+                    'HFPR' => ''
                 ]
             ]
         ];
@@ -278,18 +275,15 @@ describe('Product Sync Integration', function () {
         $job = new SyncRandomProducts();
         $job->handle($mockApiService);
 
-        // Verificar que se actualizó pero mantuvo ID y relaciones existentes
         $updatedProduct = Product::where('random_product_id', 'PROD001')->first();
         expect($updatedProduct->id)->toBe($product->id);
         expect($updatedProduct->name)->toBe('Producto Actualizado');
-        expect($updatedProduct->category_id)->toBe($category->id);
-        // Nota: brand_id se establece como null en la sincronización porque no viene de la API
+        expect($updatedProduct->supercategory_id)->toBe($supercategory->id);
         expect($updatedProduct->brand_id)->toBeNull();
     });
 
     test('verificación de consistencia de datos después de sincronización', function () {
-        // Crear datos de prueba completos
-        $category = Category::create([
+        $supercategory = Category::create([
             'name' => 'Alimentación',
             'code' => 'CAT001',
             'level' => 1,
@@ -302,7 +296,8 @@ describe('Product Sync Integration', function () {
                     'KOPR' => 'PROD001',
                     'NOKOPR' => 'Producto Test',
                     'FMPR' => 'CAT001',
-                    'PFPR' => ''
+                    'PFPR' => '',
+                    'HFPR' => ''
                 ]
             ]
         ];
@@ -317,25 +312,24 @@ describe('Product Sync Integration', function () {
         $job = new SyncRandomProducts();
         $job->handle($mockApiService);
 
-        // Verificaciones de consistencia
         $product = Product::first();
 
-        // 1. Verificar que random_product_id es único
         expect(Product::where('random_product_id', $product->random_product_id)->count())->toBe(1);
 
-        // 2. Verificar que el SKU coincide con random_product_id
         expect($product->sku)->toBe($product->random_product_id);
 
-        // 3. Verificar que las relaciones son válidas
+        if ($product->supercategory_id) {
+            expect(Category::find($product->supercategory_id))->not->toBeNull();
+        }
+
         if ($product->category_id) {
             expect(Category::find($product->category_id))->not->toBeNull();
         }
 
         if ($product->subcategory_id) {
-            expect(Subcategory::find($product->subcategory_id))->not->toBeNull();
+            expect(Category::find($product->subcategory_id))->not->toBeNull();
         }
 
-        // 4. Verificar campos obligatorios
         expect($product->name)->not->toBeEmpty();
         expect($product->random_product_id)->not->toBeEmpty();
         expect($product->sku)->not->toBeEmpty();

@@ -15,6 +15,7 @@ class Product extends Model
         'random_product_id',
         'name',
         'description',
+        'supercategory_id',
         'category_id',
         'subcategory_id',
         'brand_id',
@@ -28,6 +29,10 @@ class Product extends Model
      * Allowed filters for the filter scope.
      */
     protected $allowedFilters = [
+        [
+            'field' => 'supercategory_id',
+            'operators' => ['=', '!=',],
+        ],
         [
             'field' => 'category_id',
             'operators' => ['=', '!=',],
@@ -60,6 +65,11 @@ class Product extends Model
         'updated_at',
     ];
 
+    public function supercategory()
+    {
+        return $this->belongsTo(Category::class, 'supercategory_id');
+    }
+
     public function category()
     {
         return $this->belongsTo(Category::class);
@@ -67,7 +77,7 @@ class Product extends Model
 
     public function subcategory()
     {
-        return $this->belongsTo(Subcategory::class);
+        return $this->belongsTo(Category::class, 'subcategory_id');
     }
 
     public function brand()
@@ -111,7 +121,7 @@ class Product extends Model
      */
     public function scopeFilter($query, array $filters)
     {
-        // Filtro de Precio 
+        // Filtro de Precio
         if (isset($filters['price'])) {
             $priceFilter = $filters['price'];
             $query->whereHas('prices', function ($q) use ($priceFilter) {
@@ -130,14 +140,36 @@ class Product extends Model
             });
         }
 
+        // Filtro para ocultar/mostrar productos con precio 0
+        if (!config('random.show_product_zero_price')) {
+            $query->whereHas('prices', function ($q) {
+                $q->where('price', '>', 0)
+                  ->where('is_active', true);
+            });
+        }
+
+        // Filtro para ocultar productos sin stock
+        $query->whereHas('prices', function ($q) {
+            $q->where('stock', '>', 0)
+              ->where('is_active', true);
+        });
+
+        // Filtro de Super Categoría
+        if (isset($filters['supercategory_id'])) {
+            $supercategoryIds = is_array($filters['supercategory_id']) ? $filters['supercategory_id'] : [$filters['supercategory_id']];
+            $query->whereIn('supercategory_id', $supercategoryIds);
+        }
+
         // Filtro de Categoría
         if (isset($filters['category_id'])) {
-            $query->where('category_id', $filters['category_id']);
+            $categoryIds = is_array($filters['category_id']) ? $filters['category_id'] : [$filters['category_id']];
+            $query->whereIn('category_id', $categoryIds);
         }
 
         // Filtro de Subcategoría
         if (isset($filters['subcategory_id'])) {
-            $query->where('subcategory_id', $filters['subcategory_id']);
+            $subcategoryIds = is_array($filters['subcategory_id']) ? $filters['subcategory_id'] : [$filters['subcategory_id']];
+            $query->whereIn('subcategory_id', $subcategoryIds);
         }
 
         // Filtro de Marca

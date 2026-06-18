@@ -4,8 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exports\CategoriesExport;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Categories\ShowRequest;
-use App\Http\Resources\Categories\CategoryCollection;
+use App\Http\Resources\Categories\SuperCategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
@@ -14,15 +13,42 @@ class CategoryController extends Controller
 {
     public function index(Request $request)
     {
-        $perPage = $request->input('per_page', 20);
         $sort = $request->input('sort');
         $sortDirection = $request->input('sort_direction', 'asc');
 
-        $categories = Category::withCount(['subcategories', 'products'])
+        $categories = Category::where('level', 1)
+            ->where('enabled', true)
+            ->whereHas('productsBySupercategory', function ($q) {
+                $q->whereHas('prices', function ($pq) {
+                    $pq->where('is_active', true)->where('stock', '>', 0);
+                });
+            })
+            ->withCount('productsBySupercategory')
+            ->with(['children' => function ($query) {
+                $query->where('enabled', true)
+                    ->whereHas('products', function ($q) {
+                        $q->whereHas('prices', function ($pq) {
+                            $pq->where('is_active', true)->where('stock', '>', 0);
+                        });
+                    })
+                    ->withCount('products')
+                    ->with(['children' => function ($query) {
+                        $query
+                            ->where('enabled', true)
+                            ->whereHas('productsBySubcategory', function ($q) {
+                                $q->whereHas('prices', function ($pq) {
+                                    $pq->where('is_active', true)->where('stock', '>', 0);
+                                });
+                            })
+                            ->withCount('productsBySubcategory');
+                    }]);
+            }])
             ->filter([], $sort, $sortDirection)
-            ->paginate($perPage);
+            ->get();
 
-        return new CategoryCollection($categories);
+        return response()->json(
+            SuperCategoryResource::collection($categories)
+        );
     }
 
     public function show($id)
@@ -37,9 +63,9 @@ class CategoryController extends Controller
 
         $categories = Category::where('id', $id)->get();
 
-        $data = new CategoryCollection($categories);
-
-        return response()->json($data[0]);
+        return response()->json(
+            SuperCategoryResource::make($categories->first())
+        );
     }
 
     /**
@@ -47,20 +73,50 @@ class CategoryController extends Controller
      *
      * @param Request $request
      *
-     * @return CategoryCollection
+     * @return \Illuminate\Http\JsonResponse
      */
     public function search(Request $request)
     {
-        $perPage = $request->input('per_page', 20);
         $filters = $request->input('filters', []);
+        $filters = array_merge($filters, [
+            [
+                'field' => 'enabled',
+                'operator' => '=',
+                'value' => 'true',
+            ]
+        ]);
         $sort = $request->input('sort');
         $sortDirection = $request->input('sort_direction', 'asc');
 
-        $result = Category::withCount(['subcategories', 'products'])
+        $categories = Category::where('level', 1)
+            ->where('enabled', true)
+            ->whereHas('productsBySupercategory', function ($q) {
+                $q->whereHas('prices', function ($pq) {
+                    $pq->where('is_active', true)->where('stock', '>', 0);
+                });
+            })
+            ->with(['children' => function ($query) {
+                $query->where('enabled', true)
+                    ->whereHas('products', function ($q) {
+                        $q->whereHas('prices', function ($pq) {
+                            $pq->where('is_active', true)->where('stock', '>', 0);
+                        });
+                    })
+                    ->with(['children' => function ($query) {
+                        $query->where('enabled', true)->whereHas('productsBySubcategory', function ($q) {
+                            $q->whereHas('prices', function ($pq) {
+                                $pq->where('is_active', true)->where('stock', '>', 0);
+                            });
+                        });
+                    }]);
+            }])
             ->filter($filters, $sort, $sortDirection)
-            ->paginate($perPage);
+            ->get();
 
-        return new CategoryCollection($result);
+
+        return response()->json(
+            SuperCategoryResource::collection($categories)
+        );
     }
 
     public function export(Request $request)

@@ -27,7 +27,11 @@ docker compose exec app php artisan key:generate
 
 Run migrations and seeders
 ```bash
-docker compose exec app php artisan migrate:fresh --seed
+## Migrate and seed the database
+docker compose exec app php artisan db:wipe && docker compose exec app php artisan migrate --seed
+
+## Seed Users
+docker compose exec app php artisan db:seed --class=UserSeeder
 ```
 
 ## Development Commands
@@ -161,6 +165,19 @@ docker compose exec app php artisan test tests/Feature/SyncProductMonitoringTest
 ### Utility Commands
 - **`app:test-email-sending {email-address}`**: Tests email functionality by sending a test email
 
+### User Management Commands
+- **`user:create`**: Interactively creates a new user with role assignment
+  - Prompts for: name, email, password, phone, RUT, business name, and role
+  - Available roles are extracted from `config/authorization/roles.php`
+  - Password is hashed using `Hash::make()` and displayed in plain text in console
+  - Phone defaults to empty string
+  - Business name defaults to the user's name
+  - User is created with `is_active = true`
+
+  ```bash
+  docker compose exec -it app php artisan user:create
+  ```
+
 ## Background Jobs (Queue System)
 
 ### ERP Synchronization Jobs
@@ -256,4 +273,6 @@ Para facilitar el desarrollo y las pruebas (QA) sin depender de la API real de R
 - `RANDOM_MOCK_DOCS=true` : Activa el mock para la creación de documentos.
 - `RANDOM_MOCK_DOCS_RESPONSE_BAD=true` : Fuerza una respuesta de error en el mock de creación de documentos, útil para probar flujos de fallo.
 - `RANDOM_MOCK_CREDIT_BRANCH=true` : Activa el flujo simulado (mock) para las operaciones de crédito y consultas de sucursal.
+- `SHOW_PRODUCT_ZERO_PRICE=false` : Configura si se muestran productos con precio cero en los listados
+
 
