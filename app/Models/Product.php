@@ -259,4 +259,16 @@ class Product extends Model
 
         return $query;
     }
+
+    /**
+     * Scope a query to filter active products
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeActive($query)
+    {
+        $query->where('status', '=', true);
+        return $query;
+    }
 }
