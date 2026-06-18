@@ -18,16 +18,28 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->whereHas('productsBySupercategory')
+            ->whereHas('productsBySupercategory', function ($q) {
+                $q->whereHas('prices', function ($pq) {
+                    $pq->where('is_active', true)->where('stock', '>', 0);
+                });
+            })
             ->withCount('productsBySupercategory')
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
-                    ->whereHas('products')
+                    ->whereHas('products', function ($q) {
+                        $q->whereHas('prices', function ($pq) {
+                            $pq->where('is_active', true)->where('stock', '>', 0);
+                        });
+                    })
                     ->withCount('products')
                     ->with(['children' => function ($query) {
                         $query
                             ->where('enabled', true)
-                            ->whereHas('productsBySubcategory')
+                            ->whereHas('productsBySubcategory', function ($q) {
+                                $q->whereHas('prices', function ($pq) {
+                                    $pq->where('is_active', true)->where('stock', '>', 0);
+                                });
+                            })
                             ->withCount('productsBySubcategory');
                     }]);
             }])
@@ -78,12 +90,24 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->whereHas('productsBySupercategory')
+            ->whereHas('productsBySupercategory', function ($q) {
+                $q->whereHas('prices', function ($pq) {
+                    $pq->where('is_active', true)->where('stock', '>', 0);
+                });
+            })
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
-                    ->whereHas('products')
+                    ->whereHas('products', function ($q) {
+                        $q->whereHas('prices', function ($pq) {
+                            $pq->where('is_active', true)->where('stock', '>', 0);
+                        });
+                    })
                     ->with(['children' => function ($query) {
-                        $query->where('enabled', true)->whereHas('productsBySubcategory');
+                        $query->where('enabled', true)->whereHas('productsBySubcategory', function ($q) {
+                            $q->whereHas('prices', function ($pq) {
+                                $pq->where('is_active', true)->where('stock', '>', 0);
+                            });
+                        });
                     }]);
             }])
             ->filter($filters, $sort, $sortDirection)
