@@ -239,7 +239,13 @@ class RandomApiService
         Log::debug('Random URL (RandomApiService): ' . $this->baseUrl);
 
         try {
+            $dryRun = config('random.documents.dry_run');
             $response = Http::withToken($token)
+                ->when($dryRun, function ($static, $whenParameter) {
+                    $static->withQueryParameters([
+                        'dryRun' => 'true'
+                    ]);
+                })
                 ->retry(2, 1000, null, false)
                 ->acceptJson()
                 ->post($this->baseUrl . $endpoint, $data);

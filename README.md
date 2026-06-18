@@ -283,3 +283,7 @@ Para facilitar el desarrollo y las pruebas (QA) sin depender de la API real de R
 - `RANDOM_MOCK_CREDIT_BRANCH=true` : Activa el flujo simulado (mock) para las operaciones de crédito y consultas de sucursal.
 - `SHOW_PRODUCT_ZERO_PRICE=false` : Configura si se muestran productos con precio cero en los listados
 
+### Generación de documentos
+
+- `RANDOM_ERP_BUSINESS_FUNCTIONARY`: Funcionario
+- `RANDOM_ERP_DOCUMENTS_DRY_RUN`: Habilita el modo dryRun para la inserción de documentos
