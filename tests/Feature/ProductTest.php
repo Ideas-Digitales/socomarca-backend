@@ -607,3 +607,117 @@ describe('Product search endpoint', function () {
         expect($response->json('data.0.id'))->toBe($productActiveZero->id);
     });
 });
+
+describe('Product stock filter', function () {
+    it('should not return products with stock equal to 0 in index', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 0]))
+            ->create(['name' => 'No Stock Product']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'In Stock Product']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('products.index'));
+
+        $response->assertStatus(200);
+        $names = array_column($response->json('data'), 'name');
+        expect($names)->not->toContain('No Stock Product');
+        expect($names)->toContain('In Stock Product');
+    });
+
+    it('should not return products with stock less than 0 in index', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => -5]))
+            ->create(['name' => 'Negative Stock Product']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'In Stock Product']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->getJson(route('products.index'));
+
+        $response->assertStatus(200);
+        $names = array_column($response->json('data'), 'name');
+        expect($names)->not->toContain('Negative Stock Product');
+        expect($names)->toContain('In Stock Product');
+    });
+
+    it('should not return products with stock equal to 0 in search', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 0]))
+            ->create(['name' => 'No Stock Product']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'In Stock Product']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        $names = array_column($response->json('data'), 'name');
+        expect($names)->not->toContain('No Stock Product');
+        expect($names)->toContain('In Stock Product');
+    });
+
+    it('should not return products with stock less than 0 in search', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => -10]))
+            ->create(['name' => 'Negative Stock Product']);
+
+        Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 50]))
+            ->create(['name' => 'In Stock Product']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        $names = array_column($response->json('data'), 'name');
+        expect($names)->not->toContain('Negative Stock Product');
+        expect($names)->toContain('In Stock Product');
+    });
+
+    it('should return products with stock greater than 0', function () {
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+        Product::truncate();
+
+        $product = Product::factory()
+            ->has(Price::factory(['price' => 5000, 'is_active' => true, 'stock' => 100]))
+            ->create(['name' => 'Stocked Product']);
+
+        $response = $this->actingAs($user, 'sanctum')
+            ->postJson(route('products.search'), [
+                'filters' => ['price' => ['min' => 0, 'max' => 10000]],
+            ]);
+
+        $response->assertStatus(200);
+        expect($response->json('data'))->toHaveCount(1);
+        expect($response->json('data.0.id'))->toBe($product->id);
+        expect($response->json('data.0.stock'))->toBe(100);
+    });
+});

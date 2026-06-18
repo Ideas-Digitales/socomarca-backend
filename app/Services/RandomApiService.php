@@ -163,7 +163,7 @@ class RandomApiService
     {
         $params = [
             'empresa' => config('random.business_code'),
-            'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR"
+            'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR,HFPR"
         ];
 
         // Only add non-empty parameters
