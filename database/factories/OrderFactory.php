@@ -26,7 +26,7 @@ class OrderFactory extends Factory
      */
     public function definition(): array
     {
-        $subtotal = fake()->randomFloat(2, 1000, 100000);
+        $subtotal = fake()->numberBetween(1000, 100000);
 
         //Factory 10 Region and Municipality
         $regions = Region::factory()->count(10)->create();
@@ -48,7 +48,7 @@ class OrderFactory extends Factory
             'billing_address_details' => fake()->address(),
         ];
         
-        $shippingCost = $subtotal >= 70000 ? 0 : config('random.fixed_shipping_cost');
+        $shippingCost = $subtotal >= 70000 ? 0 : (int) config('random.fixed_shipping_cost');
 
         return [
             'user_id' => User::factory(),
