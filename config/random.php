@@ -25,4 +25,8 @@ return [
     'warehouse_code' => env('RANDOM_ERP_WAREHOUSE_CODE', 'BEC'),
     'show_product_zero_price' => env('SHOW_PRODUCT_ZERO_PRICE', false),
     'fixed_shipping_cost' => (int) env('FIXED_SHIPPING_COST', 5990),
+    'functionary' => env('RANDOM_ERP_BUSINESS_FUNCTIONARY', ''),
+    'documents' => [
+        'dry_run' => env('RANDOM_ERP_DOCUMENTS_DRY_RUN', false),
+    ],
 ];

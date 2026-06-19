@@ -79,7 +79,8 @@ class OrderController extends Controller
                 return $price->price * $cart->quantity;
             });
 
-            $shippingCost = $subtotal >= 70000 ? 0 : config('random.fixed_shipping_cost');
+            $subtotal = (int) round($subtotal);
+            $shippingCost = $subtotal >= 70000 ? 0 : (int) config('random.fixed_shipping_cost');
             $total = $subtotal + $shippingCost;
 
             $user = User::find(Auth::user()->id);

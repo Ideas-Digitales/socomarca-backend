@@ -87,6 +87,7 @@ class WebpayController extends Controller
                             'tido' => 'NVV',
                             "moneda" => "CLP",
                             'modalidad' => config('random.modality'),
+                            'funcionario' => config('random.functionary'),
                             'lineas' => $lines,
                             'texto1' => 'Venta con pago por Webpay Plus',
                         ]

@@ -333,6 +333,40 @@ describe('OrderController', function () {
             expect($order->amount)->toBe(6440.0);
         });
 
+        test('rounds cart subtotal to whole pesos before sending payment amount', function () {
+            /** @var TestCase $this */
+
+            // Arrange
+            createProductCart(1152.5, 3);
+            createProductCart(100.4, 1);
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id
+            ]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->withArgs(function (Order $order) {
+                        return $order->subtotal === 3558.0
+                            && $order->shipping_cost === 5990.0
+                            && $order->amount === 9548.0;
+                    })
+                    ->andReturn([
+                        'url' => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            // Act
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id' => $address->id,
+                'payment_method' => 'transbank'
+            ]);
+
+            // Assert
+            $response->assertOk();
+        });
+
         test('includes user and address metadata in order', function () {
             /** @var TestCase $this */
 
