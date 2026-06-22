@@ -19,7 +19,8 @@ class Order extends Model
         'shipping_cost',
         'amount',
         'status',
-        'order_meta'
+        'order_meta',
+        'internal_sale_note',
     ];
 
     protected function casts(): array

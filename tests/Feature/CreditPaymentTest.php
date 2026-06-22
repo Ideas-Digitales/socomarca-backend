@@ -251,6 +251,7 @@ test('it can process a credit line payment successfully', function () {
     // Assert Random Document morph relation
     expect($order->randomDocuments()->count())->toBe(1);
     expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
+    expect($order->internal_sale_note)->toBe(657);
     expect($payment->status)->toBe('processing');
 
     // Find order by payment method applying filters

@@ -265,7 +265,10 @@ class OrderController extends Controller
             ]);
         }
 
-        $order->update(['status' => 'completed']);
+        $order->update([
+            'status' => 'completed',
+            'internal_sale_note' => $documentResponse['idmaeedo'],
+        ]);
         $payment = $order->payments()->create([
             'payment_method_id' => $paymentMethod->id,
             'status' => 'processing',

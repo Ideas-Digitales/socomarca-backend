@@ -29,7 +29,7 @@ test('webpay return handles successful payment, updates order status and creates
     ]);
 
     $product = Product::factory()->create(['sku' => 'TEST-SKU-123']);
-    
+
     OrderItem::factory()->create([
         'order_id' => $order->id,
         'product_id' => $product->id,
@@ -59,7 +59,7 @@ test('webpay return handles successful payment, updates order status and creates
             'amount' => 10000,
             'buy_order' => $order->id,
         ]);
-    
+
     $this->instance(WebpayService::class, $webpayServiceMock);
 
     // Fake Random API response for NVV creation
@@ -109,7 +109,7 @@ test('webpay return handles successful payment, updates order status and creates
         }
 
         $payload = $request->data();
-        
+
         return isset($payload['datos'])
             && $payload['datos']['codigoEntidad'] === $user->rut
             && $payload['datos']['tido'] === 'NVV'
@@ -121,13 +121,14 @@ test('webpay return handles successful payment, updates order status and creates
     // Assert Document attached to the Order
     expect($order->randomDocuments()->count())->toBe(1);
     expect($order->randomDocuments()->first()->idmaeedo)->toBe(999);
+    expect($order->internal_sale_note)->toBe(999);
 });
 
 test('webpay return handles failed transaction', function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
     $order = Order::factory()->create(['user_id' => $user->id, 'status' => 'pending']);
-    
+
     $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
 
     $payment = Payment::factory()->create([
@@ -144,7 +145,7 @@ test('webpay return handles failed transaction', function () {
         ->andReturn([
             'status' => 'FAILED' // transbank failed status
         ]);
-    
+
     $this->instance(WebpayService::class, $webpayServiceMock);
 
     // Act
@@ -171,7 +172,7 @@ test('webpay return handles user aborted transaction', function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
     $order = Order::factory()->create(['user_id' => $user->id, 'status' => 'pending']);
-    
+
     $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
 
     $payment = Payment::factory()->create([
