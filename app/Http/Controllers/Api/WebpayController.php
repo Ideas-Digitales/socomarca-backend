@@ -94,7 +94,9 @@ class WebpayController extends Controller
                     ];
 
                     try {
-                        $this->documentService->createDocument($payload, $order);
+                        $randomDocResponse = $this->documentService->createDocument($payload, $order);
+                        $order->internal_sale_note = $randomDocResponse['idmaeedo'];
+                        $order->save();
                     } catch (\Throwable $th) {
                         Log::error("Error al crear documento NVV Random para pago por Webpay", [
                             'order' => $order,

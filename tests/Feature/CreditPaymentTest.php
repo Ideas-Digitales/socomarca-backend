@@ -6,8 +6,10 @@ use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Services\Random\RandomDocumentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 uses(RefreshDatabase::class);
@@ -49,6 +51,87 @@ test('it rejects payment if the user credit line is blocked', function () {
     $response->assertStatus(200)
         ->assertJsonPath('success', false)
         ->assertJsonPath('message', 'Línea de crédito bloqueada');
+});
+
+test('it calls successfully to Random Credit service during a credit line payment', function () {
+    /** @var TestCase $this */
+
+    $user = User::factory()->create(['rut' => '12345678-9', 'branch_code' => 'CM']);
+    if (!$user->hasRole('customer')) {
+        $user->assignRole('customer');
+    }
+
+    $user->assignRole('customer');
+
+    $address = Address::factory()->create(['user_id' => $user->id]);
+    $product = Product::factory()->create();
+    $price = \App\Models\Price::factory()->create(['product_id' => $product->id, 'unit' => 'UN']);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'UN'
+    ]);
+
+    $baseUrl = config('random.url');
+    Http::fake([
+        "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
+        "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response([
+            'KOEN' => '12345678-9',
+            'SUEN' => 'CM',
+            'CRSD' => 50092358399999.99,
+            'CRSDVU' => 5915690,
+            'CRSDVV' => 705736,
+            'CRSDCU' => 0,
+            'CRSDCV' => 0
+        ], 200),
+    ]);
+    $this->actingAs($user)->getJson(route('users.credit-lines', ['user' => $user->id]))->json();
+
+    $randomDocumentServiceSpy = $this->spy(RandomDocumentService::class);
+
+    $this->actingAs($user)->postJson(route('orders.pay'), [
+        'address_id' => $address->id,
+        'payment_method' => 'random_credit'
+    ]);
+
+
+    $order = Order::where('user_id', $user->id)->first();
+    $orderItems = \App\Models\OrderItem::where('order_id', $order->id)->get();
+    $lines = $orderItems->map(function ($item) {
+        return [
+            'cantidad' => $item->quantity,
+            'codigoProducto' => $item->product->sku
+        ];
+    })->toArray();
+    $payload = [
+        'datos' => [
+            'empresa' => config('random.business_code'),
+            'codigoEntidad' => $user->rut,
+            'tido' => 'NVV',
+            "moneda" => "CLP",
+            'modalidad' => config('random.modality'),
+            'funcionario' => config('random.functionary'),
+            'lineas' => $lines,
+            'texto1' => 'Venta con pago a crédito',
+        ]
+    ];
+
+    $randomDocumentServiceSpy
+        ->shouldHaveReceived('createDocument')
+        ->withArgs(function($arg) use ($payload) {
+            if ($arg instanceof Order) {
+                return true;
+            } else if (is_array($arg)) {
+                // dd($arg, $);
+                $json1 = json_encode($arg);
+                $json2 = json_encode($payload);
+                return $json1 === $json2;
+            }
+
+            return false;
+        });
 });
 
 test('it can process a credit line payment successfully', function () {
@@ -129,7 +212,7 @@ test('it can process a credit line payment successfully', function () {
         ])
         ->assertJsonPath('data.transaction.status', 'AUTHORIZED')
         ->assertJsonPath('data.payment.response_status', 'AUTHORIZED');
-    
+
     $CRSDVU = bcadd(strval($CRSDVU), strval($response->json('data.payment.amount')));
 
     expect($response->json('data.payment.amount'))->toEqual($order->amount);
@@ -156,7 +239,7 @@ test('it can process a credit line payment successfully', function () {
         }
 
         $payload = $request->data();
-        
+
         return isset($payload['datos'])
             && $payload['datos']['codigoEntidad'] === $user->rut
             && $payload['datos']['tido'] === 'NVV'
@@ -168,6 +251,7 @@ test('it can process a credit line payment successfully', function () {
     // Assert Random Document morph relation
     expect($order->randomDocuments()->count())->toBe(1);
     expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
+    expect($order->internal_sale_note)->toBe(657);
     expect($payment->status)->toBe('processing');
 
     // Find order by payment method applying filters

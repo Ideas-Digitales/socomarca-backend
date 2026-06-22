@@ -231,7 +231,9 @@ class OrderController extends Controller
                 'empresa' => config('random.business_code'),
                 'codigoEntidad' => $user->rut,
                 'tido' => 'NVV',
+                "moneda" => "CLP",
                 'modalidad' => config('random.modality'),
+                'funcionario' => config('random.functionary'),
                 'lineas' => $lines,
                 'texto1' => 'Venta con pago a crédito',
             ]
@@ -263,7 +265,10 @@ class OrderController extends Controller
             ]);
         }
 
-        $order->update(['status' => 'completed']);
+        $order->update([
+            'status' => 'completed',
+            'internal_sale_note' => $documentResponse['idmaeedo'],
+        ]);
         $payment = $order->payments()->create([
             'payment_method_id' => $paymentMethod->id,
             'status' => 'processing',

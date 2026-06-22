@@ -15,22 +15,25 @@ class RegionSeeder extends Seeder
      */
     public function run(): void
     {
-    
+
 
         $regions = $this->getFakeRegions();
         foreach ($regions as $region) {
-            Region::create([
-                //'id' => $region->id,
-                'code' => $region->code,
-                'name' => $region->name,
-                'status' => $region->status,
-            ]);
+            Region::updateOrCreate(
+                [
+                    'code' => $region->code,
+                ],
+                [
+                    'name' => $region->name,
+                    'status' => $region->status,
+                ]
+            );
         }
 
         $comunas = $this->getFakeMunicipalities();
         foreach ($comunas as $comuna) {
             Municipality::updateOrCreate(
-                ['code' => $comuna->code], 
+                ['code' => $comuna->code],
                 [
                 'name' => $comuna->name,
                 'region_id' => $comuna->region_id,
@@ -46,7 +49,7 @@ class RegionSeeder extends Seeder
         return json_decode($regionsJsonFile);
     }
 
-    
+
     private function getFakeMunicipalities()
     {
         $municipalitiesJsonFile = Storage::disk('local')->get('fake_seed_data/municipalities.json');
