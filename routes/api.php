@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductImagePresignedUrlController;
 use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
 use App\Http\Controllers\Api\ProductImageSyncController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -291,6 +292,12 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->put('fcm/config', [FirebaseConfigController::class, 'update'])
     ->name('firebase.config.update');
 
+Route::resource('branches', BranchController::class)
+    ->only(['index', 'show'])
+    ->parameters(['branches' => 'branch'])
+    ->middlewareFor('index', 'permission:read-own-branches')
+    ->middlewareFor('show', 'permission:read-own-branches');
+
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->get('fcm/config', [FirebaseConfigController::class, 'showConfig'])
     ->name('firebase.config.show');
@@ -299,4 +306,3 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
 Route::any('{url}', function () {
     return response()->json(['message' => 'Method Not Allowed.'], 405);
 })->where('url', '.*');
-

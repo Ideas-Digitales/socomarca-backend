@@ -138,6 +138,10 @@ return [
     'read-all-credit-lines', // [superadmin, admin]
     'read-own-credit-lines', // [customer]
 
+    // Branches permissions
+    'read-all-branches', // [superadmin, admin]
+    'read-own-branches', // [customer]
+
     // API Documentation permissions
     'api-doc.read.all', // [superadmin, admin, developer]
 ];
