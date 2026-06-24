@@ -14,17 +14,20 @@ test('sync users creates new user with generated email when email is empty', fun
     $mock->shouldReceive('fetchAndUpdateUsers')->andReturn([
         [
             'KOEN' => '12345678-9',
+            'RTEN' => '11111111-1',
             'NOKOEN' => 'John Doe',
             'EMAILCOMER' => '',
             'SIEN' => 'John Doe Business',
             'FOEN' => '+56912345678',
             'SUEN' => 'BRANCH001',
             'TIPOSUC' => 'P',
+            'TIEN' => 'C',
         ]
     ]);
     App::instance(RandomApiService::class, $mock);
 
     Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
     Log::shouldReceive('warning')->zeroOrMoreTimes();
     Log::shouldReceive('error')->zeroOrMoreTimes();
 
@@ -32,36 +35,46 @@ test('sync users creates new user with generated email when email is empty', fun
     $job->handle(app(RandomApiService::class));
 
     $this->assertDatabaseHas('users', [
-        'rut' => '12345678-9',
+        'user_code' => '12345678-9',
+        'rut' => '11111111-1',
         'name' => 'John Doe',
         'email' => 'temp_12345678-9@socomarca.temp',
+        'business_name' => 'John Doe Business',
     ]);
+
+    $user = User::where('user_code', '12345678-9')->first();
+    expect($user->hasRole('customer'))->toBeTrue();
 });
 
 test('sync users prevents duplicate email with different user', function () {
     User::factory()->create([
         'email' => 'existing@example.com',
         'rut' => '98765432-1',
+        'user_code' => '98765432-1',
     ]);
 
     $mock = Mockery::mock(RandomApiService::class);
     $mock->shouldReceive('fetchAndUpdateUsers')->andReturn([
         [
             'KOEN' => '12345678-9',
+            'RTEN' => '11111111-1',
             'NOKOEN' => 'John Doe',
             'EMAILCOMER' => 'existing@example.com',
             'SIEN' => 'John Doe Business',
             'FOEN' => '+56912345678',
             'SUEN' => 'BRANCH001',
             'TIPOSUC' => 'P',
+            'TIEN' => 'C',
         ]
     ]);
     App::instance(RandomApiService::class, $mock);
 
     Log::shouldReceive('info')->zeroOrMoreTimes();
     Log::shouldReceive('warning')
-        ->withArgs(function ($message) {
-            return str_contains($message, 'Email ya existe');
+        ->withArgs(function ($message, $context) {
+            return $message === 'Skipping random user sync'
+                && isset($context['message'])
+                && str_contains($context['message'], 'Email address already exists');
         })
         ->once();
     Log::shouldReceive('error')->zeroOrMoreTimes();
@@ -70,13 +83,14 @@ test('sync users prevents duplicate email with different user', function () {
     $job->handle(app(RandomApiService::class));
 
     $this->assertDatabaseMissing('users', [
-        'rut' => '12345678-9',
+        'user_code' => '12345678-9',
     ]);
 });
 
-test('sync users allows same user to update email by rut', function () {
+test('sync users allows same user to update email by user_code', function () {
     User::factory()->create([
-        'rut' => '12345678-9',
+        'user_code' => '12345678-9',
+        'rut' => '11111111-1',
         'name' => 'John Doe',
         'email' => 'old@example.com',
     ]);
@@ -85,17 +99,20 @@ test('sync users allows same user to update email by rut', function () {
     $mock->shouldReceive('fetchAndUpdateUsers')->andReturn([
         [
             'KOEN' => '12345678-9',
+            'RTEN' => '11111111-1',
             'NOKOEN' => 'John Doe Updated',
             'EMAILCOMER' => 'new@example.com',
             'SIEN' => 'John Doe Business Updated',
             'FOEN' => '+56912345678',
             'SUEN' => 'BRANCH001',
             'TIPOSUC' => 'P',
+            'TIEN' => 'A',
         ]
     ]);
     App::instance(RandomApiService::class, $mock);
 
     Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
     Log::shouldReceive('warning')->zeroOrMoreTimes();
     Log::shouldReceive('error')->zeroOrMoreTimes();
 
@@ -103,7 +120,8 @@ test('sync users allows same user to update email by rut', function () {
     $job->handle(app(RandomApiService::class));
 
     $this->assertDatabaseHas('users', [
-        'rut' => '12345678-9',
+        'user_code' => '12345678-9',
+        'rut' => '11111111-1',
         'email' => 'new@example.com',
         'name' => 'John Doe Updated',
         'business_name' => 'John Doe Business Updated',
@@ -115,12 +133,14 @@ test('sync users skips non primary branch sucursales', function () {
     $mock->shouldReceive('fetchAndUpdateUsers')->andReturn([
         [
             'KOEN' => '12345678-9',
+            'RTEN' => '11111111-1',
             'NOKOEN' => 'John Doe',
             'EMAILCOMER' => 'john@example.com',
             'SIEN' => 'John Doe Business',
             'FOEN' => '+56912345678',
             'SUEN' => 'BRANCH001',
             'TIPOSUC' => 'S', // Secondary branch
+            'TIEN' => 'C',
         ]
     ]);
     App::instance(RandomApiService::class, $mock);
@@ -133,6 +153,6 @@ test('sync users skips non primary branch sucursales', function () {
     $job->handle(app(RandomApiService::class));
 
     $this->assertDatabaseMissing('users', [
-        'rut' => '12345678-9',
+        'user_code' => '12345678-9',
     ]);
 });

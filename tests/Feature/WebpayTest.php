@@ -18,7 +18,7 @@ uses(RefreshDatabase::class);
 
 test('webpay return handles successful payment, updates order status and creates random document', function () {
     /** @var \Tests\TestCase $this */
-    $user = User::factory()->create(['rut' => '12345678-9']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9']);
     $user->assignRole('customer');
 
     // Create an order in pending state
@@ -111,7 +111,7 @@ test('webpay return handles successful payment, updates order status and creates
         $payload = $request->data();
 
         return isset($payload['datos'])
-            && $payload['datos']['codigoEntidad'] === $user->rut
+            && $payload['datos']['codigoEntidad'] === $user->user_code
             && $payload['datos']['tido'] === 'NVV'
             && count($payload['datos']['lineas']) === 1
             && $payload['datos']['lineas'][0]['codigoProducto'] === $product->sku

@@ -51,7 +51,7 @@ test('it logs an error if there are more than 2 processing payments', function (
 });
 
 test('it processes trace, finds FCV, unblocks credit and completes payment', function () {
-    $user = User::factory()->create(['rut' => '12345678-9']);
+    $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9']);
     $creditLine = CreditLine::factory()->create(['user_id' => $user->id, 'is_blocked' => true, 'branch_code' => 'CM']);
     $paymentMethod = PaymentMethod::firstOrCreate(['code' => 'random_credit'], ['name' => 'Random', 'active' => true]);
     $order = Order::factory()->create(['user_id' => $user->id]);

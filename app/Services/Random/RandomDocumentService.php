@@ -25,7 +25,7 @@ class RandomDocumentService
         // $payload = [
         //     'datos' => [
         //         'empresa' => config('random.business_code'),
-        //         'codigoEntidad' => $user->rut,
+        //         'codigoEntidad' => $user->user_code,
         //         'tido' => 'NVV',
         //         'modalidad' => config('random.modality'),
         //         'lineas' => $lines
