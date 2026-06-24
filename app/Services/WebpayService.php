@@ -52,9 +52,10 @@ class WebpayService
      * Crea una nueva transacción de Webpay
      *
      * @param Order $order
+     * @param string $generateRandomDocType Random Document type to generate in ERP
      * @return array
      */
-    public function createTransaction(Order $order)
+    public function createTransaction(Order $order, string $generateRandomDocType)
     {
         Log::info('WebpayService: Creando nueva transacción', [
             'order_id' => $order->id,
@@ -69,13 +70,13 @@ class WebpayService
                 $order->amount,
                 $this->webpayData['WEBPAY_RETURN_URL']
             );
-            
+
 
             Log::info('WebpayService: Transacción creada exitosamente', [
                 'order_id' => $order->id,
                 'token' => $response->getToken()
             ]);
-            
+
             Payment::create([
                 'order_id' => $order->id,
                 'payment_method_id' => PaymentMethod::where('name', 'Transbank')->first()->id,
@@ -84,7 +85,8 @@ class WebpayService
                 'response_status' => 'pending',
                 'response_message' => json_encode([]),
                 'token' => $response->getToken(),
-                'paid_at' => null
+                'paid_at' => null,
+                'generate_random_doc_type' => $generateRandomDocType,
             ]);
 
             return [
@@ -113,7 +115,7 @@ class WebpayService
 
         try {
             $result = $this->transaction->commit($token);
-            
+
             $response = [
                 'status' => $result->getStatus(),
                 'amount' => $result->getAmount(),
@@ -126,7 +128,7 @@ class WebpayService
                 'accounting_date' => $result->getAccountingDate(),
                 'transaction_date' => $result->getTransactionDate(),
             ];
-            
+
 
 
             Log::info('WebpayService: Resultado de transacción obtenido', [
@@ -157,7 +159,7 @@ class WebpayService
 
         try {
             $result = $this->transaction->status($token);
-            
+
             $response = [
                 'status' => $result->getStatus(),
                 'amount' => $result->getAmount(),
@@ -203,7 +205,7 @@ class WebpayService
 
         try {
             $result = $this->transaction->refund($token, $amount);
-            
+
             $response = [
                 'type' => $result->getType(),
                 'balance' => $result->getBalance(),
@@ -228,4 +230,4 @@ class WebpayService
             throw $e;
         }
     }
-} 
+}

@@ -21,6 +21,8 @@ class Order extends Model
         'status',
         'order_meta',
         'internal_sale_note',
+        'branch_id',
+        'note',
     ];
 
     protected function casts(): array
@@ -48,6 +50,11 @@ class Order extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function orderDetails()

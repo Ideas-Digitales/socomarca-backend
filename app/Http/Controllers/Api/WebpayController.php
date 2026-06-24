@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PaymentDocumentType;
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\CartItem;
 use App\Services\Random\RandomDocumentService;
 use App\Services\WebpayService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WebpayController extends Controller
@@ -80,16 +83,24 @@ class WebpayController extends Controller
                             'codigoProducto' => $item->product->sku
                         ];
                     })->toArray();
+
+                    $randomDocType = PaymentDocumentType::getLabel(
+                        $payment->generate_random_doc_type
+                    );
+
                     $payload = [
                         'datos' => [
                             'empresa' => config('random.business_code'),
                             'codigoEntidad' => $order->user->user_code,
+                            'sucursalEntidad' => $order->branch->code,
                             'tido' => 'NVV',
                             "moneda" => "CLP",
                             'modalidad' => config('random.modality'),
                             'funcionario' => config('random.functionary'),
                             'lineas' => $lines,
                             'texto1' => 'Venta con pago por Webpay Plus',
+                            'texto2' => "Documento contable a generar: {$randomDocType}",
+                            'texto3' => $order->notes,
                         ]
                     ];
 
