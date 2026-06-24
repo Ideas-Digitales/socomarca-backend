@@ -61,7 +61,11 @@ return [
         "update-system-config",
 
         // Credit lines
-        'read-all-credit-lines'
+        'read-all-credit-lines',
+
+        // Branches permissions
+        'read-all-branches', // [superadmin, admin]
+        'read-own-branches', // [customer]
     ],
     'admin' => [
         'read-users',
@@ -122,7 +126,11 @@ return [
         "create-viewed-notifications",
 
         // Credit lines
-        'read-all-credit-lines'
+        'read-all-credit-lines',
+
+        // Branches permissions
+        'read-all-branches',
+        'read-own-branches',
 
     ],
     'supervisor' => [
@@ -220,6 +228,10 @@ return [
         "read-own-credit-lines",
         // Payment method permissions
         'read-all-payment-methods',
+
+        // Branches permissions
+        'read-all-branches',
+        'read-own-branches',
     ],
     'developer' => [
         'read-users',
@@ -271,5 +283,7 @@ return [
         'read-all-credit-lines',
         'read-own-credit-lines',
         'api-doc.read.all',
+        'read-all-branches',
+        'read-own-branches',
     ],
 ];
