@@ -29,7 +29,7 @@ class SyncRandomBranches implements ShouldQueue
 
         foreach ($randomBranches as $randomBranch) {
             try {
-                if ($randomBranch['TIPOSUC'] == 'S') { //Sincroniza solo si es sucursal principal
+                if ($randomBranch['TIPOSUC'] == 'S') { // Sincroniza solo si es sucursal secundaria
                     $u = DB::table('users')
                         ->where('user_code', $randomBranch['KOEN'])
                         ->first(['id']);
@@ -40,10 +40,6 @@ class SyncRandomBranches implements ShouldQueue
 
                     DB::table('branches')->upsert(
                         [
-                            [
-                                'code' => $randomBranch['SUEN'],
-                                'user_code' => $randomBranch['KOEN']
-                            ],
                             [
                                 'code' => $randomBranch['SUEN'],
                                 'user_code' => $randomBranch['KOEN'],
