@@ -83,7 +83,7 @@ class WebpayController extends Controller
                     $payload = [
                         'datos' => [
                             'empresa' => config('random.business_code'),
-                            'codigoEntidad' => $order->user->rut,
+                            'codigoEntidad' => $order->user->user_code,
                             'tido' => 'NVV',
                             "moneda" => "CLP",
                             'modalidad' => config('random.modality'),

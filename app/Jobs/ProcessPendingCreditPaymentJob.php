@@ -104,7 +104,7 @@ class ProcessPendingCreditPaymentJob implements ShouldQueue
             }
 
             try {
-                $creditStateResponse = $randomApi->getCreditLine($this->creditLine->user->rut, $this->creditLine->branch_code);
+                $creditStateResponse = $randomApi->getCreditLine($this->creditLine->user->user_code, $this->creditLine->branch_code);
                 $this->creditLine->update([
                     'state' => $creditStateResponse->json(),
                 ]);

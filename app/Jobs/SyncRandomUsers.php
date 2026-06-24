@@ -24,47 +24,86 @@ class SyncRandomUsers implements ShouldQueue
     public function handle(RandomApiService $randomApi): void
     {
         Log::info('SyncRandomUsers started');
-        try {
-            $entidades = $randomApi->fetchAndUpdateUsers();
 
-            Log::info('Entidades: ' . json_encode($entidades));
+        /** @var array $entidades */
+        $entidades = $randomApi->fetchAndUpdateUsers();
 
-            foreach ($entidades as $entidad) {
+        Log::info('Entidades: ' . json_encode($entidades));
+
+        foreach ($entidades as $entidad) {
+            try {
                 if ($entidad['TIPOSUC'] == 'P') { //Sincroniza solo si es sucursal principal
 
-                    $user = \App\Models\User::firstOrNew(['rut' => $entidad['KOEN'] ?? null]);
+                    $user = \App\Models\User::where('user_code', $entidad['KOEN'])->first();
+                    $rten = \Illuminate\Support\Facades\DB::table('users')
+                        ->where('rut', $entidad['RTEN'])
+                        ->first(['id']);
 
-                    // Preparar email - generar temporal si está vacío
+                    if ($user && $rten && $user->id !== $rten->id) {
+                        Log::warning('Skipping random user sync', [
+                            'message' => 'RUT already exists in the database',
+                            'user_found_by_code' => $user->toArray(),
+                            'user_found_by_rut' => (array) $rten,
+                            'entidad_random' => $entidad,
+                        ]);
+                        continue;
+                    }
+
+                    if ($user === null) {
+                        $user = new \App\Models\User();
+                    }
+
                     $email = trim($entidad['EMAILCOMER'] ?? '') ?: null;
                     if (!$email) {
-                        // Generar email temporal basado en RUT
                         $rut = $entidad['KOEN'] ?? 'user';
                         $email = "temp_{$rut}@socomarca.temp";
                     }
 
-                    // Validar que no exista otro usuario con el mismo email
-                    if (\App\Models\User::where('email', $email)->where('rut', '!=', $user->rut ?? null)->exists()) {
-                        Log::warning('Email ya existe en la base de datos: ' . $email . ' - Omitiendo usuario RUT: ' . ($entidad['KOEN'] ?? 'N/A'));
+                    if (\App\Models\User::where('email', $email)->exists() && $user->id === null) {
+                        Log::warning('Skipping random user sync', [
+                            'message' => 'Email address already exists in the database',
+                            'user' => $user->toArray(),
+                            'entidad_random' => $entidad,
+                            'email' => $email,
+                        ]);
                         continue;
                     }
 
-                    $user->name          = $entidad['NOKOEN'] ?? '';
-                    $user->email         = $email;
-                    $user->business_name = $entidad['SIEN'] ?? '';
-                    $user->is_active     = true;
-                    $user->phone         = $entidad['FOEN'] ?? null;
-                    $user->branch_code = $entidad['SUEN'] ?? null;
-                    // Solo asigna password si es un usuario nuevo
-                    if (!$user->exists) {
+                    Log::info('Processing user', ['user' => $user->toArray()]);
+
+                    $user->user_code        = $entidad['KOEN'];
+                    $user->rut              = $entidad['RTEN'];
+                    $user->name             = $entidad['NOKOEN'] ?? '';
+                    $user->email            = $email;
+                    $user->business_name    = $entidad['SIEN'] ?? '';
+                    $user->is_active        = true;
+                    $user->phone            = $entidad['FOEN'] ?? null;
+                    $user->branch_code      = $entidad['SUEN'] ?? '';
+                    $user->random_user_type = $entidad['TIEN'];
+
+                    if ($user->id === null) {
                         $user->password = bcrypt('password');
                     }
 
                     $user->save();
+                    $user->refresh();
+
+                    if (in_array($user->random_user_type, ['C', 'A'])) {
+                        $user->assignRole('customer');
+                    } else {
+                        Log::warning('User doesn\'t have a valid random TIEN to assign a role', [
+                            'user' => $user->toArray(),
+                            'entidad_random' => $entidad,
+                        ]);
+                    }
+
+                    Log::info("User {$user->id}, with RUT {$user->rut} and code {$user->user_code} synced successfully");
                 }
+            } catch (\Throwable $e) {
+                Log::error('SyncRandomUsers failed: ' . $e->getMessage());
+                return;
             }
-            Log::info('SyncRandomUsers completed successfully');
-        } catch (\Exception $e) {
-            Log::error('SyncRandomUsers failed: ' . $e->getMessage());
         }
+        Log::info('SyncRandomUsers completed successfully');
     }
 }

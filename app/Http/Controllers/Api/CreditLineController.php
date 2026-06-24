@@ -29,7 +29,7 @@ class CreditLineController extends Controller
         }
 
         $response = $this->randomApiService->getCreditLine(
-            $user->rut,
+            $user->user_code,
             $user->branch_code
         );
 

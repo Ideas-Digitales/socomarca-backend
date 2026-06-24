@@ -33,6 +33,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'phone' => fake()->numberBetween(777777777, 999999999),
             'rut' => $rut,
+            'user_code' => $rut,
             'business_name' => fake()->company(),
             'is_active' => fake()->boolean(),
             'last_login' => fake()->dateTimeThisYear(),

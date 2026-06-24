@@ -39,13 +39,15 @@ class FixRandomUsers extends Command
                 if ($entidad['TIPOSUC'] == 'P') { //Sincroniza solo si es sucursal principal
 
                     $user = User::where('user_code', $entidad['KOEN'])->first();
-                    $rten = User::where('rut', $entidad['RTEN'])->first();
+                    $rten = \Illuminate\Support\Facades\DB::table('users')
+                        ->where('rut', $entidad['RTEN'])
+                        ->first(['id']);
 
                     if ($user && $rten && $user->id !== $rten->id) {
                         Log::warning('Skipping random user sync', [
                             'message' => 'RUT already exists in the database',
                             'user_found_by_code' => $user->toArray(),
-                            'user_found_by_rut' => $rten->toArray(),
+                            'user_found_by_rut' => (array) $rten,
                             'entidad_random' => $entidad,
                         ]);
                         continue;
@@ -74,10 +76,11 @@ class FixRandomUsers extends Command
 
                     Log::info('Processing user', ['user' => $user->toArray()]);
 
+                    $user->user_code     = $entidad['KOEN'];
                     $user->rut          = $entidad['RTEN'];
                     $user->name          = $entidad['NOKOEN'] ?? '';
                     $user->email         = $email;
-                    $user->business_name = '';
+                    $user->business_name = $entidad['SIEN'] ?? '';
                     $user->is_active     = true;
                     $user->phone         = $entidad['FOEN'] ?? null;
                     $user->branch_code = $entidad['SUEN'] ?? '';
@@ -93,7 +96,11 @@ class FixRandomUsers extends Command
 
                     if (in_array($user->random_user_type, ['C', 'A'])) {
                         $user->assignRole('customer');
-                        Log::debug('Customer role assigned to user');
+                    } else {
+                        Log::warning('User doesn\'t have a valid random TIEN to assign a role', [
+                            'user' => $user->toArray(),
+                            'entidad_random' => $entidad,
+                        ]);
                     }
 
                     Log::info("User {$user->id}, with RUT {$user->rut} and code {$user->user_code} synced successfully");
