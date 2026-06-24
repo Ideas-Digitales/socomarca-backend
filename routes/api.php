@@ -220,6 +220,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/reports/transactions/failed', [ReportController::class, 'failedTransactionsList'])->name('reports.transactions.failed');
         Route::get('/reports/transactions/{id}', [ReportController::class, 'transactionId'])->name('reports.transactions.show');
     });
+
+    Route::resource('branches', BranchController::class)
+        ->only(['index', 'show'])
+        ->parameters(['branches' => 'branch'])
+        ->middlewareFor('index', 'permission:read-own-branches')
+        ->middlewareFor('show', 'permission:read-own-branches');
 });
 
 // Rutas FAQs
@@ -291,12 +297,6 @@ Route::post('/viewed-notifications/batch', ViewedNotificationsBatchStoreControll
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->put('fcm/config', [FirebaseConfigController::class, 'update'])
     ->name('firebase.config.update');
-
-Route::resource('branches', BranchController::class)
-    ->only(['index', 'show'])
-    ->parameters(['branches' => 'branch'])
-    ->middlewareFor('index', 'permission:read-own-branches')
-    ->middlewareFor('show', 'permission:read-own-branches');
 
 Route::middleware(['auth:sanctum', 'permission:update-system-config'])
     ->get('fcm/config', [FirebaseConfigController::class, 'showConfig'])

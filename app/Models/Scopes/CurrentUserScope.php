@@ -14,6 +14,10 @@ class CurrentUserScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
+        if (!Auth::hasUser()) {
+            return;
+        }
+
         $userId = Auth::user()->id;
         $builder->where('user_id', $userId);
     }

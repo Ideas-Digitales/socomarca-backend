@@ -24,7 +24,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->timestamps();
 
-            $table->index(['code', 'user_code'], 'branch_suen_koen_index');
+            $table->unique(['code', 'user_code'], 'branch_suen_koen_unique');
         });
     }
 
