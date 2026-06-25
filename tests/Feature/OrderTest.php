@@ -87,6 +87,7 @@ describe('OrderController', function () {
                             'status',
                             'order_items',
                             'order_meta',
+                            'random_document_number',
                             'created_at',
                             'updated_at'
                         ]
