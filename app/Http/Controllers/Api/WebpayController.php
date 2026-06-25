@@ -4,14 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\PaymentDocumentType;
 use App\Http\Controllers\Controller;
-use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\CartItem;
 use App\Services\Random\RandomDocumentService;
 use App\Services\WebpayService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WebpayController extends Controller
@@ -47,11 +45,9 @@ class WebpayController extends Controller
                 if ($order) {
                     Log::info('Webpay return: Orden encontrada', ['order_id' => $order->id, 'status' => $result['status']]);
 
-                    // Actualizar el estado de la orden según el resultado
                     $order->status = $result['status'] === 'AUTHORIZED' ? 'completed' : 'failed';
                     $order->save();
 
-                    // Actualizar el pago
                     $payment->response_status = $result['status'];
                     $payment->response_message = json_encode($result);
                     $payment->auth_code = $result['authorization_code'] ?? null;
@@ -69,13 +65,6 @@ class WebpayController extends Controller
                         Log::info('Webpay return: Carrito borrado exitosamente', ['user_id' => $order->user_id]);
                     }
 
-                    Payment::where('order_id', $order->id)->update([
-                        'response_status' => $result['status'],
-                        'response_message' => json_encode($result),
-                        'auth_code' => $result['authorization_code'] ?? null,
-                        'paid_at' => $result['status'] === 'AUTHORIZED' ? now() : null
-                    ]);
-
                     $orderItems = \App\Models\OrderItem::where('order_id', $order->id)->get();
                     $lines = $orderItems->map(function ($item) {
                         return [
@@ -85,7 +74,7 @@ class WebpayController extends Controller
                     })->toArray();
 
                     $randomDocType = PaymentDocumentType::getLabel(
-                        $payment->generate_random_doc_type
+                        $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
                     );
 
                     $payload = [

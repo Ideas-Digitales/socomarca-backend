@@ -4,7 +4,7 @@ namespace App\Enums;
 
 class PaymentDocumentType
 {
-    const INVOICE = 'completed';
+    const INVOICE = 'invoice';
     const RECEIPT = 'receipt';
 
     /**

@@ -22,7 +22,7 @@ class Order extends Model
         'order_meta',
         'internal_sale_note',
         'branch_id',
-        'note',
+        'notes',
     ];
 
     protected function casts(): array
