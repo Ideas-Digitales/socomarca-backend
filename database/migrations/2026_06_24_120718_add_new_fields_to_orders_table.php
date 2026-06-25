@@ -16,6 +16,7 @@ return new class extends Migration
                 ->nullable()
                 ->comment('Order notes. Random ERP Documents: texto1');
             $table->foreignId('branch_id')
+                ->nullable()
                 ->constrained(
                     table: 'branches',
                     indexName: 'orders_branch_id',
