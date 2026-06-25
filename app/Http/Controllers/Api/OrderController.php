@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\BranchType;
 use App\Enums\PaymentDocumentType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orders\PayOrderRequest;
@@ -13,6 +14,7 @@ use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Scopes\SecondaryBranchesScope;
 use Illuminate\Support\Facades\DB;
 use App\Services\WebpayService;
 use Illuminate\Support\Facades\Auth;
@@ -88,6 +90,13 @@ class OrderController extends Controller
             $user = User::find(Auth::user()->id);
             $address = $user->addresses()->where('id', $addressId)->first();
 
+            if (!$branchId) {
+                $branchId = Branch::withoutGlobalScope(SecondaryBranchesScope::class)
+                    ->where('user_id', $user->id)
+                    ->where('branch_type', BranchType::PRIMARY)
+                    ->value('id');
+            }
+
             $order_meta = [
                 'user' => $user->toArray(),
                 'address' => $address ? $address->toArray() : null,
@@ -101,7 +110,7 @@ class OrderController extends Controller
                 'status' => 'pending',
                 'order_meta' => $order_meta,
                 'branch_id' => $branchId,
-                'notes' => $notes,
+                'notes' => $notes ?? '',
             ];
 
             // Crear la orden
@@ -260,9 +269,11 @@ class OrderController extends Controller
                 'modalidad' => config('random.modality'),
                 'funcionario' => config('random.functionary'),
                 'lineas' => $lines,
-                'texto1' => 'Venta con pago a crédito',
+                'observacion' => $order->notes,
+                'texto1' => 'Pago a crédito',
                 'texto2' => "Documento contable a generar: {$randomDocType}",
-                'texto3' => $order->notes,
+                'texto3' => 'Origen: Compra rápida',
+                'texto4' => "Orden de compra: #{$order->id}",
             ]
         ];
 

@@ -88,6 +88,31 @@ describe('Branches tests', function () {
                     'meta',
                 ]);
         });
+
+        it('does not return primary branches in index', function () {
+            $this->user->givePermissionTo('read-own-branches');
+            $primaryBranch = Branch::factory()->create([
+                'user_id'     => $this->user->id,
+                'branch_type' => 'P',
+            ]);
+            $secondaryBranch = Branch::factory()->create(['user_id' => $this->user->id]);
+            $route = route('branches.index');
+
+            $response = $this->actingAs($this->user, 'sanctum')
+                ->getJson($route);
+
+            $response
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->assertJsonFragment([
+                    'name' => $secondaryBranch->name,
+                    'code' => $secondaryBranch->code,
+                ])
+                ->assertJsonMissingExact([
+                    'name' => $primaryBranch->name,
+                    'code' => $primaryBranch->code,
+                ]);
+        });
     });
 
     describe('Show endpoint', function () {
@@ -151,6 +176,18 @@ describe('Branches tests', function () {
                     'name' => $branch->name,
                     'code' => $branch->code,
                 ]);
+        });
+        it('returns 404 when requesting a primary branch', function () {
+            $this->user->givePermissionTo('read-own-branches');
+            $primaryBranch = Branch::factory()->create([
+                'user_id'     => $this->user->id,
+                'branch_type' => 'P',
+            ]);
+            $route = route('branches.show', ['branch' => $primaryBranch->id]);
+
+            $this->actingAs($this->user, 'sanctum')
+                ->getJson($route)
+                ->assertNotFound();
         });
     });
 });

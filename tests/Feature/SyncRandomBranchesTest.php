@@ -1,11 +1,13 @@
 <?php
 
+use App\Enums\BranchType;
 use App\Jobs\SyncRandomBranches;
 use App\Models\Branch;
 use App\Models\User;
 use App\Services\RandomApiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
@@ -48,10 +50,11 @@ test('sync creates branches for secondary sucursales', function () {
         'rut'              => '11111111-1',
         'business_name'    => 'Branch One Business',
         'user_id'          => $user->id,
+        'branch_type'      => 'S',
     ]);
 });
 
-test('sync skips primary sucursales', function () {
+test('sync creates primary branches', function () {
     $user = User::factory()->create(['user_code' => '12345678-9']);
 
     $mock = Mockery::mock(RandomApiService::class);
@@ -79,8 +82,10 @@ test('sync skips primary sucursales', function () {
     $job = new SyncRandomBranches();
     $job->handle(app(RandomApiService::class));
 
-    $this->assertDatabaseMissing('branches', [
-        'code' => 'BRANCH999',
+    $this->assertDatabaseHas('branches', [
+        'user_code'   => '12345678-9',
+        'code'        => 'BRANCH999',
+        'branch_type' => 'P',
     ]);
 });
 
@@ -125,6 +130,7 @@ test('sync updates existing branch via upsert', function () {
         'email'            => 'old@example.com',
         'commercial_email' => 'oldcom@example.com',
         'rut'              => '11111111-1',
+        'branch_type'      => BranchType::SECONDARY,
     ]);
 
     $mock = Mockery::mock(RandomApiService::class);
@@ -161,7 +167,9 @@ test('sync updates existing branch via upsert', function () {
         'phone'            => '56988888888',
         'rut'              => '22222222-2',
         'business_name'    => 'Updated Business',
+        'branch_type'      => 'S',
     ]);
 
-    $this->assertEquals(1, Branch::count());
+    $total = DB::table('branches')->count();
+    $this->assertEquals(1, $total);
 });

@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\PaymentDocumentType;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\Product;
@@ -10,6 +9,8 @@ use App\Models\CartItem;
 use App\Models\Price;
 use App\Models\Address;
 use App\Models\Branch;
+use App\Enums\PaymentDocumentType;
+use App\Enums\BranchType;
 use App\Services\WebpayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -446,14 +447,26 @@ describe('OrderController', function () {
 
             $response->assertOk();
         });
-    });
 
-    describe('payOrder validation', function () {
-        it('requires branch_id field', function () {
+        test('defaults to principal branch when branch_id is omitted', function () {
             /** @var TestCase $this */
 
             createProductCart();
             $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $principalBranch = Branch::factory()->create([
+                'user_id'     => $this->user->id,
+                'branch_type' => BranchType::PRIMARY,
+            ]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
 
             $response = $this->postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
@@ -461,10 +474,46 @@ describe('OrderController', function () {
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            $response->assertStatus(422)
-                ->assertJsonValidationErrors('branch_id');
+            $response->assertOk();
+
+            $this->assertDatabaseHas('orders', [
+                'id'        => Order::first()->id,
+                'branch_id' => $principalBranch->id,
+            ]);
         });
 
+        test('notes defaults to empty string when not provided', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+            ]);
+
+            $response->assertOk();
+
+            $this->assertDatabaseHas('orders', [
+                'id'    => Order::first()->id,
+                'notes' => '',
+            ]);
+        });
+    });
+
+    describe('payOrder validation', function () {
         it('validates branch_id exists', function () {
             /** @var TestCase $this */
 

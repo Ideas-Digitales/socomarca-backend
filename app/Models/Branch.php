@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use App\Enums\BranchType;
 use App\Models\Scopes\CurrentUserScope;
-use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+use App\Models\Scopes\SecondaryBranchesScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-#[ScopedBy(CurrentUserScope::class)]
 class Branch extends Model
 {
     use HasFactory;
@@ -26,8 +26,14 @@ class Branch extends Model
         'rut',
         'business_name',
         'user_id',
+        'branch_type',
     ];
 
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new CurrentUserScope);
+        static::addGlobalScope(new SecondaryBranchesScope);
+    }
 
     public function user()
     {
