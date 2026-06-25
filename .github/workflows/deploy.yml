@@ -141,8 +141,17 @@ jobs:
         echo "📥 Pull image..."
         docker pull ghcr.io/${{ env.repo_name }}:${{ env.IMAGE_TAG }}
 
-        echo "🚀 Starting fresh containers..."
-        docker compose up -d --remove-orphans
+        echo "🛑 Stopping worker container"
+        docker compose down worker
+
+        echo "✨ Starting app container"
+        docker compose up app -d --remove-orphans
+
+        echo "⚙️ Running migrations"
+        docker compose exec -T app php artisan migrate --force --seed
+
+        echo "♻️ Starting worker container"
+        docker compose up worker -d --remove-orphans
 
         echo "🧹 Removing old images..."
         docker image prune -f
@@ -150,21 +159,6 @@ jobs:
         echo "📊 Containers status:"
         docker compose ps
         ENDSSH
-
-    # 🧱 Migraciones con rollback automático
-    - name: Run database migrations
-      env:
-        SSH_USER: ${{ secrets.SSH_USER }}
-        SSH_HOST: ${{ secrets.SSH_HOST }}
-        BASE_DIR: ${{ vars.BASE_DIR }}
-        APP_ENV: ${{ vars.APP_ENV }}
-      run: |
-        ssh $SSH_USER@$SSH_HOST "
-          set -e
-          cd $BASE_DIR
-          echo 'Running safe migrations...'
-          docker compose exec -T app php artisan migrate --force --seed
-        "
 
     # ⚡ Optimización
     - name: Optimize Laravel
