@@ -24,7 +24,6 @@ use App\Models\Brand;
 use App\Models\Price;
 use App\Services\Random\RandomDocumentService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
@@ -63,7 +62,7 @@ class OrderController extends Controller
         return new OrderCollection($orders);
     }
 
-    public function createFromCart(int $addressId, int $branchId, string $notes)
+    public function createFromCart(int $addressId, int $branchId, ?string $notes = null)
     {
 
         //$this->createCart();
@@ -136,7 +135,7 @@ class OrderController extends Controller
         $orderInfo = $this->createFromCart(
             intval($request->input('address_id')),
             intval($request->input('branch_id')),
-            $request->input('notes'),
+            $request->input('notes', ''),
         );
 
         if ($orderInfo instanceof Order && $orderInfo->id) {

@@ -29,7 +29,7 @@ class SyncRandomBranchesCommand extends Command
     {
         $this->info('Queuing branches sync job');
 
-        Log::info('SyncRandomUsers started');
+        Log::info('SyncRandomBranches started');
 
         SyncRandomBranches::dispatch()
             ->onQueue('random-branches');

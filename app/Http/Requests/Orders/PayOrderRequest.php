@@ -36,7 +36,7 @@ class PayOrderRequest extends FormRequest
             ],
             'branch_id' => [
                 'required',
-                'id',
+                'integer',
                 'exists:branches,id',
             ],
             'payment_document_type' => [

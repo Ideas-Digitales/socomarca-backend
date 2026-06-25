@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\PaymentDocumentType;
+use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -21,11 +23,14 @@ test('webpay return handles successful payment, updates order status and creates
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9']);
     $user->assignRole('customer');
 
-    // Create an order in pending state
+    $branch = Branch::factory()->create(['user_id' => $user->id]);
+
     $order = Order::factory()->create([
         'user_id' => $user->id,
         'status' => 'pending',
-        'amount' => 10000
+        'amount' => 10000,
+        'branch_id' => $branch->id,
+        'notes' => '',
     ]);
 
     $product = Product::factory()->create(['sku' => 'TEST-SKU-123']);
@@ -45,7 +50,8 @@ test('webpay return handles successful payment, updates order status and creates
         'payment_method_id' => $paymentMethod->id,
         'token' => 'fake_token_ws',
         'status' => 'pending',
-        'response_status' => 'INITIALIZED'
+        'response_status' => 'INITIALIZED',
+        'generate_random_doc_type' => PaymentDocumentType::INVOICE,
     ]);
 
     // Mock WebpayService to return successful authorization
@@ -127,7 +133,13 @@ test('webpay return handles successful payment, updates order status and creates
 test('webpay return handles failed transaction', function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
-    $order = Order::factory()->create(['user_id' => $user->id, 'status' => 'pending']);
+    $branch = Branch::factory()->create(['user_id' => $user->id]);
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'pending',
+        'branch_id' => $branch->id,
+        'notes' => '',
+    ]);
 
     $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
 
@@ -136,6 +148,7 @@ test('webpay return handles failed transaction', function () {
         'payment_method_id' => $paymentMethod->id,
         'token' => 'failed_token_ws',
         'status' => 'pending',
+        'generate_random_doc_type' => PaymentDocumentType::RECEIPT,
     ]);
 
     $webpayServiceMock = Mockery::mock(WebpayService::class);
@@ -171,7 +184,13 @@ test('webpay return handles failed transaction', function () {
 test('webpay return handles user aborted transaction', function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
-    $order = Order::factory()->create(['user_id' => $user->id, 'status' => 'pending']);
+    $branch = Branch::factory()->create(['user_id' => $user->id]);
+    $order = Order::factory()->create([
+        'user_id' => $user->id,
+        'status' => 'pending',
+        'branch_id' => $branch->id,
+        'notes' => '',
+    ]);
 
     $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
 
