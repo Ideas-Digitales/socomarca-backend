@@ -45,10 +45,12 @@ describe('Branches tests', function () {
                 ->assertOk()
                 ->assertJsonCount(2, 'data')
                 ->assertJsonFragment([
+                    'id' => $branches[0]->id,
                     'name' => $branches[0]->name,
                     'code' => $branches[0]->code,
                 ])
                 ->assertJsonFragment([
+                    'id' => $branches[1]->id,
                     'name' => $branches[1]->name,
                     'code' => $branches[1]->code,
                 ]);

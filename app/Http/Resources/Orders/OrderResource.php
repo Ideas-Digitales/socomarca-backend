@@ -27,7 +27,7 @@ class OrderResource extends JsonResource
             "payments" => PaymentResource::collection(
                 $this->whenLoaded('payments')
             ),
-            "internal_sale_note" => $this->internal_sale_note,
+            "random_document_number" => $this->random_document_number,
             "created_at" => $this->created_at,
             "updated_at" => $this->updated_at,
         ];

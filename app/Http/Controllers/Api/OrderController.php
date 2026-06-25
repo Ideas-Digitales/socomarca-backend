@@ -258,12 +258,16 @@ class OrderController extends Controller
         })->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
+        $branch = $order
+            ->branch()
+            ->withoutGlobalScope(SecondaryBranchesScope::class)
+            ->first();
 
         $payload = [
             'datos' => [
                 'empresa' => config('random.business_code'),
                 'codigoEntidad' => $user->user_code,
-                'sucursalEntidad' => $order->branch->code,
+                'sucursalEntidad' => $branch->code,
                 'tido' => 'NVV',
                 "moneda" => "CLP",
                 'modalidad' => config('random.modality'),
@@ -305,7 +309,7 @@ class OrderController extends Controller
 
         $order->update([
             'status' => 'completed',
-            'internal_sale_note' => $documentResponse['idmaeedo'],
+            'random_document_number' => $documentResponse['numero'],
         ]);
         $payment = $order->payments()->create([
             'payment_method_id' => $paymentMethod->id,

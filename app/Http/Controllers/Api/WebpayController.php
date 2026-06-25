@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\CartItem;
+use App\Models\Scopes\SecondaryBranchesScope;
 use App\Services\Random\RandomDocumentService;
 use App\Services\WebpayService;
 use Illuminate\Http\Request;
@@ -77,11 +78,16 @@ class WebpayController extends Controller
                         $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
                     );
 
+                    $branch = $order
+                        ->branch()
+                        ->withoutGlobalScope(SecondaryBranchesScope::class)
+                        ->first();
+
                     $payload = [
                         'datos' => [
                             'empresa' => config('random.business_code'),
                             'codigoEntidad' => $order->user->user_code,
-                            'sucursalEntidad' => $order->branch->code,
+                            'sucursalEntidad' => $branch->code,
                             'tido' => 'NVV',
                             "moneda" => "CLP",
                             'modalidad' => config('random.modality'),
@@ -97,7 +103,7 @@ class WebpayController extends Controller
 
                     try {
                         $randomDocResponse = $this->documentService->createDocument($payload, $order);
-                        $order->internal_sale_note = $randomDocResponse['idmaeedo'];
+                        $order->random_document_number = $randomDocResponse['numero'];
                         $order->save();
                     } catch (\Throwable $th) {
                         Log::error("Error al crear documento NVV Random para pago por Webpay", [

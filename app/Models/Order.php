@@ -20,7 +20,7 @@ class Order extends Model
         'amount',
         'status',
         'order_meta',
-        'internal_sale_note',
+        'random_document_number',
         'branch_id',
         'notes',
     ];

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\BranchType;
 use App\Models\User;
 use App\Models\Address;
 use App\Models\Order;
@@ -259,7 +260,7 @@ test('it can process a credit line payment successfully', function () {
 
     expect($order->randomDocuments()->count())->toBe(1);
     expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
-    expect($order->internal_sale_note)->toBe(657);
+    expect($order->random_document_number)->toBe("0000000001");
     expect($payment->status)->toBe('processing');
 
     $response = $this->actingAs($user)->getJson(route('orders.index', [
@@ -285,6 +286,153 @@ test('it can process a credit line payment successfully', function () {
     expect($response->json('data'))->toBeEmpty();
 });
 
+test('it can process a credit line payment successfully when choosing primary branch', function () {
+    /** @var TestCase $this */
+
+    [$user] = createCustomerWithBranch();
+    $branch = Branch::factory()->create([
+        'user_id' => $user->id,
+        'branch_type'      => BranchType::PRIMARY,
+    ]);
+
+    $address = Address::factory()->create(['user_id' => $user->id]);
+    $product = Product::factory()->create();
+    \App\Models\Price::factory()->create(['product_id' => $product->id, 'unit' => 'UN']);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'UN'
+    ]);
+
+    $paymentMethod = PaymentMethod::where('code', 'random_credit')->firstOrFail();
+
+    $baseUrl = config('random.url');
+    Http::fake([
+        "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
+        "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response([
+            'KOEN' => '12345678-9',
+            'SUEN' => 'CM',
+            'CRSD' => 50092358399999.99,
+            'CRSDVU' => 5915690,
+            'CRSDVV' => 705736,
+            'CRSDCU' => 0,
+            'CRSDCV' => 0
+        ], 200),
+        "{$baseUrl}/web32/documento" => Http::response([
+            "numero" => "0000000001",
+            "tido" => "NVV",
+            "idmaeedo" => 657,
+            "uidxmaeedo" => "2CEE468D-35B7-4CBA-A243-E2D20C13C8D7",
+            "vabrdo" => 7140,
+            "moneda" => "CLP",
+            "estado" => [
+                "codigo" => "1",
+                "mensaje" => "Grabación exitosa"
+            ]
+        ], 200),
+    ]);
+
+    $currentCredit = $this->actingAs($user)->getJson(route('users.credit-lines', ['user' => $user->id]))->json();
+    $CRSDVU = $currentCredit['CRSDVU'];
+
+    $response = $this->actingAs($user)->postJson(route('orders.pay'), [
+        'address_id'             => $address->id,
+        'payment_method'         => 'random_credit',
+        'branch_id'              => $branch->id,
+        'payment_document_type'  => 'receipt',
+    ]);
+
+    $order = Order::where('user_id', $user->id)->first();
+
+    $response->assertStatus(200)
+        ->assertJsonPath('success', true)
+        ->assertJsonStructure([
+            'data' => [
+                'transaction' => ['status'],
+                'payment' => [
+                    'auth_code',
+                    'amount',
+                    'response_status',
+                    'token',
+                    'paid_at',
+                    'payment_method',
+                    'order'
+                ]
+            ]
+        ])
+        ->assertJsonPath('data.transaction.status', 'AUTHORIZED')
+        ->assertJsonPath('data.payment.response_status', 'AUTHORIZED');
+
+    $CRSDVU = bcadd(strval($CRSDVU), strval($response->json('data.payment.amount')));
+
+    expect($response->json('data.payment.amount'))->toEqual($order->amount);
+
+    expect($order->status)->toBe('completed');
+
+    $payment = $order->payments()->first();
+    expect($payment->response_status)->toBe('AUTHORIZED');
+    expect($payment->payment_method_id)->toBe($paymentMethod->id);
+
+    expect(CartItem::where('user_id', $user->id)->count())->toBe(0);
+
+    $creditLine = \App\Models\CreditLine::where('user_id', $user->id)->first();
+    expect($creditLine)->not->toBeNull();
+    expect($creditLine->isBlocked())->toBeTrue();
+    expect($creditLine->state['CRSDVU'] == $CRSDVU)->toBeTrue();
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($baseUrl, $user, $product, $branch) {
+        if (!str_starts_with($request->url(), "{$baseUrl}/web32/documento")) {
+            return false;
+        }
+
+        $payload = $request->data();
+
+        return isset($payload['datos'])
+            && $payload['datos']['codigoEntidad'] === $user->user_code
+            && $payload['datos']['sucursalEntidad'] === $branch->code
+            && $payload['datos']['tido'] === 'NVV'
+            && count($payload['datos']['lineas']) === 1
+            && $payload['datos']['lineas'][0]['codigoProducto'] === $product->sku
+            && $payload['datos']['lineas'][0]['cantidad'] === 1;
+    });
+
+    expect($order->randomDocuments()->count())->toBe(1);
+    expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
+    expect($order->random_document_number)->toBe("0000000001");
+    expect(
+        $order->branch()
+            ->withoutGlobalScope(
+                \App\Models\Scopes\SecondaryBranchesScope::class
+            )
+            ->first()
+            ->id
+    )->toBe($branch->id); // ¡IMPORTANT!
+    expect($payment->status)->toBe('processing');
+
+    $response = $this->actingAs($user)->getJson(route('orders.index', [
+        'payment_method_code' => 'random_credit'
+    ]));
+
+    expect($response->json('data.0.payments.0.auth_code'))->toBe($payment->auth_code);
+    expect($response->json('data.0.payments.0.amount'))->toBe($payment->amount);
+    expect($response->json('data.0.payments.0.response_status'))->toBe($payment->response_status);
+    expect($response->json('data.0.payments.0.payment_method.code'))->toBe("random_credit");
+
+    $response = $this->actingAs($user)->getJson(route('orders.index'));
+
+    expect($response->json('data.0.payments.0.auth_code'))->toBe($payment->auth_code);
+    expect($response->json('data.0.payments.0.amount'))->toBe($payment->amount);
+    expect($response->json('data.0.payments.0.response_status'))->toBe($payment->response_status);
+    expect($response->json('data.0.payments.0.payment_method.code'))->toBe("random_credit");
+
+    $response = $this->actingAs($user)->getJson(route('orders.index', [
+        'payment_method_code' => 'transbank'
+    ]));
+
+    expect($response->json('data'))->toBeEmpty();
+});
 test('it handles credit line payment failure correctly', function () {
     /** @var TestCase $this */
 
