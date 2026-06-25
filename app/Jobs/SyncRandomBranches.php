@@ -29,43 +29,43 @@ class SyncRandomBranches implements ShouldQueue
 
         foreach ($randomBranches as $randomBranch) {
             try {
-                if ($randomBranch['TIPOSUC'] == 'S') { // Sincroniza solo si es sucursal secundaria
-                    $u = DB::table('users')
-                        ->where('user_code', $randomBranch['KOEN'])
-                        ->first(['id']);
+                $u = DB::table('users')
+                    ->where('user_code', $randomBranch['KOEN'])
+                    ->first(['id']);
 
-                    if ($u == null) {
-                        continue;
-                    }
-
-                    DB::table('branches')->upsert(
-                        [
-                            [
-                                'code' => $randomBranch['SUEN'],
-                                'user_code' => $randomBranch['KOEN'],
-                                'name' => $randomBranch['NOKOEN'] ?? '',
-                                'email' => $randomBranch['EMAIL'] ?? '',
-                                'commercial_email' => $randomBranch['EMAILCOMER'] ?? '',
-                                'phone' => $randomBranch['FOEN'] ?? '',
-                                'rut' => $randomBranch['RTEN'],
-                                'business_name' => $randomBranch['SIEN'] ?? '',
-                                'user_id' => $u->id,
-                            ],
-                        ],
-                        uniqueBy: ['code', 'user_code'],
-                        update: [
-                            'name',
-                            'code',
-                            'user_code',
-                            'email',
-                            'commercial_email',
-                            'phone',
-                            'rut',
-                            'business_name',
-                            'user_id',
-                        ]
-                    );
+                if ($u == null) {
+                    continue;
                 }
+
+                DB::table('branches')->upsert(
+                    [
+                        [
+                            'code' => $randomBranch['SUEN'],
+                            'user_code' => $randomBranch['KOEN'],
+                            'name' => $randomBranch['NOKOEN'] ?? '',
+                            'email' => $randomBranch['EMAIL'] ?? '',
+                            'commercial_email' => $randomBranch['EMAILCOMER'] ?? '',
+                            'phone' => $randomBranch['FOEN'] ?? '',
+                            'rut' => $randomBranch['RTEN'],
+                            'business_name' => $randomBranch['SIEN'] ?? '',
+                            'user_id' => $u->id,
+                            'branch_type' => $randomBranch['TIPOSUC'],
+                        ],
+                    ],
+                    uniqueBy: ['code', 'user_code'],
+                    update: [
+                        'name',
+                        'code',
+                        'user_code',
+                        'email',
+                        'commercial_email',
+                        'phone',
+                        'rut',
+                        'business_name',
+                        'user_id',
+                        'branch_type',
+                    ]
+                );
             } catch (\Throwable $e) {
                 Log::critical('SyncRandomBranches failed: ' . $e->getMessage());
                 return;

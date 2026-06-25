@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\BranchType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -30,6 +31,7 @@ class BranchFactory extends Factory
             'rut'              => $rut,
             'business_name'    => fake()->company(),
             'user_id'          => User::factory(),
+            'branch_type'      => BranchType::SECONDARY,
         ];
     }
 

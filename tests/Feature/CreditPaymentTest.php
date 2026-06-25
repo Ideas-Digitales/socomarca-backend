@@ -126,9 +126,11 @@ test('it calls successfully to Random Credit service during a credit line paymen
             'modalidad' => config('random.modality'),
             'funcionario' => config('random.functionary'),
             'lineas' => $lines,
-            'texto1' => 'Venta con pago a crédito',
+            'observacion' => '',
+            'texto1' => 'Pago a crédito',
             'texto2' => 'Documento contable a generar: Boleta',
-            'texto3' => '',
+            'texto3' => 'Origen: Compra rápida',
+            'texto4' => "Orden de compra: #{$order->id}",
         ]
     ];
 

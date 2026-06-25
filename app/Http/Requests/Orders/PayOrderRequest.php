@@ -35,13 +35,18 @@ class PayOrderRequest extends FormRequest
                 'exists:payment_methods,code',
             ],
             'branch_id' => [
-                'required',
+                'sometimes',
                 'integer',
                 'exists:branches,id',
             ],
             'payment_document_type' => [
                 'required',
                 Rule::in(PaymentDocumentType::values())
+            ],
+            'notes' => [
+                'sometimes',
+                'nullable',
+                'string',
             ]
         ];
     }
@@ -52,6 +57,10 @@ class PayOrderRequest extends FormRequest
             $this->merge([
                 'user_id' => (int) $this->user_id
             ]);
+        }
+
+        if (!$this->has('notes')) {
+            $this->merge(['notes' => '']);
         }
     }
 }
