@@ -8,6 +8,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 use App\Jobs\CheckBlockedCreditLinesJob;
+use App\Jobs\SyncRandomBranches;
 use App\Jobs\SyncRandomBrands;
 use App\Jobs\SyncRandomCategories;
 use App\Jobs\SyncRandomPrices;
@@ -27,4 +28,5 @@ Schedule::job(job: new SyncRandomProducts)->everyTwoHours();
 Schedule::job(job: new SyncRandomPrices)->everyTwoHours();
 Schedule::job(job: new SyncRandomStock)->everyTwoHours();
 Schedule::job(job: new SyncRandomUsers)->everyTwoHours();
+Schedule::job(job: new SyncRandomBranches)->everyTwoHours();
 
