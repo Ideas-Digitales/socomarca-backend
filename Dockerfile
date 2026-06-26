@@ -15,7 +15,10 @@ RUN install-php-extensions \
 	gd \
 	intl \
 	zip \
-  bcmath \
+    bcmath \
 	xdebug
+
+RUN apk add --no-cache supervisor
+RUN mkdir -p /var/log/supervisor
 
 USER ${USER}

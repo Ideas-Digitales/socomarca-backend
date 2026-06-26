@@ -37,8 +37,7 @@ services:
       retries: 3
       start_period: 15s
 
-    command: php artisan queue:work --tries=3 --timeout=300 --sleep=5 --rest=10 --max-jobs=50 --queue=default,random-categories,random-brands,random-products,random-prices,random-stock,random-users,random-branches
-
+    command: ["/usr/bin/supervisord", "-c", "/app/supervisord.conf"]
     env_file:
       - .env
 
@@ -52,6 +51,7 @@ services:
     volumes:
       - firebase_credentials_storage:/app/storage/app/private/firebase
       - log_storage:/app/storage/logs
+      - ./supervisord.conf:/app/supervisord.conf:ro
 
 networks:
   traefik-public:
