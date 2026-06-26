@@ -170,7 +170,6 @@ jobs:
         echo "📊 Containers status:"
         docker compose ps
         ENDSSH
-        "
     # ❤️ Health check interno (Docker)
     - name: Health check
       run: |
