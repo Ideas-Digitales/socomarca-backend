@@ -30,8 +30,14 @@ services:
     image: ghcr.io/${REPO_NAME}:${IMAGE_TAG}
     container_name: socomarca_worker_${IMAGE_TAG}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'artisan queue:work' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
-    command: php artisan queue:work --tries=3 --timeout=300 --queue=default,random-categories,random-brands,random-products,random-prices,random-stock,random-users
+    command: php artisan queue:work --tries=3 --timeout=300 --sleep=5 --rest=10 --max-jobs=50 --queue=default,random-categories,random-brands,random-products,random-prices,random-stock,random-users,random-branches
 
     env_file:
       - .env
