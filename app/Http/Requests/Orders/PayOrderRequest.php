@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Orders;
 
+use App\Enums\PaymentDocumentType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class PayOrderRequest extends FormRequest
 {
@@ -32,6 +34,20 @@ class PayOrderRequest extends FormRequest
                 'string',
                 'exists:payment_methods,code',
             ],
+            'branch_id' => [
+                'sometimes',
+                'integer',
+                'exists:branches,id',
+            ],
+            'payment_document_type' => [
+                'required',
+                Rule::in(PaymentDocumentType::values())
+            ],
+            'notes' => [
+                'sometimes',
+                'nullable',
+                'string',
+            ]
         ];
     }
 
@@ -41,6 +57,10 @@ class PayOrderRequest extends FormRequest
             $this->merge([
                 'user_id' => (int) $this->user_id
             ]);
+        }
+
+        if (!$this->has('notes')) {
+            $this->merge(['notes' => '']);
         }
     }
 }

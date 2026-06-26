@@ -19,6 +19,7 @@ class Payment extends Model
         'token',
         'paid_at',
         'status',
+        'generate_random_doc_type',
     ];
 
     protected $casts = [

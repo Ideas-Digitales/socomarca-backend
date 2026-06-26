@@ -7,11 +7,11 @@ use App\Models\Category;
 use App\Models\Brand;
 use App\Models\CartItem;
 use App\Models\Price;
-use App\Models\Region;
-use App\Models\Municipality;
 use App\Models\Address;
+use App\Models\Branch;
+use App\Enums\PaymentDocumentType;
+use App\Enums\BranchType;
 use App\Services\WebpayService;
-use App\Models\PaymentMethod;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -22,6 +22,7 @@ beforeEach(function () {
     $this->user = User::factory()->create();
     $this->user->givePermissionTo(['read-own-orders', 'create-orders', 'update-orders', 'create-cart-items']);
     $this->actingAs($this->user);
+    $this->branch = Branch::factory()->create(['user_id' => $this->user->id]);
 });
 
 function createProductCart($precio = 100, $cantidad = 2, $unidad = 'kg')
@@ -62,22 +63,18 @@ describe('OrderController', function () {
         test('can list authenticated user orders', function () {
             /** @var TestCase $this */
 
-            // Arrange
             Order::factory()->count(3)->create([
                 'user_id' => $this->user->id
             ]);
 
-            // Crear órdenes de otro usuario para verificar que no se incluyan
             $otherUser = User::factory()->create();
             $otherUser->givePermissionTo(['read-own-orders', 'create-orders']);
             Order::factory()->count(2)->create([
                 'user_id' => $otherUser->id
             ]);
 
-            // Act
             $response = $this->getJson(route('orders.index'));
 
-            // Assert
             $response->assertOk()
                 ->assertJsonCount(3, 'data')
                 ->assertJsonStructure([
@@ -90,6 +87,7 @@ describe('OrderController', function () {
                             'status',
                             'order_items',
                             'order_meta',
+                            'random_document_number',
                             'created_at',
                             'updated_at'
                         ]
@@ -100,13 +98,10 @@ describe('OrderController', function () {
         test('requires authentication to list orders', function () {
             /** @var TestCase $this */
 
-            // Arrange
             \Illuminate\Support\Facades\Auth::logout();
 
-            // Act
             $response = $this->getJson(route('orders.index'));
 
-            // Assert
             $response->assertUnauthorized();
         });
     });
@@ -115,29 +110,30 @@ describe('OrderController', function () {
         test('can initiate payment for an order from cart', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart();
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
             ]);
 
-            // Mock del servicio de Webpay
             $this->mock(WebpayService::class, function ($mock) {
                 $mock->shouldReceive('createTransaction')
                     ->once()
+                    ->withArgs(function (Order $order, string $docType) {
+                        return $docType === PaymentDocumentType::RECEIPT;
+                    })
                     ->andReturn([
                         'url' => 'https://webpay.test/init',
                         'token' => 'test-token-123'
                     ]);
             });
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertOk()
                 ->assertJsonStructure([
                     'data' => [
@@ -168,35 +164,32 @@ describe('OrderController', function () {
                     ]
                 ]);
 
-            // Verificar que se creó la orden
             $this->assertDatabaseHas('orders', [
                 'user_id' => $this->user->id,
-                'status' => 'pending'
+                'status'  => 'pending'
             ]);
 
-            // Verificar que se crearon los items de la orden
             $this->assertDatabaseHas('order_items', [
                 'product_id' => Product::first()->id,
-                'quantity' => 2,
-                'unit' => 'kg'
+                'quantity'   => 2,
+                'unit'       => 'kg'
             ]);
         });
 
         test('cannot pay if cart is empty', function () {
             /** @var TestCase $this */
 
-            // Arrange
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
             ]);
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertBadRequest()
                 ->assertJson(['message' => 'El carrito está vacío']);
         });
@@ -204,7 +197,6 @@ describe('OrderController', function () {
         test('cannot pay with an address that does not belong to user', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart();
             $otroUsuario = User::factory()->create();
             $otroUsuario->givePermissionTo(['read-own-orders', 'create-orders']);
@@ -212,13 +204,13 @@ describe('OrderController', function () {
                 'user_id' => $otroUsuario->id
             ]);
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertStatus(422)
                 ->assertJsonValidationErrors('address_id');
         });
@@ -226,15 +218,15 @@ describe('OrderController', function () {
         test('requires a valid address to pay', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart();
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => 999999
+                'address_id'             => 999999,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertStatus(422)
                 ->assertJsonValidationErrors('address_id');
         });
@@ -242,13 +234,10 @@ describe('OrderController', function () {
         test('requires address_id field', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart();
 
-            // Act
             $response = $this->postJson(route('orders.pay'), []);
 
-            // Assert
             $response->assertStatus(422)
                 ->assertJsonValidationErrors('address_id');
         });
@@ -256,43 +245,40 @@ describe('OrderController', function () {
         test('requires authentication to pay', function () {
             /** @var TestCase $this */
 
-            // Arrange
             \Illuminate\Support\Facades\Auth::logout();
             $address = Address::factory()->create();
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertUnauthorized();
         });
 
         test('handles payment service errors', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart();
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
             ]);
 
-            // Mock del servicio de Webpay para que falle
             $this->mock(WebpayService::class, function ($mock) {
                 $mock->shouldReceive('createTransaction')
                     ->once()
                     ->andThrow(new \Exception('Error de conexión con Webpay'));
             });
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertStatus(500)
                 ->assertJsonStructure([
                     'message',
@@ -303,8 +289,7 @@ describe('OrderController', function () {
         test('correctly calculates subtotal and amount', function () {
             /** @var TestCase $this */
 
-            // Arrange
-            createProductCart(150, 3); // precio 150, cantidad 3
+            createProductCart(150, 3);
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
             ]);
@@ -313,22 +298,22 @@ describe('OrderController', function () {
                 $mock->shouldReceive('createTransaction')
                     ->once()
                     ->andReturn([
-                        'url' => 'https://webpay.test/init',
+                        'url'   => 'https://webpay.test/init',
                         'token' => 'test-token-123'
                     ]);
             });
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertOk();
 
             $order = Order::first();
-            expect($order->subtotal)->toBe(450.0); // 150 * 3
+            expect($order->subtotal)->toBe(450.0);
             expect($order->shipping_cost)->toBe(5990.0);
             expect($order->amount)->toBe(6440.0);
         });
@@ -336,7 +321,6 @@ describe('OrderController', function () {
         test('rounds cart subtotal to whole pesos before sending payment amount', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart(1152.5, 3);
             createProductCart(100.4, 1);
             $address = Address::factory()->create([
@@ -346,31 +330,31 @@ describe('OrderController', function () {
             $this->mock(WebpayService::class, function ($mock) {
                 $mock->shouldReceive('createTransaction')
                     ->once()
-                    ->withArgs(function (Order $order) {
-                        return $order->subtotal === 3558.0
+                    ->withArgs(function (Order $order, string $docType) {
+                        return $docType === PaymentDocumentType::RECEIPT
+                            && $order->subtotal === 3558.0
                             && $order->shipping_cost === 5990.0
                             && $order->amount === 9548.0;
                     })
                     ->andReturn([
-                        'url' => 'https://webpay.test/init',
+                        'url'   => 'https://webpay.test/init',
                         'token' => 'test-token-123'
                     ]);
             });
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertOk();
         });
 
         test('includes user and address metadata in order', function () {
             /** @var TestCase $this */
 
-            // Arrange
             createProductCart();
             $address = Address::factory()->create([
                 'user_id' => $this->user->id
@@ -380,18 +364,18 @@ describe('OrderController', function () {
                 $mock->shouldReceive('createTransaction')
                     ->once()
                     ->andReturn([
-                        'url' => 'https://webpay.test/init',
+                        'url'   => 'https://webpay.test/init',
                         'token' => 'test-token-123'
                     ]);
             });
 
-            // Act
             $response = $this->postJson(route('orders.pay'), [
-                'address_id' => $address->id,
-                'payment_method' => 'transbank'
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
-            // Assert
             $response->assertOk();
 
             $order = Order::first();
@@ -399,6 +383,186 @@ describe('OrderController', function () {
             expect($order->order_meta)->toHaveKey('address');
             expect($order->order_meta['user']['id'])->toBe($this->user->id);
             expect($order->order_meta['address']['id'])->toBe($address->id);
+        });
+
+        test('stores branch_id and notes on order', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id
+            ]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+                'notes'                  => 'Leave at the door',
+            ]);
+
+            $response->assertOk();
+
+            $this->assertDatabaseHas('orders', [
+                'id'        => Order::first()->id,
+                'branch_id' => $this->branch->id,
+                'notes'     => 'Leave at the door',
+            ]);
+        });
+
+        test('payment receives generate_random_doc_type via webpay service', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create([
+                'user_id' => $this->user->id
+            ]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->withArgs(function (Order $order, string $docType) {
+                        return $docType === PaymentDocumentType::INVOICE;
+                    })
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::INVOICE,
+            ]);
+
+            $response->assertOk();
+        });
+
+        test('defaults to principal branch when branch_id is omitted', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $principalBranch = Branch::factory()->create([
+                'user_id'     => $this->user->id,
+                'branch_type' => BranchType::PRIMARY,
+            ]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+            ]);
+
+            $response->assertOk();
+
+            $this->assertDatabaseHas('orders', [
+                'id'        => Order::first()->id,
+                'branch_id' => $principalBranch->id,
+            ]);
+        });
+
+        test('notes defaults to empty string when not provided', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $this->mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+            ]);
+
+            $response->assertOk();
+
+            $this->assertDatabaseHas('orders', [
+                'id'    => Order::first()->id,
+                'notes' => '',
+            ]);
+        });
+    });
+
+    describe('payOrder validation', function () {
+        it('validates branch_id exists', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => 99999,
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+            ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors('branch_id');
+        });
+
+        it('requires payment_document_type field', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'    => $address->id,
+                'payment_method' => 'transbank',
+                'branch_id'     => $this->branch->id,
+            ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors('payment_document_type');
+        });
+
+        it('validates payment_document_type is a valid value', function () {
+            /** @var TestCase $this */
+
+            createProductCart();
+            $address = Address::factory()->create(['user_id' => $this->user->id]);
+
+            $response = $this->postJson(route('orders.pay'), [
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'branch_id'              => $this->branch->id,
+                'payment_document_type'  => 'invalid_type',
+            ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors('payment_document_type');
         });
     });
 });

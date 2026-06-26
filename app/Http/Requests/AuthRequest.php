@@ -3,11 +3,12 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
-use App\Rules\ValidateRut;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Override;
 
 class AuthRequest extends FormRequest
 {
@@ -18,7 +19,71 @@ class AuthRequest extends FormRequest
     {
 
         return true;
+    }
 
+    #[Override]
+    public function prepareForValidation()
+    {
+        $rut = $this->input('rut');
+
+        if (empty($rut)) return;
+
+        if (DB::table('users')->where('rut', $rut)->exists()) {
+            return;
+        }
+
+        $rut = \Laragear\Rut\Rut::parse($rut);
+
+        if ($rut->isValid()) {
+            $rutNumber = $rut->num;
+            if (
+                DB::table('users')
+                    ->where('rut', $rutNumber)
+                    ->exists()
+            ) {
+                $this->merge([
+                    'rut' => $rutNumber
+                ]);
+                return;
+            }
+            $rutInRaw = $rut->format(\Laragear\Rut\RutFormat::Raw);
+            if (
+                DB::table('users')
+                    ->where('rut', $rutInRaw)
+                    ->exists()
+            ) {
+                $this->merge([
+                    'rut' => $rutInRaw,
+                ]);
+                return;
+            }
+
+            $rutInBasicFormat = $rut->format(\Laragear\Rut\RutFormat::Basic);
+            if (
+                DB::table('users')
+                    ->where('rut', $rutInBasicFormat)
+                    ->exists()
+            ) {
+                $this->merge([
+                    'rut' => $rutInBasicFormat,
+                ]);
+                return;
+            }
+
+            $rutInStrictFormat = $rut->format(\Laragear\Rut\RutFormat::Basic);
+            if (
+                DB::table('users')
+                    ->where('rut', $rutInStrictFormat)
+                    ->exists()
+            ) {
+                $this->merge([
+                    'rut' => $rutInStrictFormat,
+                ]);
+                return;
+            }
+        }
+
+        return parent::prepareForValidation();
     }
 
     /**
@@ -30,7 +95,10 @@ class AuthRequest extends FormRequest
     {
 
         return [
-            'rut' => ['required'],
+            'rut' => [
+                'required',
+                'exists:users,rut',
+            ],
             'password' => [
                 'required',
                 'string',

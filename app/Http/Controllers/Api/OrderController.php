@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\BranchType;
+use App\Enums\PaymentDocumentType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orders\PayOrderRequest;
 use App\Http\Resources\Orders\OrderCollection;
 use App\Http\Resources\Orders\OrderResource;
 use App\Http\Resources\Orders\PaymentResource;
+use App\Models\Branch;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Scopes\SecondaryBranchesScope;
 use Illuminate\Support\Facades\DB;
 use App\Services\WebpayService;
 use Illuminate\Support\Facades\Auth;
@@ -46,7 +50,7 @@ class OrderController extends Controller
         $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
 
         $orders = Order::where('user_id', Auth::user()->id)
-            ->with(['payments'])
+            ->with(['payments','branch'])
             ->when(
                 $request->has('payment_method_code'),
                 function (Builder $query) use ($request) {
@@ -60,7 +64,7 @@ class OrderController extends Controller
         return new OrderCollection($orders);
     }
 
-    public function createFromCart($addressId)
+    public function createFromCart(int $addressId, int $branchId, ?string $notes = null)
     {
 
         //$this->createCart();
@@ -86,6 +90,13 @@ class OrderController extends Controller
             $user = User::find(Auth::user()->id);
             $address = $user->addresses()->where('id', $addressId)->first();
 
+            if (!$branchId) {
+                $branchId = Branch::withoutGlobalScope(SecondaryBranchesScope::class)
+                    ->where('user_id', $user->id)
+                    ->where('branch_type', BranchType::PRIMARY)
+                    ->value('id');
+            }
+
             $order_meta = [
                 'user' => $user->toArray(),
                 'address' => $address ? $address->toArray() : null,
@@ -98,6 +109,8 @@ class OrderController extends Controller
                 'amount' => $total,
                 'status' => 'pending',
                 'order_meta' => $order_meta,
+                'branch_id' => $branchId,
+                'notes' => $notes ?? '',
             ];
 
             // Crear la orden
@@ -128,7 +141,11 @@ class OrderController extends Controller
 
     public function payOrder(PayOrderRequest $request)
     {
-        $orderInfo = $this->createFromCart($request->input('address_id'));
+        $orderInfo = $this->createFromCart(
+            intval($request->input('address_id')),
+            intval($request->input('branch_id')),
+            $request->input('notes', ''),
+        );
 
         if ($orderInfo instanceof Order && $orderInfo->id) {
             if ($orderInfo->status !== 'pending') {
@@ -137,11 +154,17 @@ class OrderController extends Controller
             $order = Order::find($orderInfo->id);
 
             if ($request->payment_method === 'random_credit') {
-                return $this->processRandomCreditPayment($order);
+                return $this->processRandomCreditPayment(
+                    $order,
+                    $request->input('payment_document_type'),
+                );
             }
 
             try {
-                $paymentResponse = $this->webpayService->createTransaction($order);
+                $paymentResponse = $this->webpayService->createTransaction(
+                    $order,
+                    $request->input('payment_document_type'),
+                );
 
                 return new PaymentResource((object)[
                     'order' => $order,
@@ -157,14 +180,22 @@ class OrderController extends Controller
     }
 
 
-    private function processRandomCreditPayment(Order $order)
+    /**
+     * Process payment using Random credit
+     *
+     * @param Order $order
+     * @param string $generateRandomDocType Random Document type to generate in ERP
+     *
+     * @return [type]
+     */
+    private function processRandomCreditPayment(Order $order, string $generateRandomDocType)
     {
         $paymentMethod = \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail();
 
         $randomApiService = app(\App\Services\RandomApiService::class);
         $user = $order->user;
 
-        if ($user?->branch_code === null || $user?->rut === null) {
+        if ($user?->branch_code === null || $user?->rut === null || $user?->user_code === null) {
             Log::error(
                 'RandomCredit Error: User missing required attributes',
                 ['user' => $user]
@@ -194,7 +225,7 @@ class OrderController extends Controller
         }
 
         $creditLineResponse = $randomApiService
-            ->getCreditLine($user->rut, $user->branch_code);
+            ->getCreditLine($user->user_code, $user->branch_code);
 
         $creditLineInfo = $creditLineResponse->json();
 
@@ -226,16 +257,27 @@ class OrderController extends Controller
             ];
         })->toArray();
 
+        $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
+        $branch = $order
+            ->branch()
+            ->withoutGlobalScope(SecondaryBranchesScope::class)
+            ->first();
+
         $payload = [
             'datos' => [
                 'empresa' => config('random.business_code'),
-                'codigoEntidad' => $user->rut,
+                'codigoEntidad' => $user->user_code,
+                'sucursalEntidad' => $branch->code,
                 'tido' => 'NVV',
                 "moneda" => "CLP",
                 'modalidad' => config('random.modality'),
                 'funcionario' => config('random.functionary'),
                 'lineas' => $lines,
-                'texto1' => 'Venta con pago a crédito',
+                'observacion' => $order->notes,
+                'texto1' => 'Pago a crédito',
+                'texto2' => "Documento contable a generar: {$randomDocType}",
+                'texto3' => 'Origen: Compra rápida',
+                'texto4' => "Orden de compra: #{$order->id}",
             ]
         ];
 
@@ -251,7 +293,7 @@ class OrderController extends Controller
                     'message' => 'Error al crear NVV en Random ERP'
                 ],
                 'token' => uniqid(),
-                'amount' => $order->amount
+                'amount' => $order->amount,
             ]);
             $payment->load('order');
             return response()->json([
@@ -267,7 +309,7 @@ class OrderController extends Controller
 
         $order->update([
             'status' => 'completed',
-            'internal_sale_note' => $documentResponse['idmaeedo'],
+            'random_document_number' => $documentResponse['numero'],
         ]);
         $payment = $order->payments()->create([
             'payment_method_id' => $paymentMethod->id,
@@ -277,7 +319,8 @@ class OrderController extends Controller
             'amount' => $order->amount,
             'response_message' => ['message' => 'Aprobado'],
             'token' => uniqid(),
-            'paid_at' => now()
+            'paid_at' => now(),
+            'generate_random_doc_type' => $generateRandomDocType,
         ]);
 
         $localCredit = $creditLineInfo;

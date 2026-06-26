@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Order;
+use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Region;
@@ -47,7 +48,7 @@ class OrderFactory extends Factory
             'billing_address' => fake()->address(),
             'billing_address_details' => fake()->address(),
         ];
-        
+
         $shippingCost = $subtotal >= 70000 ? 0 : (int) config('random.fixed_shipping_cost');
 
         return [
@@ -57,6 +58,8 @@ class OrderFactory extends Factory
             'amount' => $subtotal + $shippingCost,
             'status' => fake()->randomElement(['pending', 'processing', 'on_hold', 'completed', 'canceled', 'refunded', 'failed']),
             'order_meta' => json_encode($meta),
+            'branch_id' => Branch::factory(),
+            'random_document_number' => fake()->numerify('##########'),
         ];
     }
 

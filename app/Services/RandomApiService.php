@@ -76,6 +76,8 @@ class RandomApiService
     public function getEntidadesUsuarios($size = 15, $page = 1)
     {
         return $this->makeRequest('get', '/web32/entidades', [
+            'empresa' => config('random.business_code'),
+            'modalidad' => config('random.modality'),
             'size' => $size,
             'page' => $page
         ]);

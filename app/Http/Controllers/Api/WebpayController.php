@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PaymentDocumentType;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\CartItem;
+use App\Models\Scopes\SecondaryBranchesScope;
 use App\Services\Random\RandomDocumentService;
 use App\Services\WebpayService;
 use Illuminate\Http\Request;
@@ -44,11 +46,9 @@ class WebpayController extends Controller
                 if ($order) {
                     Log::info('Webpay return: Orden encontrada', ['order_id' => $order->id, 'status' => $result['status']]);
 
-                    // Actualizar el estado de la orden según el resultado
                     $order->status = $result['status'] === 'AUTHORIZED' ? 'completed' : 'failed';
                     $order->save();
 
-                    // Actualizar el pago
                     $payment->response_status = $result['status'];
                     $payment->response_message = json_encode($result);
                     $payment->auth_code = $result['authorization_code'] ?? null;
@@ -66,13 +66,6 @@ class WebpayController extends Controller
                         Log::info('Webpay return: Carrito borrado exitosamente', ['user_id' => $order->user_id]);
                     }
 
-                    Payment::where('order_id', $order->id)->update([
-                        'response_status' => $result['status'],
-                        'response_message' => json_encode($result),
-                        'auth_code' => $result['authorization_code'] ?? null,
-                        'paid_at' => $result['status'] === 'AUTHORIZED' ? now() : null
-                    ]);
-
                     $orderItems = \App\Models\OrderItem::where('order_id', $order->id)->get();
                     $lines = $orderItems->map(function ($item) {
                         return [
@@ -80,22 +73,37 @@ class WebpayController extends Controller
                             'codigoProducto' => $item->product->sku
                         ];
                     })->toArray();
+
+                    $randomDocType = PaymentDocumentType::getLabel(
+                        $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
+                    );
+
+                    $branch = $order
+                        ->branch()
+                        ->withoutGlobalScope(SecondaryBranchesScope::class)
+                        ->first();
+
                     $payload = [
                         'datos' => [
                             'empresa' => config('random.business_code'),
-                            'codigoEntidad' => $order->user->rut,
+                            'codigoEntidad' => $order->user->user_code,
+                            'sucursalEntidad' => $branch->code,
                             'tido' => 'NVV',
                             "moneda" => "CLP",
                             'modalidad' => config('random.modality'),
                             'funcionario' => config('random.functionary'),
                             'lineas' => $lines,
-                            'texto1' => 'Venta con pago por Webpay Plus',
+                            'observacion' => $order->notes,
+                            'texto1' => 'Pago por Webpay',
+                            'texto2' => "Documento contable a generar: {$randomDocType}",
+                            'texto3' => 'Origen: Compra rápida',
+                            'texto4' => "Orden de compra: #{$order->id}",
                         ]
                     ];
 
                     try {
                         $randomDocResponse = $this->documentService->createDocument($payload, $order);
-                        $order->internal_sale_note = $randomDocResponse['idmaeedo'];
+                        $order->random_document_number = $randomDocResponse['numero'];
                         $order->save();
                     } catch (\Throwable $th) {
                         Log::error("Error al crear documento NVV Random para pago por Webpay", [

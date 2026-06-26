@@ -30,6 +30,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductImagePresignedUrlController;
 use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
 use App\Http\Controllers\Api\ProductImageSyncController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\SettingsController;
 
 Route::prefix('auth')->group(function () {
@@ -219,6 +220,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/reports/transactions/failed', [ReportController::class, 'failedTransactionsList'])->name('reports.transactions.failed');
         Route::get('/reports/transactions/{id}', [ReportController::class, 'transactionId'])->name('reports.transactions.show');
     });
+
+    Route::resource('branches', BranchController::class)
+        ->only(['index', 'show'])
+        ->parameters(['branches' => 'branch'])
+        ->middlewareFor('index', 'permission:read-own-branches')
+        ->middlewareFor('show', 'permission:read-own-branches');
 });
 
 // Rutas FAQs
@@ -299,4 +306,3 @@ Route::middleware(['auth:sanctum', 'permission:update-system-config'])
 Route::any('{url}', function () {
     return response()->json(['message' => 'Method Not Allowed.'], 405);
 })->where('url', '.*');
-
