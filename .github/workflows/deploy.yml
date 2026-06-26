@@ -149,6 +149,14 @@ jobs:
 
         echo "⚙️ Running migrations"
         docker compose exec -T app php artisan migrate --force --seed
+        ENDSSH
+
+    # ⚙️️ Application optimization and Worker start
+    - name: Application optimization and Worker start
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+        set -e
+        cd ${{ vars.BASE_DIR }}
 
         echo "⚡ Optimizing Laravel"
         docker compose exec -T app php artisan optimize
@@ -162,7 +170,7 @@ jobs:
         echo "📊 Containers status:"
         docker compose ps
         ENDSSH
-
+        "
     # ❤️ Health check interno (Docker)
     - name: Health check
       run: |
