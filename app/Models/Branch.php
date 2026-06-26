@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Enums\BranchType;
 use App\Models\Scopes\CurrentUserScope;
 use App\Models\Scopes\SecondaryBranchesScope;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -32,11 +34,16 @@ class Branch extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new CurrentUserScope);
-        static::addGlobalScope(new SecondaryBranchesScope);
     }
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    #[Scope]
+    protected function secondary(Builder $builder): void
+    {
+        $builder->where('branch_type', BranchType::SECONDARY);
     }
 }

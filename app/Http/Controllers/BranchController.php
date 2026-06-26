@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\Branches\BranchResource;
 use App\Models\Branch;
+use App\Models\Scopes\SecondaryBranchesScope;
 use Illuminate\Http\Request;
 
 class BranchController extends Controller
@@ -14,14 +15,14 @@ class BranchController extends Controller
         $perPage = $request->input('per_page', 20);
 
         return BranchResource::collection(
-            Branch::paginate($perPage)
+            Branch::secondary()->paginate($perPage)
         );
     }
 
     public function show($id)
     {
         return BranchResource::make(
-            Branch::findOrFail($id)
+            Branch::secondary()->findOrFail($id)
         );
     }
 }

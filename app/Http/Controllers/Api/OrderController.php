@@ -50,7 +50,7 @@ class OrderController extends Controller
         $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
 
         $orders = Order::where('user_id', Auth::user()->id)
-            ->with(['payments'])
+            ->with(['payments','branch'])
             ->when(
                 $request->has('payment_method_code'),
                 function (Builder $query) use ($request) {
