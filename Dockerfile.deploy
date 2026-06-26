@@ -47,6 +47,11 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # App permissions
 RUN mkdir -p /config/caddy /data/caddy
 
+# Supervisor config
+
+RUN apk add --no-cache supervisor
+RUN mkdir -p /var/log/supervisor
+
 # Caddy labels for FrankenPHP
 LABEL org.opencontainers.image.title="Socomarca Backend QA"
 LABEL org.opencontainers.image.description="FrankenPHP powered Laravel API for QA"

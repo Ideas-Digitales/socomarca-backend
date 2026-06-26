@@ -18,7 +18,4 @@ RUN install-php-extensions \
     bcmath \
 	xdebug
 
-RUN apk add --no-cache supervisor
-RUN mkdir -p /var/log/supervisor
-
 USER ${USER}
