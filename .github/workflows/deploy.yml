@@ -148,7 +148,10 @@ jobs:
         docker compose up app -d --remove-orphans
 
         echo "⚙️ Running migrations"
-        docker compose exec -T app php artisan migrate --force --seed
+        docker compose exec -T app php artisan migrate --force --seed < /dev/null
+
+        echo "⚡ Optimizing Laravel"
+        docker compose exec -T app php artisan optimize < /dev/null
 
         echo "♻️ Starting worker container"
         docker compose up worker -d --remove-orphans
@@ -159,13 +162,6 @@ jobs:
         echo "📊 Containers status:"
         docker compose ps
         ENDSSH
-
-    # ⚡ Optimización
-    - name: Optimize Laravel
-      run: |
-        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-        "cd ${{ vars.BASE_DIR }} && docker compose exec -T app php artisan optimize"
-
     # ❤️ Health check interno (Docker)
     - name: Health check
       run: |
