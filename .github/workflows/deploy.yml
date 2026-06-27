@@ -127,6 +127,7 @@ jobs:
 
         scp compose.tmp.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/compose.yml
         scp .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/.env
+        scp supervisord.conf ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/supervisord.conf
 
     # 📥 Pull + deploy sin downtime
     - name: Clean and deploy containers

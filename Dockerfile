@@ -15,7 +15,7 @@ RUN install-php-extensions \
 	gd \
 	intl \
 	zip \
-  bcmath \
+    bcmath \
 	xdebug
 
 USER ${USER}
