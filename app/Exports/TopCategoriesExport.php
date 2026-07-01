@@ -17,7 +17,7 @@ class TopCategoriesExport implements FromCollection, WithHeadings
     public function __construct($start = null, $end = null, $totalMin = null, $totalMax = null)
     {
         $this->start = $start ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $this->end = $end ?? now()->endOfMonth()->toDateString();
+        $this->end = $end ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $this->totalMin = $totalMin;
         $this->totalMax = $totalMax;
     }

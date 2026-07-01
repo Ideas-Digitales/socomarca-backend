@@ -54,7 +54,7 @@ class ReportController extends Controller
         ]);
 
         $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+        $end = $validated['end'] ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $type = $validated['type'] ?? 'sales';
         $client = $validated['client'] ?? null;
         $totalMin = $validated['total_min'] ?? null;
@@ -326,7 +326,7 @@ class ReportController extends Controller
 
         $end = $request->input('end')
             ? date('Y-m-d', strtotime($request->input('end')))
-            : now()->endOfMonth()->toDateString();
+            : now()->endOfMonth()->endOfDay()->toDateTimeString();
 
         $perPage = $request->input('per_page', 15);
 
@@ -379,7 +379,7 @@ class ReportController extends Controller
         ]);
 
         $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+        $end = $validated['end'] ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $client = $validated['client'] ?? null;
         $totalMin = $validated['total_min'] ?? null;
         $totalMax = $validated['total_max'] ?? null;
@@ -447,7 +447,7 @@ class ReportController extends Controller
         ]);
 
         $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+        $end = $validated['end'] ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $client = $validated['client'] ?? null;
         $totalMin = $validated['total_min'] ?? null;
         $totalMax = $validated['total_max'] ?? null;
@@ -529,7 +529,7 @@ class ReportController extends Controller
         ]);
 
         $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+        $end = $validated['end'] ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $client = $validated['client'] ?? null;
         $totalMin = $validated['total_min'] ?? null;
         $totalMax = $validated['total_max'] ?? null;
@@ -637,7 +637,7 @@ class ReportController extends Controller
             ]);
 
             $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-            $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+            $end = $validated['end'] ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
             $client = $validated['client'] ?? null;
             $totalMin = $validated['total_min'] ?? null;
             $totalMax = $validated['total_max'] ?? null;
@@ -728,7 +728,7 @@ class ReportController extends Controller
         ]);
 
         $start = $validated['start'] ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $end = $validated['end'] ?? now()->endOfMonth()->toDateString();
+        $end = $validated['end'] ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $client = $validated['client'] ?? null;
         $totalMin = $validated['total_min'] ?? null;
         $totalMax = $validated['total_max'] ?? null;
