@@ -6,6 +6,7 @@ use App\Models\Favorite;
 use App\Models\FavoriteList;
 use App\Models\Price;
 use App\Models\Product;
+use App\Models\Scopes\UserPricesLists;
 
 beforeEach(function () {
     // Estructura de la respuesta para la búsqueda, incluyendo los filtros devueltos
@@ -395,7 +396,7 @@ describe('Product search endpoint', function () {
             ]);
 
         $response->assertStatus(422)
-                 ->assertJsonValidationErrorFor('filters.price');
+            ->assertJsonValidationErrorFor('filters.price');
     });
 
     it('should fail validation if brand_id is not an array', function () {
@@ -447,11 +448,11 @@ describe('Product search endpoint', function () {
 
     it('should return 401 when searching by SKU without authentication', function () {
         $this->postJson(route('products.search'), [
-                'filters' => [
-                    'price' => ['min' => 0, 'max' => 10000],
-                    'sku' => 'SKU',
-                ]
-            ])
+            'filters' => [
+                'price' => ['min' => 0, 'max' => 10000],
+                'sku' => 'SKU',
+            ]
+        ])
             ->assertStatus(401);
     });
 
@@ -769,5 +770,46 @@ describe('Product active filter', function () {
         $names = array_column($response->json('data'), 'name');
         expect($names)->not->toContain('Inactive Product');
         expect($names)->toContain('Active Product');
+    });
+});
+
+describe('"byUserPrices" scope tests', function () {
+    it('should return allowed user prices lists', function () {
+
+        $user = \App\Models\User::factory()->create();
+        $user->givePermissionTo('read-all-products');
+
+        $supercategory = Category::factory()->create(['level' => 1]);
+        $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
+        $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
+
+        $prices = Price::factory(count: 100)
+            ->for(
+                Product::factory([
+                    'supercategory_id' => $supercategory->id,
+                    'category_id' => $category->id,
+                    'subcategory_id' => $subcategory->id,
+                ])
+            )
+            ->create();
+        $expectedIndexes = [0, 3, 6, 9, 20, 23, 26, 29];
+        $userPricesLists = [];
+        $expectedProducts = [];
+
+        foreach ($expectedIndexes as $index) {
+            $userPricesLists = $prices[$index]->price_list_id;
+            $expectedProducts[] = $prices[$index]->product_id;
+        }
+
+        $user->prices_lists = json_encode($userPricesLists);
+        $user->save();
+        $productsResponse = $this->actingAs($user, 'sanctum')
+            ->getJson(route('products.index'))
+            ->json('data');
+
+        $products = collect($productsResponse);
+        $productIds = $products->pluck('id');
+        $differences = array_diff($productIds->toArray(), $expectedProducts);
+        expect(empty($differences))->toBeTrue();
     });
 });

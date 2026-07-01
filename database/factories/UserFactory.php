@@ -38,6 +38,7 @@ class UserFactory extends Factory
             'is_active' => fake()->boolean(),
             'last_login' => fake()->dateTimeThisYear(),
             'remember_token' => Str::random(10),
+            'prices_lists' => json_encode([]),
         ];
     }
 

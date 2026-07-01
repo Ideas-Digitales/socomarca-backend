@@ -17,7 +17,8 @@ class ProductController extends Controller
         $perPage = $request->input('per_page', 20);
         $filters = $request->all();
 
-        $products = Product::filter($filters)
+        $products = Product::byUserPrices($request->user())
+            ->filter($filters)
             ->active()
             ->paginate($perPage);
 
@@ -67,7 +68,8 @@ class ProductController extends Controller
         $validatedFilters = $validator->validated()['filters'];
         $perPage = $request->input('per_page', 20);
 
-        $result = Product::filter($validatedFilters)
+        $result = Product::byUserPrices($request->user())
+            ->filter($validatedFilters)
             ->active()
             ->paginate($perPage);
 
