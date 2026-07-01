@@ -186,12 +186,19 @@ class RandomApiService
         return $this->makeRequest('get', '/familias');
     }
 
-    public function getPricesLists()
+    public function getPricesLists($kolt = null, $size = 100, $page = 1)
     {
         $params = [
             'empresa' => config('random.business_code'),
-            'modalidad' => config('random.modality')
+            'kofu' => config('random.modality'),
+            'size' => $size,
+            'page' => $page,
         ];
+        
+        if ($kolt !== null) {
+            $params['kolt'] = $kolt;
+        }
+        
         return $this->makeRequest('get', '/web32/precios/pidelistaprecio', $params);
     }
 
