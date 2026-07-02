@@ -127,6 +127,9 @@ class Product extends Model
         if (isset($filters['price'])) {
             $priceFilter = $filters['price'];
             $query->whereHas('prices', function ($q) use ($priceFilter) {
+                $user = Auth::user();
+                $priceLists = $user->prices_lists;
+                $q->whereIn('price_list_id', $priceLists);
                 if (isset($priceFilter['min'])) {
                     $q->where('price', '>=', $priceFilter['min']);
                 }
@@ -141,20 +144,6 @@ class Product extends Model
                 }
             });
         }
-
-        // Filtro para ocultar/mostrar productos con precio 0
-        if (!config('random.show_product_zero_price')) {
-            $query->whereHas('prices', function ($q) {
-                $q->where('price', '>', 0)
-                    ->where('is_active', true);
-            });
-        }
-
-        // Filtro para ocultar productos sin stock
-        $query->whereHas('prices', function ($q) {
-            $q->where('stock', '>', 0)
-                ->where('is_active', true);
-        });
 
         // Filtro de Super Categoría
         if (isset($filters['supercategory_id'])) {
@@ -274,19 +263,27 @@ class Product extends Model
         return $query;
     }
 
-    #[Scope]
     /**
-     * Filter products in the user prices lists
-     * @param Builder $query
-     * @param User $user
+     * Filter products by user price lists
      *
-     * @return void
+     * @param Builder $query
+     *
+     * @return [type]
      */
-    protected function byUserPrices(Builder $query, User $user): void
+    #[Scope]
+    public function allowedPricesLists(Builder $query)
     {
-
+        $user = Auth::user();
         $priceLists = $user->prices_lists;
-        $query->join('prices', 'products.id', '=', 'prices.product_id')
-            ->whereIn('prices.price_list_id', $priceLists);
+
+        $query->whereHas('prices', function ($q) use ($priceLists) {
+            $q->when(
+                !config('random.show_product_zero_price'),
+                fn($qq) => $qq->where('price', '>', 0)
+            );
+            $q->where('is_active', true);
+            $q->where('stock', '>', 0);
+            $q->whereIn('price_list_id', $priceLists);
+        });
     }
 }
