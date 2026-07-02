@@ -59,6 +59,9 @@ class SyncRandomUsers implements ShouldQueue
                             $email = "temp_{$rut}@socomarca.temp";
                         }
 
+                        $pricesLists = $entidad['KOLTVEN'] ?? [];
+                        $jsonPricesLists = json_encode($pricesLists);
+
                         User::upsert(
                             [
                                 [
@@ -72,6 +75,7 @@ class SyncRandomUsers implements ShouldQueue
                                     'branch_code'      => $entidad['SUEN'] ?? '',
                                     'random_user_type' => $entidad['TIEN'],
                                     'password'         => bcrypt('password'),
+                                    'prices_lists' => $jsonPricesLists,
                                 ],
                             ],
                             uniqueBy: ['rut'],
@@ -84,6 +88,7 @@ class SyncRandomUsers implements ShouldQueue
                                 'phone',
                                 'branch_code',
                                 'random_user_type',
+                                'prices_lists',
                             ]
                         );
 

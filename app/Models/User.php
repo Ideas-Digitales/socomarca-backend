@@ -39,7 +39,8 @@ class User extends Authenticatable
         'fcm_token',
         'branch_code',
         'user_code',
-        'random_user_type'
+        'random_user_type',
+        'prices_lists',
     ];
 
     /**
@@ -110,6 +111,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'prices_lists' => 'array',
         ];
     }
 

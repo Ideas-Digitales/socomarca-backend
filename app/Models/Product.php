@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -125,6 +127,9 @@ class Product extends Model
         if (isset($filters['price'])) {
             $priceFilter = $filters['price'];
             $query->whereHas('prices', function ($q) use ($priceFilter) {
+                $user = Auth::user();
+                $priceLists = $user->prices_lists;
+                $q->whereIn('price_list_id', $priceLists);
                 if (isset($priceFilter['min'])) {
                     $q->where('price', '>=', $priceFilter['min']);
                 }
@@ -139,20 +144,6 @@ class Product extends Model
                 }
             });
         }
-
-        // Filtro para ocultar/mostrar productos con precio 0
-        if (!config('random.show_product_zero_price')) {
-            $query->whereHas('prices', function ($q) {
-                $q->where('price', '>', 0)
-                  ->where('is_active', true);
-            });
-        }
-
-        // Filtro para ocultar productos sin stock
-        $query->whereHas('prices', function ($q) {
-            $q->where('stock', '>', 0)
-              ->where('is_active', true);
-        });
 
         // Filtro de Super Categoría
         if (isset($filters['supercategory_id'])) {
@@ -185,10 +176,10 @@ class Product extends Model
         // Filtro por Nombre (búsqueda parcial)
         if (isset($filters['name'])) {
             $searchTerm = $filters['name'];
-            $query->where(function($q) use ($searchTerm) {
+            $query->where(function ($q) use ($searchTerm) {
                 $q->whereRaw('similarity(name, ?) > 0.3', [$searchTerm])
-                  ->orWhere('name', 'ILIKE', "%{$searchTerm}%")
-                  ->orWhere('sku', 'ILIKE', "%{$searchTerm}%");
+                    ->orWhere('name', 'ILIKE', "%{$searchTerm}%")
+                    ->orWhere('sku', 'ILIKE', "%{$searchTerm}%");
             });
 
             // Solo aplica el orderByRaw si NO hay sort definido
@@ -216,24 +207,24 @@ class Product extends Model
             switch ($filters['sort']) {
                 case 'category_name':
                     $query->join('categories', 'products.category_id', '=', 'categories.id')
-                          ->leftJoin('prices', function($join) {
-                              $join->on('products.id', '=', 'prices.product_id')
-                                   ->where('prices.is_active', true);
-                          })
-                          ->orderBy('categories.name', $direction)
-                          ->select(
-                              'products.*',
-                              'prices.price as joined_price',
-                              'prices.stock as joined_stock',
-                              'prices.unit as joined_unit'
-                          );
+                        ->leftJoin('prices', function ($join) {
+                            $join->on('products.id', '=', 'prices.product_id')
+                                ->where('prices.is_active', true);
+                        })
+                        ->orderBy('categories.name', $direction)
+                        ->select(
+                            'products.*',
+                            'prices.price as joined_price',
+                            'prices.stock as joined_stock',
+                            'prices.unit as joined_unit'
+                        );
                     break;
                 case 'price':
                 case 'stock':
-                    $query->leftJoin('prices', function($join) {
-                            $join->on('products.id', '=', 'prices.product_id')
-                                 ->where('prices.is_active', true);
-                        })
+                    $query->leftJoin('prices', function ($join) {
+                        $join->on('products.id', '=', 'prices.product_id')
+                            ->where('prices.is_active', true);
+                    })
                         ->select(
                             'products.*',
                             'prices.price as joined_price',
@@ -243,10 +234,10 @@ class Product extends Model
                         ->orderBy('prices.' . $filters['sort'], $direction);
                     break;
                 default:
-                    $query->leftJoin('prices', function($join) {
-                            $join->on('products.id', '=', 'prices.product_id')
-                                 ->where('prices.is_active', true);
-                        })
+                    $query->leftJoin('prices', function ($join) {
+                        $join->on('products.id', '=', 'prices.product_id')
+                            ->where('prices.is_active', true);
+                    })
                         ->select(
                             'products.*',
                             'prices.price as joined_price',
@@ -270,5 +261,29 @@ class Product extends Model
     {
         $query->where('status', '=', true);
         return $query;
+    }
+
+    /**
+     * Filter products by user price lists
+     *
+     * @param Builder $query
+     *
+     * @return [type]
+     */
+    #[Scope]
+    public function allowedPricesLists(Builder $query)
+    {
+        $user = Auth::user();
+        $priceLists = $user->prices_lists;
+
+        $query->whereHas('prices', function ($q) use ($priceLists) {
+            $q->when(
+                !config('random.show_product_zero_price'),
+                fn($qq) => $qq->where('price', '>', 0)
+            );
+            $q->where('is_active', true);
+            $q->where('stock', '>', 0);
+            $q->whereIn('price_list_id', $priceLists);
+        });
     }
 }

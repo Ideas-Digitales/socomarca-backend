@@ -22,7 +22,7 @@ class ProductCollection extends ResourceCollection
                     $q->where('user_id', Auth::id());
                 })->exists();
             }
-            
+
             $imageRelative = $product->image ?? null;
             $imageUrl = null;
             if ($imageRelative) {
@@ -30,6 +30,9 @@ class ProductCollection extends ResourceCollection
                 $imageRelative = ltrim($imageRelative, '/');
                 $imageUrl = "{$awsUrl}/{$imageRelative}";
             }
+
+            $user = Auth::user();
+            $priceLists = $user->prices_lists;
 
             return [
                 'id' => $product->id,
@@ -53,7 +56,7 @@ class ProductCollection extends ResourceCollection
                     : (float) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->price,
                 'stock' => isset($product->joined_stock)
                     ? (int) $product->joined_stock
-                    : (int) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->stock,
+                    : (int) optional($product->prices()->where('is_active', true)->whereIn('price_list_id', $priceLists)->first())->stock,
                 'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,

@@ -18,7 +18,7 @@ class ProductController extends Controller
         $filters = $request->all();
 
         $products = Product::filter($filters)
-            ->active()
+            ->allowedPricesLists()
             ->paginate($perPage);
 
         return new ProductCollection($products);
@@ -68,7 +68,7 @@ class ProductController extends Controller
         $perPage = $request->input('per_page', 20);
 
         $result = Product::filter($validatedFilters)
-            ->active()
+            ->allowedPricesLists()
             ->paginate($perPage);
 
         // Obtener categorías de todos los resultados (sin paginación ni sorting)

@@ -18,7 +18,7 @@ class OrdersExport implements FromCollection, WithHeadings
     public function __construct($start = null, $end = null, $client = null, $totalMin = null, $totalMax = null, $status = 'completed')
     {
         $this->start = $start ?? now()->subMonths(12)->startOfMonth()->toDateString();
-        $this->end = $end ?? now()->endOfMonth()->toDateString();
+        $this->end = $end ?? now()->endOfMonth()->endOfDay()->toDateTimeString();
         $this->client = $client;
         $this->totalMin = $totalMin;
         $this->totalMax = $totalMax;

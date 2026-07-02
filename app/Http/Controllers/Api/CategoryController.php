@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Categories\SuperCategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CategoryController extends Controller
@@ -20,7 +21,10 @@ class CategoryController extends Controller
             ->where('enabled', true)
             ->whereHas('productsBySupercategory', function ($q) {
                 $q->whereHas('prices', function ($pq) {
-                    $pq->where('is_active', true)->where('stock', '>', 0);
+                    $user = Auth::user();
+                    $pq->where('is_active', true)
+                        ->where('stock', '>', 0)
+                        ->whereIn('price_list_id', $user->prices_lists);
                 });
             })
             ->withCount('productsBySupercategory')
@@ -28,7 +32,10 @@ class CategoryController extends Controller
                 $query->where('enabled', true)
                     ->whereHas('products', function ($q) {
                         $q->whereHas('prices', function ($pq) {
-                            $pq->where('is_active', true)->where('stock', '>', 0);
+                            $user = Auth::user();
+                            $pq->where('is_active', true)
+                                ->where('stock', '>', 0)
+                                ->whereIn('price_list_id', $user->prices_lists);
                         });
                     })
                     ->withCount('products')
@@ -37,7 +44,10 @@ class CategoryController extends Controller
                             ->where('enabled', true)
                             ->whereHas('productsBySubcategory', function ($q) {
                                 $q->whereHas('prices', function ($pq) {
-                                    $pq->where('is_active', true)->where('stock', '>', 0);
+                                    $user = Auth::user();
+                                    $pq->where('is_active', true)
+                                        ->where('stock', '>', 0)
+                                        ->whereIn('price_list_id', $user->prices_lists);
                                 });
                             })
                             ->withCount('productsBySubcategory');
@@ -53,12 +63,13 @@ class CategoryController extends Controller
 
     public function show($id)
     {
-        if (!Category::find($id))
-        {
+        if (!Category::find($id)) {
             return response()->json(
-            [
-                'message' => 'Category not found.',
-            ], 404);
+                [
+                    'message' => 'Category not found.',
+                ],
+                404
+            );
         }
 
         $categories = Category::where('id', $id)->get();
@@ -92,20 +103,29 @@ class CategoryController extends Controller
             ->where('enabled', true)
             ->whereHas('productsBySupercategory', function ($q) {
                 $q->whereHas('prices', function ($pq) {
-                    $pq->where('is_active', true)->where('stock', '>', 0);
+                    $user = Auth::user();
+                    $pq->where('is_active', true)
+                        ->where('stock', '>', 0)
+                        ->whereIn('price_list_id', $user->prices_lists);
                 });
             })
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
                     ->whereHas('products', function ($q) {
                         $q->whereHas('prices', function ($pq) {
-                            $pq->where('is_active', true)->where('stock', '>', 0);
+                            $user = Auth::user();
+                            $pq->where('is_active', true)
+                                ->where('stock', '>', 0)
+                                ->whereIn('price_list_id', $user->prices_lists);
                         });
                     })
                     ->with(['children' => function ($query) {
                         $query->where('enabled', true)->whereHas('productsBySubcategory', function ($q) {
                             $q->whereHas('prices', function ($pq) {
-                                $pq->where('is_active', true)->where('stock', '>', 0);
+                                $user = Auth::user();
+                                $pq->where('is_active', true)
+                                    ->where('stock', '>', 0)
+                                    ->whereIn('price_list_id', $user->prices_lists);
                             });
                         });
                     }]);
