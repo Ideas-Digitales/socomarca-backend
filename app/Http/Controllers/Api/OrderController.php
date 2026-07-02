@@ -50,7 +50,7 @@ class OrderController extends Controller
         $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
 
         $orders = Order::where('user_id', Auth::user()->id)
-            ->with(['payments','branch'])
+            ->with(['payments', 'branch'])
             ->when(
                 $request->has('payment_method_code'),
                 function (Builder $query) use ($request) {
@@ -273,11 +273,12 @@ class OrderController extends Controller
                 'modalidad' => config('random.modality'),
                 'funcionario' => config('random.functionary'),
                 'lineas' => $lines,
-                'observacion' => $order->notes,
+                // 'observacion' => $order->notes,
                 'texto1' => 'Pago a crédito',
                 'texto2' => "Documento contable a generar: {$randomDocType}",
                 'texto3' => 'Origen: Compra rápida',
                 'texto4' => "Orden de compra: #{$order->id}",
+                'texto5' => $order->notes,
             ]
         ];
 
