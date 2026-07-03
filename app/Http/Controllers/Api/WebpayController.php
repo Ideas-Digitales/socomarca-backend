@@ -77,6 +77,9 @@ class WebpayController extends Controller
                     $randomDocType = PaymentDocumentType::getLabel(
                         $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
                     );
+                    $randomDocFlow = PaymentDocumentType::getSaleFlowOption(
+                        $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
+                    );
 
                     $branch = $order
                         ->branch()
@@ -88,6 +91,8 @@ class WebpayController extends Controller
                             'empresa' => config('random.business_code'),
                             'codigoEntidad' => $order->user->user_code,
                             'sucursalEntidad' => $branch->code,
+                            'sucursalEntidadDespacho' => $branch->code,
+                            'flujoVenta' => $randomDocFlow,
                             'tido' => 'NVV',
                             "moneda" => "CLP",
                             'modalidad' => config('random.modality'),

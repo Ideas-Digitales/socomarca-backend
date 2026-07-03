@@ -258,6 +258,9 @@ class OrderController extends Controller
         })->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
+        $randomDocFlow = PaymentDocumentType::getSaleFlowOption(
+            $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
+        );
         $branch = $order
             ->branch()
             ->withoutGlobalScope(SecondaryBranchesScope::class)
@@ -268,6 +271,8 @@ class OrderController extends Controller
                 'empresa' => config('random.business_code'),
                 'codigoEntidad' => $user->user_code,
                 'sucursalEntidad' => $branch->code,
+                'sucursalEntidadDespacho' => $branch->code,
+                'flujoVenta' => $randomDocFlow,
                 'tido' => 'NVV',
                 "moneda" => "CLP",
                 'modalidad' => config('random.modality'),

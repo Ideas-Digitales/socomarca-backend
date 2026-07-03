@@ -57,4 +57,21 @@ class PaymentDocumentType
         $values = self::values();
         return $values[array_rand($values)];
     }
+
+    /**
+     * Get Random sale flow option: flujoVenta
+     *
+     * Returns the corresponding sale flow value for the payment doc type
+     *
+     * @param string $docType Payment document type
+     * @return string
+
+     **/
+    public static function getSaleFlowOption(string $docType): string
+    {
+        return match ($docType) {
+            PaymentDocumentType::RECEIPT => "NVVBLV",
+            PaymentDocumentType::INVOICE => "NVVFCV",
+        };
+    }
 }
