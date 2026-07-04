@@ -41,15 +41,13 @@ function getSearchResponseStructure()
     ];
 }
 
-beforeEach(function (): void {
-});
-
 describe("Product list endpoint", function (): void {
     it("should return 401 without authentication", function (): void {
         getJson(route("products.index"))->assertStatus(401);
     });
 
-    it("should return 403 when not having the 'read-all-products' permission",
+    it(
+        "should return 403 when not having the 'read-all-products' permission",
         function (): void {
             $user = App\Models\User::factory()->create();
             actingAs($user, "sanctum")
@@ -58,7 +56,8 @@ describe("Product list endpoint", function (): void {
         },
     );
 
-    it("should response a product list filtered by price range",
+    it(
+        "should response a product list filtered by price range",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -112,7 +111,8 @@ describe("Product list endpoint", function (): void {
         },
     );
 
-    it("should apply optional filters for category, subcategory, brand, and name",
+    it(
+        "should apply optional filters for category, subcategory, brand, and name",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -511,7 +511,8 @@ describe("Product list endpoint", function (): void {
         expect($response->json("data"))->toBeEmpty();
     });
 
-    it("should apply sorting by price, stock, category_name and id",
+    it(
+        "should apply sorting by price, stock, category_name and id",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -713,7 +714,8 @@ describe("Product search endpoint", function (): void {
             ->assertJsonValidationErrors(["filters.brand_id"]);
     });
 
-    it("should filter products by SKU using POST search endpoint",
+    it(
+        "should filter products by SKU using POST search endpoint",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -762,7 +764,8 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it("should return 401 when searching by SKU without authentication",
+    it(
+        "should return 401 when searching by SKU without authentication",
         function (): void {
             postJson(route("products.search"), [
                 "filters" => [
@@ -773,7 +776,8 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it("should return 403 when searching by SKU without read-all-products permission",
+    it(
+        "should return 403 when searching by SKU without read-all-products permission",
         function (): void {
             $user = App\Models\User::factory()->create();
 
@@ -788,7 +792,8 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it("should return categories and subcategories from all matching products",
+    it(
+        "should return categories and subcategories from all matching products",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -862,7 +867,8 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it("should return empty categories and subcategories when no products match",
+    it(
+        "should return empty categories and subcategories when no products match",
         function (): void {
             $user = App\Models\User::factory()->create();
             $user->givePermissionTo("read-all-products");
@@ -926,7 +932,8 @@ describe("Product search endpoint", function (): void {
         expect($response->json("data.0.name"))->toBe("Normal Product");
     });
 
-    it("should show products with zero price when config is enabled",
+    it(
+        "should show products with zero price when config is enabled",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -975,7 +982,8 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it("should exclude inactive prices when filtering zero price products",
+    it(
+        "should exclude inactive prices when filtering zero price products",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1021,7 +1029,8 @@ describe("Product search endpoint", function (): void {
 });
 
 describe("Product stock filter", function (): void {
-    it("should not return products with stock equal to 0 in index",
+    it(
+        "should not return products with stock equal to 0 in index",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1063,7 +1072,8 @@ describe("Product stock filter", function (): void {
         },
     );
 
-    it("should not return products with stock less than 0 in index",
+    it(
+        "should not return products with stock less than 0 in index",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1108,7 +1118,8 @@ describe("Product stock filter", function (): void {
         },
     );
 
-    it("should not return products with stock equal to 0 in search",
+    it(
+        "should not return products with stock equal to 0 in search",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1153,7 +1164,8 @@ describe("Product stock filter", function (): void {
         },
     );
 
-    it("should not return products with stock less than 0 in search",
+    it(
+        "should not return products with stock less than 0 in search",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
