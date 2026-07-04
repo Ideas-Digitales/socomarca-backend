@@ -9,9 +9,17 @@ use App\Models\FavoriteList;
 use App\Models\Price;
 use App\Models\Product;
 
-beforeEach(function (): void {
-    // Estructura de la respuesta para la búsqueda, incluyendo los filtros devueltos
-    $this->searchResponseStructure = [
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
+
+/**
+ * Gets the products search response structure
+ * @return array
+ */
+function getSearchResponseStructure()
+{
+    return [
         "data" => [
             "*" => [
                 "id",
@@ -31,25 +39,26 @@ beforeEach(function (): void {
         "meta",
         "filters" => ["min_price", "max_price"],
     ];
+}
+
+beforeEach(function (): void {
 });
 
 describe("Product list endpoint", function (): void {
     it("should return 401 without authentication", function (): void {
-        $this->getJson(route("products.index"))->assertStatus(401);
+        getJson(route("products.index"))->assertStatus(401);
     });
 
-    it(
-        "should return 403 when not having the 'read-all-products' permission",
+    it("should return 403 when not having the 'read-all-products' permission",
         function (): void {
             $user = App\Models\User::factory()->create();
-            $this->actingAs($user, "sanctum")
+            actingAs($user, "sanctum")
                 ->getJson(route("products.index"))
                 ->assertForbidden();
         },
     );
 
-    it(
-        "should response a product list filtered by price range",
+    it("should response a product list filtered by price range",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -79,7 +88,7 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create(["status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -93,7 +102,7 @@ describe("Product list endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure($this->searchResponseStructure);
+                ->assertJsonStructure(getSearchResponseStructure());
 
             expect($response->json("data"))->not->toBeEmpty();
             foreach ($response->json("data") as $product) {
@@ -103,8 +112,7 @@ describe("Product list endpoint", function (): void {
         },
     );
 
-    it(
-        "should apply optional filters for category, subcategory, brand, and name",
+    it("should apply optional filters for category, subcategory, brand, and name",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -112,10 +120,10 @@ describe("Product list endpoint", function (): void {
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
-            $supercategory = Category::factory()->create(["level" => 1]);
+            $superCategory = Category::factory()->create(["level" => 1]);
             $category = Category::factory()->create([
                 "level" => 2,
-                "parent_category_id" => $supercategory->id,
+                "parent_category_id" => $superCategory->id,
             ]);
             $subcategory = Category::factory()->create([
                 "level" => 3,
@@ -133,7 +141,7 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create([
                     "name" => "Producto Estrella",
-                    "supercategory_id" => $supercategory->id,
+                    "supercategory_id" => $superCategory->id,
                     "category_id" => $category->id,
                     "subcategory_id" => $subcategory->id,
                     "brand_id" => $brand->id,
@@ -150,7 +158,7 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create(["name" => "Otro Producto", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -165,7 +173,7 @@ describe("Product list endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure($this->searchResponseStructure);
+                ->assertJsonStructure(getSearchResponseStructure());
 
             expect($response->json("data"))->toHaveCount(1);
             $foundProduct = $response->json("data.0");
@@ -184,20 +192,20 @@ describe("Product list endpoint", function (): void {
         $user->givePermissionTo("read-all-products");
         Product::truncate();
 
-        $supercategory = Category::factory()->create(["level" => 1]);
+        $superCategory = Category::factory()->create(["level" => 1]);
         $category1 = Category::factory()->create([
             "level" => 2,
-            "parent_category_id" => $supercategory->id,
+            "parent_category_id" => $superCategory->id,
             "name" => "Cat 1",
         ]);
         $category2 = Category::factory()->create([
             "level" => 2,
-            "parent_category_id" => $supercategory->id,
+            "parent_category_id" => $superCategory->id,
             "name" => "Cat 2",
         ]);
         $category3 = Category::factory()->create([
             "level" => 2,
-            "parent_category_id" => $supercategory->id,
+            "parent_category_id" => $superCategory->id,
             "name" => "Cat 3",
         ]);
 
@@ -243,7 +251,7 @@ describe("Product list endpoint", function (): void {
                 "status" => true,
             ]);
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -255,7 +263,7 @@ describe("Product list endpoint", function (): void {
 
         $response
             ->assertStatus(200)
-            ->assertJsonStructure($this->searchResponseStructure);
+            ->assertJsonStructure(getSearchResponseStructure());
 
         expect($response->json("data"))->toHaveCount(2);
         $ids = array_column($response->json("data"), "category");
@@ -272,10 +280,10 @@ describe("Product list endpoint", function (): void {
         $user->givePermissionTo("read-all-products");
         Product::truncate();
 
-        $supercategory = Category::factory()->create(["level" => 1]);
+        $superCategory = Category::factory()->create(["level" => 1]);
         $category = Category::factory()->create([
             "level" => 2,
-            "parent_category_id" => $supercategory->id,
+            "parent_category_id" => $superCategory->id,
         ]);
         $sub1 = Category::factory()->create([
             "level" => 3,
@@ -335,7 +343,7 @@ describe("Product list endpoint", function (): void {
                 "status" => true,
             ]);
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -347,7 +355,7 @@ describe("Product list endpoint", function (): void {
 
         $response
             ->assertStatus(200)
-            ->assertJsonStructure($this->searchResponseStructure);
+            ->assertJsonStructure(getSearchResponseStructure());
 
         expect($response->json("data"))->toHaveCount(2);
         $ids = array_column($response->json("data"), "subcategory");
@@ -356,7 +364,7 @@ describe("Product list endpoint", function (): void {
         expect($subcategoryIds)->not->toContain($sub2->id);
     });
 
-    it("should filter products by multiple supercategories", function (): void {
+    it("should filter products by multiple superCategories", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
             "prices_lists" => json_encode([$priceListCode]),
@@ -419,7 +427,7 @@ describe("Product list endpoint", function (): void {
                 "status" => true,
             ]);
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -431,7 +439,7 @@ describe("Product list endpoint", function (): void {
 
         $response
             ->assertStatus(200)
-            ->assertJsonStructure($this->searchResponseStructure);
+            ->assertJsonStructure(getSearchResponseStructure());
 
         expect($response->json("data"))->toHaveCount(2);
         $ids = array_column($response->json("data"), "id");
@@ -469,7 +477,7 @@ describe("Product list endpoint", function (): void {
             )
             ->create(["sku" => "SKU-67890", "status" => true]);
 
-        $response = $this->actingAs($user, "sanctum")
+        $response = actingAs($user, "sanctum")
             ->getJson(route("products.index", ["sku" => "SKU-12345"]))
             ->assertStatus(200);
 
@@ -496,15 +504,14 @@ describe("Product list endpoint", function (): void {
             )
             ->create(["sku" => "SKU-12345", "status" => true]);
 
-        $response = $this->actingAs($user, "sanctum")
+        $response = actingAs($user, "sanctum")
             ->getJson(route("products.index", ["sku" => "SKU-NONEXISTENT"]))
             ->assertStatus(200);
 
         expect($response->json("data"))->toBeEmpty();
     });
 
-    it(
-        "should apply sorting by price, stock, category_name and id",
+    it("should apply sorting by price, stock, category_name and id",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -553,7 +560,7 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create(["name" => "Producto 3", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")
+            $response = actingAs($user, "sanctum")
                 ->getJson(
                     route("products.index", [
                         "sort" => "price",
@@ -565,7 +572,7 @@ describe("Product list endpoint", function (): void {
             $prices = array_column($response->json("data"), "price");
             expect($prices)->toBe([1000, 1500, 2000]);
 
-            $response = $this->actingAs($user, "sanctum")
+            $response = actingAs($user, "sanctum")
                 ->getJson(
                     route("products.index", [
                         "sort" => "stock",
@@ -576,7 +583,7 @@ describe("Product list endpoint", function (): void {
             $stocks = array_column($response->json("data"), "stock");
             expect($stocks)->toBe([10, 7, 5]);
 
-            $response = $this->actingAs($user, "sanctum")->getJson(
+            $response = actingAs($user, "sanctum")->getJson(
                 "/api/products?sort=category_name&sort_direction=asc",
             );
             $response->assertStatus(200);
@@ -584,7 +591,7 @@ describe("Product list endpoint", function (): void {
             $categoryNames = array_column($categories, "name");
             expect($categoryNames)->toBe(["Alimentos", "Alimentos", "Bebidas"]);
 
-            $response = $this->actingAs($user, "sanctum")
+            $response = actingAs($user, "sanctum")
                 ->getJson(
                     route("products.index", [
                         "sort" => "id",
@@ -631,7 +638,7 @@ describe("Product list endpoint", function (): void {
             )
             ->create(["status" => true]);
 
-        $responseFavorite = $this->actingAs($user, "sanctum")->postJson(
+        $responseFavorite = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -649,7 +656,7 @@ describe("Product list endpoint", function (): void {
         );
         expect($responseFavorite->json("data.0.is_favorite"))->toBeTrue();
 
-        $responseNonFavorite = $this->actingAs($user, "sanctum")->postJson(
+        $responseNonFavorite = actingAs($user, "sanctum")->postJson(
             "/api/products/search",
             [
                 "filters" => [
@@ -673,7 +680,7 @@ describe("Product search endpoint", function (): void {
     it("should fail if price range is missing", function (): void {
         $user = App\Models\User::factory()->create();
         $user->givePermissionTo("read-all-products");
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -692,7 +699,7 @@ describe("Product search endpoint", function (): void {
         $user->givePermissionTo("read-all-products");
         $brand = Brand::factory()->create();
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -706,8 +713,7 @@ describe("Product search endpoint", function (): void {
             ->assertJsonValidationErrors(["filters.brand_id"]);
     });
 
-    it(
-        "should filter products by SKU using POST search endpoint",
+    it("should filter products by SKU using POST search endpoint",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -736,7 +742,7 @@ describe("Product search endpoint", function (): void {
                 )
                 ->create(["sku" => "SKU-456", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -748,7 +754,7 @@ describe("Product search endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure($this->searchResponseStructure);
+                ->assertJsonStructure(getSearchResponseStructure());
 
             expect($response->json("data"))->toHaveCount(1);
             expect($response->json("data.0.id"))->toBe($targetProduct->id);
@@ -756,10 +762,9 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it(
-        "should return 401 when searching by SKU without authentication",
+    it("should return 401 when searching by SKU without authentication",
         function (): void {
-            $this->postJson(route("products.search"), [
+            postJson(route("products.search"), [
                 "filters" => [
                     "price" => ["min" => 0, "max" => 10000],
                     "sku" => "SKU",
@@ -768,12 +773,11 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it(
-        "should return 403 when searching by SKU without read-all-products permission",
+    it("should return 403 when searching by SKU without read-all-products permission",
         function (): void {
             $user = App\Models\User::factory()->create();
 
-            $this->actingAs($user, "sanctum")
+            actingAs($user, "sanctum")
                 ->postJson(route("products.search"), [
                     "filters" => [
                         "price" => ["min" => 0, "max" => 10000],
@@ -784,8 +788,7 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it(
-        "should return categories and subcategories from all matching products",
+    it("should return categories and subcategories from all matching products",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -794,10 +797,10 @@ describe("Product search endpoint", function (): void {
             $user->givePermissionTo("read-all-products");
             Product::truncate();
 
-            $supercategory = Category::factory()->create(["level" => 1]);
+            $superCategory = Category::factory()->create(["level" => 1]);
             $category = Category::factory()->create([
                 "level" => 2,
-                "parent_category_id" => $supercategory->id,
+                "parent_category_id" => $superCategory->id,
             ]);
             $subcategory = Category::factory()->create([
                 "level" => 3,
@@ -813,13 +816,13 @@ describe("Product search endpoint", function (): void {
                     ]),
                 )
                 ->create([
-                    "supercategory_id" => $supercategory->id,
+                    "supercategory_id" => $superCategory->id,
                     "category_id" => $category->id,
                     "subcategory_id" => $subcategory->id,
                     "status" => true,
                 ]);
 
-            $otherSupercategory = Category::factory()->create(["level" => 1]);
+            $otherSuperCategory = Category::factory()->create(["level" => 1]);
             Product::factory()
                 ->has(
                     Price::factory([
@@ -829,11 +832,11 @@ describe("Product search endpoint", function (): void {
                     ]),
                 )
                 ->create([
-                    "supercategory_id" => $otherSupercategory->id,
+                    "supercategory_id" => $otherSuperCategory->id,
                     "status" => true,
                 ]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 1000, "max" => 10000]],
@@ -842,11 +845,11 @@ describe("Product search endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure($this->searchResponseStructure);
+                ->assertJsonStructure(getSearchResponseStructure());
 
             expect($response->json("extra.supercategories"))->toHaveCount(1);
             expect($response->json("extra.supercategories.0.id"))->toBe(
-                $supercategory->id,
+                $superCategory->id,
             );
             expect($response->json("extra.categories"))->toHaveCount(1);
             expect($response->json("extra.categories.0.id"))->toBe(
@@ -859,14 +862,13 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it(
-        "should return empty categories and subcategories when no products match",
+    it("should return empty categories and subcategories when no products match",
         function (): void {
             $user = App\Models\User::factory()->create();
             $user->givePermissionTo("read-all-products");
             Product::truncate();
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -911,7 +913,7 @@ describe("Product search endpoint", function (): void {
             )
             ->create(["name" => "Normal Product", "status" => true]);
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -924,8 +926,7 @@ describe("Product search endpoint", function (): void {
         expect($response->json("data.0.name"))->toBe("Normal Product");
     });
 
-    it(
-        "should show products with zero price when config is enabled",
+    it("should show products with zero price when config is enabled",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -956,7 +957,7 @@ describe("Product search endpoint", function (): void {
 
             config(["random.show_product_zero_price" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -974,8 +975,7 @@ describe("Product search endpoint", function (): void {
         },
     );
 
-    it(
-        "should exclude inactive prices when filtering zero price products",
+    it("should exclude inactive prices when filtering zero price products",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1006,7 +1006,7 @@ describe("Product search endpoint", function (): void {
 
             config(["random.show_product_zero_price" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1021,8 +1021,7 @@ describe("Product search endpoint", function (): void {
 });
 
 describe("Product stock filter", function (): void {
-    it(
-        "should not return products with stock equal to 0 in index",
+    it("should not return products with stock equal to 0 in index",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1053,7 +1052,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->getJson(
+            $response = actingAs($user, "sanctum")->getJson(
                 route("products.index"),
             );
 
@@ -1064,8 +1063,7 @@ describe("Product stock filter", function (): void {
         },
     );
 
-    it(
-        "should not return products with stock less than 0 in index",
+    it("should not return products with stock less than 0 in index",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1099,7 +1097,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->getJson(
+            $response = actingAs($user, "sanctum")->getJson(
                 route("products.index"),
             );
 
@@ -1110,8 +1108,7 @@ describe("Product stock filter", function (): void {
         },
     );
 
-    it(
-        "should not return products with stock equal to 0 in search",
+    it("should not return products with stock equal to 0 in search",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1142,7 +1139,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1156,8 +1153,7 @@ describe("Product stock filter", function (): void {
         },
     );
 
-    it(
-        "should not return products with stock less than 0 in search",
+    it("should not return products with stock less than 0 in search",
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
@@ -1191,7 +1187,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = $this->actingAs($user, "sanctum")->postJson(
+            $response = actingAs($user, "sanctum")->postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1224,7 +1220,7 @@ describe("Product stock filter", function (): void {
             )
             ->create(["name" => "Stocked Product", "status" => true]);
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1269,7 +1265,7 @@ describe("Product active filter", function (): void {
             )
             ->create(["name" => "Active Product", "status" => true]);
 
-        $response = $this->actingAs($user, "sanctum")->getJson(
+        $response = actingAs($user, "sanctum")->getJson(
             route("products.index"),
         );
 
@@ -1309,7 +1305,7 @@ describe("Product active filter", function (): void {
             )
             ->create(["name" => "Active Product", "status" => true]);
 
-        $response = $this->actingAs($user, "sanctum")->postJson(
+        $response = actingAs($user, "sanctum")->postJson(
             route("products.search"),
             [
                 "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1335,10 +1331,10 @@ describe('"byUserPrices" scope tests', function (): void {
 
         Product::truncate();
 
-        $supercategory = Category::factory()->create(["level" => 1]);
+        $superCategory = Category::factory()->create(["level" => 1]);
         $category = Category::factory()->create([
             "level" => 2,
-            "parent_category_id" => $supercategory->id,
+            "parent_category_id" => $superCategory->id,
         ]);
         $subcategory = Category::factory()->create([
             "level" => 3,
@@ -1357,7 +1353,7 @@ describe('"byUserPrices" scope tests', function (): void {
                     ]),
                 )
                 ->create([
-                    "supercategory_id" => $supercategory->id,
+                    "supercategory_id" => $superCategory->id,
                     "category_id" => $category->id,
                     "subcategory_id" => $subcategory->id,
                     "status" => true,
@@ -1376,14 +1372,14 @@ describe('"byUserPrices" scope tests', function (): void {
                     ]),
                 )
                 ->create([
-                    "supercategory_id" => $supercategory->id,
+                    "supercategory_id" => $superCategory->id,
                     "category_id" => $category->id,
                     "subcategory_id" => $subcategory->id,
                     "status" => true,
                 ]);
         }
 
-        $productsResponse = $this->actingAs($user, "sanctum")
+        $productsResponse = actingAs($user, "sanctum")
             ->getJson(route("products.index"))
             ->json("data");
 

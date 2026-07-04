@@ -23,11 +23,11 @@ use App\Models\Product;
 use App\Models\Subcategory;
 use App\Models\User;
 
+pest()->extend(\Tests\TestCase::class);
+
 uses(
-    Tests\TestCase::class,
     Illuminate\Foundation\Testing\RefreshDatabase::class,
 )->in('Feature');
-//uses(Tests\TestCase::class)->in('Unit');
 
 /*
 |--------------------------------------------------------------------------
