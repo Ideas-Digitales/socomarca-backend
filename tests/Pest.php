@@ -23,8 +23,10 @@ use App\Models\Product;
 use App\Models\Subcategory;
 use App\Models\User;
 
-uses(Tests\TestCase::class,
-    \Illuminate\Foundation\Testing\DatabaseTruncation::class)->in('Feature');
+uses(
+    Tests\TestCase::class,
+    Illuminate\Foundation\Testing\RefreshDatabase::class,
+)->in('Feature');
 //uses(Tests\TestCase::class)->in('Unit');
 
 /*
@@ -63,8 +65,8 @@ function createUser()
 function createUserHasAddress()
 {
     return User::factory()
-            ->has(Address::factory(), 'addresses')
-                ->create();
+        ->has(Address::factory(), 'addresses')
+        ->create();
 }
 
 function createPrice()
@@ -75,8 +77,8 @@ function createPrice()
 function createCategory()
 {
     return Category::factory()
-            ->has(Subcategory::factory(), 'subCategories')
-                ->create();
+        ->has(Subcategory::factory(), 'subCategories')
+        ->create();
 }
 
 function createBrand()
@@ -92,8 +94,8 @@ function createProduct()
 function createUserHasFavoriteList()
 {
     return User::factory()
-            ->has(FavoriteList::factory(), 'favoritesList')
-                ->create();
+        ->has(FavoriteList::factory(), 'favoritesList')
+        ->create();
 }
 
 function createBranch()
@@ -104,7 +106,7 @@ function createBranch()
 function createUserHasFavorite()
 {
     return User::factory()
-            ->has(FavoriteList::factory()
-                ->has(Favorite::factory(), 'favorites'), 'favoritesList')
-                    ->create();
+        ->has(FavoriteList::factory()
+            ->has(Favorite::factory(), 'favorites'), 'favoritesList')
+        ->create();
 }

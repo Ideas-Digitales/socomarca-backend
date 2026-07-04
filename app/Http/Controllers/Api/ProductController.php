@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Products\ProductCollection;
 use App\Http\Resources\Products\ProductResource;
-use App\Models\Category;
 use App\Models\Product;
+use App\Services\Data\ProductQueryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -17,9 +17,8 @@ class ProductController extends Controller
         $perPage = $request->input('per_page', 20);
         $filters = $request->all();
 
-        $products = Product::filter($filters)
-            ->allowedPricesLists()
-            ->paginate($perPage);
+        $service = new ProductQueryService($filters);
+        $products = $service->getPaginatedProductsWithAllowedPrices($perPage);
 
         return new ProductCollection($products);
     }
@@ -32,7 +31,6 @@ class ProductController extends Controller
     /**
      * Search products by filters
      *
-     * @param Request $request
      *
      * @return ProductCollection
      */
@@ -57,7 +55,6 @@ class ProductController extends Controller
             'filters.is_favorite' => 'sometimes|boolean',
             'filters.sort' => 'sometimes|string|in:price,stock,category_name,id,name,created_at,updated_at',
             'filters.sort_direction' => 'sometimes|string|in:asc,desc',
-
         ]);
 
         if ($validator->fails()) {
@@ -67,63 +64,16 @@ class ProductController extends Controller
         $validatedFilters = $validator->validated()['filters'];
         $perPage = $request->input('per_page', 20);
 
-        $result = Product::filter($validatedFilters)
-            ->allowedPricesLists()
-            ->paginate($perPage);
+        $service = new ProductQueryService($validatedFilters);
+        $result = $service->getPaginatedProductsWithAllowedPrices($perPage);
+        $categories = $service->getMatchingCategories();
 
-        // Obtener categorías de todos los resultados (sin paginación ni sorting)
-        $filtersForExtra = array_diff_key($validatedFilters, array_flip(['sort', 'sort_direction']));
-        $matchingProducts = Product::filter($filtersForExtra)
-            ->active()
-            ->select('supercategory_id', 'category_id', 'subcategory_id')
-            ->get();
-
-        $supercategories = [];
-        $categories = [];
-        $subcategories = [];
-
-        if ($matchingProducts->isNotEmpty()) {
-            $supercategoryIds = $matchingProducts->pluck('supercategory_id')->filter()->unique()->values();
-            $categoryIds = $matchingProducts->pluck('category_id')->filter()->unique()->values();
-            $subcategoryIds = $matchingProducts->pluck('subcategory_id')->filter()->unique()->values();
-
-            if ($supercategoryIds->isNotEmpty()) {
-                $supercategories = Category::whereIn('id', $supercategoryIds)
-                    ->where('level', 1)
-                    ->select('id', 'name')
-                    ->get()
-                    ->toArray();
-            }
-
-            if ($categoryIds->isNotEmpty()) {
-                $categories = Category::whereIn('id', $categoryIds)
-                    ->where('level', 2)
-                    ->select('id', 'name')
-                    ->get()
-                    ->toArray();
-            }
-
-            if ($subcategoryIds->isNotEmpty()) {
-                $subcategories = Category::whereIn('id', $subcategoryIds)
-                    ->where('level', 3)
-                    ->select('id', 'name')
-                    ->get()
-                    ->toArray();
-            }
-        }
-
-        $data = new ProductCollection($result)->additional([
-            'extra' => [
-                'supercategories' => $supercategories,
-                'categories' => $categories,
-                'subcategories' => $subcategories,
-            ],
+        return (new ProductCollection($result))->additional([
+            'extra' => $categories,
             'filters' => [
                 'min_price' => $validatedFilters['price']['min'],
                 'max_price' => $validatedFilters['price']['max'],
             ],
         ]);
-
-        return $data;
     }
 }

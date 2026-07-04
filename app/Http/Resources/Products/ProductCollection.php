@@ -32,7 +32,7 @@ class ProductCollection extends ResourceCollection
             }
 
             $user = Auth::user();
-            $priceLists = $user->prices_lists;
+            $priceLists = json_decode($user->prices_lists);
 
             return [
                 'id' => $product->id,
