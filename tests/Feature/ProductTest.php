@@ -1424,91 +1424,53 @@ describe('"byUserPrices" scope tests', function (): void {
             "parent_category_id" => $category->id,
         ]);
 
-        $expectedProducts = [];
-        for ($i = 0; $i < 3; $i++) {
-            $product = Product::factory()
-                ->has(
-                    Price::factory([
-                        "price" => 5000,
-                        "is_active" => true,
-                        "stock" => 50,
-                        "unit" => "kg",
-                        "price_list_id" => $allowedPriceListCode,
-                    ]),
-                )
-                ->has(
-                    Price::factory([
-                        "price" => 25000,
-                        "is_active" => true,
-                        "stock" => 20,
-                        "unit" => "un",
-                        "price_list_id" => $allowedPriceListCode,
-                    ]),
-                )
-                ->has(
-                    Price::factory([
-                        "price" => 5000,
-                        "is_active" => true,
-                        "stock" => 0,
-                        "unit" => "kg",
-                        "price_list_id" => $otherPriceListCode,
-                    ]),
-                )
-                ->has(
-                    Price::factory([
-                        "price" => 5000,
-                        "is_active" => true,
-                        "stock" => 400,
-                        "unit" => "un",
-                        "price_list_id" => $otherPriceListCode,
-                    ]),
-                )
-                ->create([
-                    "supercategory_id" => $superCategory->id,
-                    "category_id" => $category->id,
-                    "subcategory_id" => $subcategory->id,
-                    "status" => true,
+        $expectedVariants = [];
+        $excludedVariants = [];
+        for ($i = 0; $i < 10; $i++) {
+            $product = Product::factory([
+                "supercategory_id" => $superCategory->id,
+                "category_id" => $category->id,
+                "subcategory_id" => $subcategory->id,
+                "status" => true,
+            ])->create();
+            for ($j = 0; $j < 5; $j++) {
+                $stock = fake()->numberBetween(1, 999);
+                $price = fake()->numberBetween(1, 999999);
+                $unit = fake()->randomElement(["g", "kg", "un", "l", "ml"]);
+                $priceListCode = fake()->randomElement([
+                    $allowedPriceListCode,
+                    $otherPriceListCode,
                 ]);
-            $expectedProducts[] = "{$product->id}-5000-50-kg";
-            $expectedProducts[] = "{$product->id}-25000-20-un";
-        }
+                Price::factory([
+                    "price" => $price,
+                    "is_active" => true,
+                    "stock" => $stock,
+                    "unit" => $unit,
+                    "price_list_id" => $priceListCode,
+                ])
+                    ->for($product)
+                    ->create();
 
-        for ($i = 0; $i < 3; $i++) {
-            Product::factory()
-                ->has(
-                    Price::factory([
-                        "price" => 5000,
-                        "is_active" => true,
-                        "stock" => 0,
-                        "unit" => "kg",
-                        "price_list_id" => $otherPriceListCode,
-                    ]),
-                )
-                ->has(
-                    Price::factory([
-                        "price" => 5000,
-                        "is_active" => true,
-                        "stock" => 400,
-                        "unit" => "un",
-                        "price_list_id" => $otherPriceListCode,
-                    ]),
-                )
-                ->create([
-                    "supercategory_id" => $superCategory->id,
-                    "category_id" => $category->id,
-                    "subcategory_id" => $subcategory->id,
-                    "status" => true,
-                ]);
+                if ($priceListCode === $allowedPriceListCode) {
+                    $expectedVariants[] = "{$product->id}-{$price}-{$stock}-{$unit}";
+                } else {
+                    $excludedVariants[] = "{$product->id}-{$price}-{$stock}-{$unit}";
+                }
+            }
         }
 
         $productsResponse = actingAs($user, "sanctum")
-            ->getJson(route("products.index"))
+            ->getJson(route("products.index", ["per_page" => 100]))
             ->Json("data");
         $productsResponse = array_map(
             fn($e) => "{$e["id"]}-{$e["price"]}-{$e["stock"]}-{$e["unit"]}",
             $productsResponse,
         );
-        $diff = array_diff($expectedProducts, $productsResponse);
-        expect($diff)->toBeEmpty();
+
+        expect($productsResponse)->toHaveCount(count($expectedVariants));
+        expect(array_diff($expectedVariants, $productsResponse))->toBeEmpty();
+        expect(
+            array_intersect($excludedVariants, $productsResponse),
+        )->toBeEmpty();
     });
 });

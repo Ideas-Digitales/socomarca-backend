@@ -11,43 +11,58 @@ class ProductQueryService
 {
     private array $filters;
 
+    /**
+     * Initialize the service with optional filters.
+     *
+     * @param array $filters Associative array of filter criteria (price, category_id, brand_id, etc.)
+     */
     public function __construct(array $filters = [])
     {
         $this->filters = $filters;
     }
 
-    public function getPaginatedProducts(int $perPage = 20)
-    {
-        return $this->buildQuery()
-            ->paginate($perPage);
-    }
-
+    /**
+     * Get paginated products with prices joined from user's allowed price lists.
+     *
+     * Returns one row per product-price combination (variant). Each variant includes
+     * joined_price, joined_stock, and joined_unit from the prices table.
+     *
+     * @param int $perPage Number of items per page
+     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
+     */
     public function getPaginatedProductsWithAllowedPrices(int $perPage = 20)
     {
-        return $this->buildQuery()
-            ->whereHas('prices', function (Builder $q) {
-                $user = Auth::user();
-                $priceLists = json_decode($user->prices_lists);
+        $query = $this->buildQuery();
+        $this->joinAllowedPrices($query);
 
-                $q->when(
-                    ! config('random.show_product_zero_price'),
-                    fn ($qq) => $qq->where('price', '>', 0)
-                );
-                $q->where('is_active', true);
-                $q->where('stock', '>', 0);
-                $q->whereIn('price_list_id', $priceLists);
-            })
-            ->paginate($perPage);
+        $query->select(
+            'products.*',
+            'prices.price as joined_price',
+            'prices.stock as joined_stock',
+            'prices.unit as joined_unit',
+        );
+
+        return $query->paginate($perPage);
     }
 
+    /**
+     * Get unique categories (supercategories, categories, subcategories) from products matching current filters.
+     *
+     * Useful for building faceted navigation/filter sidebar. Excludes sort filters to ensure
+     * all matching products are considered regardless of sort order.
+     *
+     * @return array{supercategories: array, categories: array, subcategories: array}
+     */
     public function getMatchingCategories(): array
     {
         $filtersWithoutSort = array_diff_key($this->filters, array_flip(['sort', 'sort_direction']));
 
         $service = new self($filtersWithoutSort);
 
-        $matchingProducts = $service->buildQuery()
-            ->where('status', true)
+        $query = $service->buildQuery();
+        $service->joinAllowedPrices($query);
+
+        $matchingProducts = $query
             ->select('supercategory_id', 'category_id', 'subcategory_id')
             ->get();
 
@@ -70,11 +85,56 @@ class ProductQueryService
         ];
     }
 
+    /**
+     * Join the prices table with conditions for user's allowed price lists.
+     *
+     * Applies constraints: active prices, stock > 0, user's price lists, optional price range/unit filters.
+     * Excludes zero-price products unless config('random.show_product_zero_price') is true.
+     *
+     * @param Builder $query The query builder to modify
+     */
+    private function joinAllowedPrices(Builder $query): void
+    {
+        $user = Auth::user();
+        $priceLists = json_decode($user->prices_lists);
+        $priceFilter = $this->filters['price'] ?? null;
+
+        $query->join('prices', function ($join) use ($priceLists, $priceFilter) {
+            $join->on('products.id', '=', 'prices.product_id')
+                ->where('prices.is_active', true)
+                ->where('prices.stock', '>', 0)
+                ->whereIn('prices.price_list_id', $priceLists);
+
+            if (! config('random.show_product_zero_price')) {
+                $join->where('prices.price', '>', 0);
+            }
+
+            if ($priceFilter) {
+                if (isset($priceFilter['min'])) {
+                    $join->where('prices.price', '>=', $priceFilter['min']);
+                }
+                if (isset($priceFilter['max'])) {
+                    $join->where('prices.price', '<=', $priceFilter['max']);
+                }
+                if (isset($priceFilter['unit'])) {
+                    $join->where('prices.unit', $priceFilter['unit']);
+                }
+            }
+        });
+    }
+
+    /**
+     * Build the base product query with all filters applied (except price join).
+     *
+     * Applies: status filter, supercategory, category, subcategory, brand, SKU, name,
+     * favorite, and sorting filters.
+     *
+     * @return Builder
+     */
     private function buildQuery(): Builder
     {
         $query = Product::query()->where('status', true);
 
-        $this->applyPriceFilter($query);
         $this->applySupercategoryFilter($query);
         $this->applyCategoryFilter($query);
         $this->applySubcategoryFilter($query);
@@ -87,36 +147,11 @@ class ProductQueryService
         return $query;
     }
 
-    private function applyPriceFilter(Builder $query): void
-    {
-        if (! isset($this->filters['price'])) {
-            return;
-        }
-
-        $priceFilter = $this->filters['price'];
-
-        $query->whereHas('prices', function (Builder $q) use ($priceFilter) {
-            $user = Auth::user();
-            $priceLists = json_decode($user->prices_lists);
-
-            $q->whereIn('price_list_id', $priceLists);
-
-            if (isset($priceFilter['min'])) {
-                $q->where('price', '>=', $priceFilter['min']);
-            }
-
-            if (isset($priceFilter['max'])) {
-                $q->where('price', '<=', $priceFilter['max']);
-            }
-
-            $q->where('is_active', true);
-
-            if (isset($priceFilter['unit'])) {
-                $q->where('unit', $priceFilter['unit']);
-            }
-        });
-    }
-
+    /**
+     * Filter products by supercategory IDs.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applySupercategoryFilter(Builder $query): void
     {
         if (! isset($this->filters['supercategory_id'])) {
@@ -130,6 +165,11 @@ class ProductQueryService
         $query->whereIn('supercategory_id', $ids);
     }
 
+    /**
+     * Filter products by category IDs.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applyCategoryFilter(Builder $query): void
     {
         if (! isset($this->filters['category_id'])) {
@@ -143,6 +183,11 @@ class ProductQueryService
         $query->whereIn('category_id', $ids);
     }
 
+    /**
+     * Filter products by subcategory IDs.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applySubcategoryFilter(Builder $query): void
     {
         if (! isset($this->filters['subcategory_id'])) {
@@ -156,6 +201,11 @@ class ProductQueryService
         $query->whereIn('subcategory_id', $ids);
     }
 
+    /**
+     * Filter products by brand IDs.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applyBrandFilter(Builder $query): void
     {
         if (! isset($this->filters['brand_id'])) {
@@ -165,6 +215,11 @@ class ProductQueryService
         $query->whereIn('brand_id', $this->filters['brand_id']);
     }
 
+    /**
+     * Filter products by exact SKU match.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applySkuFilter(Builder $query): void
     {
         if (! isset($this->filters['sku'])) {
@@ -174,6 +229,14 @@ class ProductQueryService
         $query->where('sku', $this->filters['sku']);
     }
 
+    /**
+     * Filter products by name using fuzzy search (PostgreSQL similarity) and partial matching.
+     *
+     * Searches product name and SKU using ILIKE and similarity functions.
+     * Results are ordered by similarity score unless a sort filter is provided.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applyNameFilter(Builder $query): void
     {
         if (! isset($this->filters['name'])) {
@@ -193,6 +256,14 @@ class ProductQueryService
         }
     }
 
+    /**
+     * Filter products by favorite status for the authenticated user.
+     *
+     * When is_favorite is true, only products in user's favorite lists are returned.
+     * When is_favorite is false, only products NOT in user's favorite lists are returned.
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applyFavoriteFilter(Builder $query): void
     {
         if (! isset($this->filters['is_favorite']) || ! Auth::check()) {
@@ -210,6 +281,14 @@ class ProductQueryService
         }
     }
 
+    /**
+     * Apply sorting to the query based on sort field and direction.
+     *
+     * Supported sort fields: category_name (joins categories table), price, stock (uses joined aliases),
+     * and any product column (id, name, etc.).
+     *
+     * @param Builder $query The query builder to modify
+     */
     private function applySorting(Builder $query): void
     {
         if (! isset($this->filters['sort'])) {
@@ -221,49 +300,29 @@ class ProductQueryService
         switch ($this->filters['sort']) {
             case 'category_name':
                 $query->join('categories', 'products.category_id', '=', 'categories.id')
-                    ->leftJoin('prices', function ($join) {
-                        $join->on('products.id', '=', 'prices.product_id')
-                            ->where('prices.is_active', true);
-                    })
-                    ->orderBy('categories.name', $direction)
-                    ->select(
-                        'products.*',
-                        'prices.price as joined_price',
-                        'prices.stock as joined_stock',
-                        'prices.unit as joined_unit'
-                    );
+                    ->orderBy('categories.name', $direction);
                 break;
 
             case 'price':
+                $query->orderBy('joined_price', $direction);
+                break;
+
             case 'stock':
-                $query->leftJoin('prices', function ($join) {
-                    $join->on('products.id', '=', 'prices.product_id')
-                        ->where('prices.is_active', true);
-                })
-                    ->select(
-                        'products.*',
-                        'prices.price as joined_price',
-                        'prices.stock as joined_stock',
-                        'prices.unit as joined_unit'
-                    )
-                    ->orderBy('prices.'.$this->filters['sort'], $direction);
+                $query->orderBy('joined_stock', $direction);
                 break;
 
             default:
-                $query->leftJoin('prices', function ($join) {
-                    $join->on('products.id', '=', 'prices.product_id')
-                        ->where('prices.is_active', true);
-                })
-                    ->select(
-                        'products.*',
-                        'prices.price as joined_price',
-                        'prices.stock as joined_stock',
-                        'prices.unit as joined_unit'
-                    )
-                    ->orderBy($this->filters['sort'], $direction);
+                $query->orderBy($this->filters['sort'], $direction);
         }
     }
 
+    /**
+     * Fetch categories by IDs and level.
+     *
+     * @param \Illuminate\Support\Collection $ids Collection of category IDs
+     * @param int $level Category level (1 = supercategory, 2 = category, 3 = subcategory)
+     * @return array Array of categories with id and name
+     */
     private function fetchCategories($ids, int $level): array
     {
         if ($ids->isEmpty()) {
