@@ -61,7 +61,7 @@ describe("Product list endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -116,7 +116,7 @@ describe("Product list endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -187,7 +187,7 @@ describe("Product list endpoint", function (): void {
     it("should filter products by multiple categories", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -275,7 +275,7 @@ describe("Product list endpoint", function (): void {
     it("should filter products by multiple subcategories", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -367,7 +367,7 @@ describe("Product list endpoint", function (): void {
     it("should filter products by multiple superCategories", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -452,7 +452,7 @@ describe("Product list endpoint", function (): void {
     it("should filter products by SKU", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -489,7 +489,7 @@ describe("Product list endpoint", function (): void {
     it("should return empty when SKU does not exist", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -516,7 +516,7 @@ describe("Product list endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -609,7 +609,7 @@ describe("Product list endpoint", function (): void {
     it("should apply is_favorite filter when provided", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         $favoriteList = FavoriteList::factory()->create([
@@ -719,7 +719,7 @@ describe("Product search endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -797,7 +797,7 @@ describe("Product search endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -894,7 +894,7 @@ describe("Product search endpoint", function (): void {
     it("should hide products with zero price by default", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -937,7 +937,7 @@ describe("Product search endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -987,7 +987,7 @@ describe("Product search endpoint", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -1034,7 +1034,7 @@ describe("Product stock filter", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -1077,7 +1077,7 @@ describe("Product stock filter", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -1123,7 +1123,7 @@ describe("Product stock filter", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -1169,7 +1169,7 @@ describe("Product stock filter", function (): void {
         function (): void {
             $priceListCode = "01P";
             $user = App\Models\User::factory()->create([
-                "prices_lists" => json_encode([$priceListCode]),
+                "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
             Product::truncate();
@@ -1216,7 +1216,7 @@ describe("Product stock filter", function (): void {
     it("should return products with stock greater than 0", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -1250,7 +1250,7 @@ describe("Product active filter", function (): void {
     it("should not return inactive products in index", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -1290,7 +1290,7 @@ describe("Product active filter", function (): void {
     it("should not return inactive products in search", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$priceListCode]),
+            "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
         Product::truncate();
@@ -1337,7 +1337,7 @@ describe('"byUserPrices" scope tests', function (): void {
         $otherPriceListCode = "OTHER";
 
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$allowedPriceListCode]),
+            "prices_lists" => [$allowedPriceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
 
@@ -1410,7 +1410,7 @@ describe('"byUserPrices" scope tests', function (): void {
         $otherPriceListCode = "OTHER";
 
         $user = App\Models\User::factory()->create([
-            "prices_lists" => json_encode([$allowedPriceListCode]),
+            "prices_lists" => [$allowedPriceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
 

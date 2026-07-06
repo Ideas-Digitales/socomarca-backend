@@ -23,6 +23,7 @@ test('sync users creates new user with generated email when email is empty', fun
                 'SUEN' => 'BRANCH001',
                 'TIPOSUC' => 'P',
                 'TIEN' => 'C',
+                'KOLTVEN' => ['LIST1'],
             ]
         ],
         []
@@ -69,6 +70,7 @@ test('sync users allows duplicate email with different user', function () {
                 'SUEN' => 'BRANCH001',
                 'TIPOSUC' => 'P',
                 'TIEN' => 'C',
+                'KOLTVEN' => ['LIST1'],
             ]
         ],
         []
@@ -111,6 +113,7 @@ test('sync users allows same user to update email by user_code', function () {
                 'SUEN' => 'BRANCH001',
                 'TIPOSUC' => 'P',
                 'TIEN' => 'A',
+                'KOLTVEN' => ['LIST1'],
             ]
         ],
         []
@@ -165,4 +168,38 @@ test('sync users skips non primary branch sucursales', function () {
     $this->assertDatabaseMissing('users', [
         'user_code' => '12345678-9',
     ]);
+});
+
+test('sync users stores prices_lists from KOLTVEN field', function () {
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
+        [
+            [
+                'KOEN' => '12345678-9',
+                'RTEN' => '11111111-1',
+                'NOKOEN' => 'John Doe',
+                'EMAILCOMER' => 'john@example.com',
+                'SIEN' => 'John Doe Business',
+                'FOEN' => '+56912345678',
+                'SUEN' => 'BRANCH001',
+                'TIPOSUC' => 'P',
+                'TIEN' => 'C',
+                'KOLTVEN' => ['LIST1', 'LIST2', 'LIST3'],
+            ]
+        ],
+        []
+    );
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
+    Log::shouldReceive('warning')->zeroOrMoreTimes();
+    Log::shouldReceive('error')->zeroOrMoreTimes();
+
+    $job = new SyncRandomUsers();
+    $job->handle(app(RandomApiService::class));
+
+    $user = User::where('rut', '11111111-1')->first();
+    expect($user->prices_lists)->toBeArray();
+    expect($user->prices_lists)->toBe(['LIST1', 'LIST2', 'LIST3']);
 });

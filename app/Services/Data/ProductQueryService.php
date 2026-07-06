@@ -96,7 +96,8 @@ class ProductQueryService
     private function joinAllowedPrices(Builder $query): void
     {
         $user = Auth::user();
-        $priceLists = json_decode($user->prices_lists);
+        // $priceLists = json_decode($user->prices_lists);
+        $priceLists = $user->prices_lists;
         $priceFilter = $this->filters['price'] ?? null;
 
         $query->join('prices', function ($join) use ($priceLists, $priceFilter) {
