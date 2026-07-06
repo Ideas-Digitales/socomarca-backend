@@ -60,6 +60,8 @@ class SyncRandomUsers implements ShouldQueue
                         }
 
                         $pricesLists = $entidad['KOLTVEN'] ?? [];
+                        // Note: upsert() bypasses model casts, so we need to manually JSON encode
+                        // The 'array' cast in User model will automatically decode when reading
                         $jsonPricesLists = json_encode($pricesLists);
 
                         User::upsert(

@@ -50,7 +50,7 @@ class OrderController extends Controller
         $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
 
         $orders = Order::where('user_id', Auth::user()->id)
-            ->with(['payments','branch'])
+            ->with(['payments', 'branch'])
             ->when(
                 $request->has('payment_method_code'),
                 function (Builder $query) use ($request) {
@@ -258,6 +258,9 @@ class OrderController extends Controller
         })->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
+        $randomDocFlow = PaymentDocumentType::getSaleFlowOption(
+            $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
+        );
         $branch = $order
             ->branch()
             ->withoutGlobalScope(SecondaryBranchesScope::class)
@@ -268,16 +271,17 @@ class OrderController extends Controller
                 'empresa' => config('random.business_code'),
                 'codigoEntidad' => $user->user_code,
                 'sucursalEntidad' => $branch->code,
+                'sucursalEntidadDespacho' => $branch->code,
+                'flujoVenta' => $randomDocFlow,
                 'tido' => 'NVV',
                 "moneda" => "CLP",
                 'modalidad' => config('random.modality'),
                 'funcionario' => config('random.functionary'),
                 'lineas' => $lines,
-                'observacion' => $order->notes,
-                'texto1' => 'Pago a crédito',
-                'texto2' => "Documento contable a generar: {$randomDocType}",
+                'texto1' => "Pago a crédito. Orden de compra: #{$order->id}",
+                'texto2' => "{$order?->user?->rut} - {$randomDocType}",
                 'texto3' => 'Origen: Compra rápida',
-                'texto4' => "Orden de compra: #{$order->id}",
+                'observacion' => $order->notes,
             ]
         ];
 

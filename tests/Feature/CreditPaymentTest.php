@@ -122,16 +122,17 @@ test('it calls successfully to Random Credit service during a credit line paymen
             'empresa' => config('random.business_code'),
             'codigoEntidad' => $user->user_code,
             'sucursalEntidad' => $branch->code,
+            'sucursalEntidadDespacho' => $branch->code,
+            'flujoVenta' => "NVVBLV",
             'tido' => 'NVV',
             "moneda" => "CLP",
             'modalidad' => config('random.modality'),
             'funcionario' => config('random.functionary'),
             'lineas' => $lines,
-            'observacion' => '',
-            'texto1' => 'Pago a crédito',
-            'texto2' => 'Documento contable a generar: Boleta',
+            'texto1' => "Pago a crédito. Orden de compra: #{$order->id}",
+            'texto2' => "{$order?->user?->rut} - Boleta",
             'texto3' => 'Origen: Compra rápida',
-            'texto4' => "Orden de compra: #{$order->id}",
+            'observacion' => $order->notes,
         ]
     ];
 

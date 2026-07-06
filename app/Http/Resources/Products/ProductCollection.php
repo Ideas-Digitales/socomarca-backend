@@ -31,9 +31,6 @@ class ProductCollection extends ResourceCollection
                 $imageUrl = "{$awsUrl}/{$imageRelative}";
             }
 
-            $user = Auth::user();
-            $priceLists = $user->prices_lists;
-
             return [
                 'id' => $product->id,
                 'name' => $product->name,
@@ -49,14 +46,9 @@ class ProductCollection extends ResourceCollection
                     'id' => $product->brand->id,
                     'name' => $product->brand->name,
                 ] : null,
-                'unit' => $product->joined_unit
-                    ?? optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->unit,
-                'price' => isset($product->joined_price)
-                    ? (float) $product->joined_price
-                    : (float) optional($product->prices()->where('is_active', true)->orderByDesc('valid_from')->first())->price,
-                'stock' => isset($product->joined_stock)
-                    ? (int) $product->joined_stock
-                    : (int) optional($product->prices()->where('is_active', true)->whereIn('price_list_id', $priceLists)->first())->stock,
+                'unit' => $product->joined_unit,
+                'price' => (float) $product->joined_price,
+                'stock' => (int) $product->joined_stock,
                 'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,
