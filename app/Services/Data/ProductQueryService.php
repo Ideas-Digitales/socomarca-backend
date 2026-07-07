@@ -247,13 +247,13 @@ class ProductQueryService
         $searchTerm = $this->filters['name'];
 
         $query->where(function (Builder $q) use ($searchTerm) {
-            $q->whereRaw('similarity(name, ?) > 0.3', [$searchTerm])
+            $q->whereRaw('word_similarity(?, name) > 0.5', [$searchTerm])
                 ->orWhere('name', 'ILIKE', "%{$searchTerm}%")
                 ->orWhere('sku', 'ILIKE', "%{$searchTerm}%");
         });
 
         if (! isset($this->filters['sort'])) {
-            $query->orderByRaw('similarity(name, ?) DESC', [$searchTerm]);
+            $query->orderByRaw('word_similarity(?, name) DESC', [$searchTerm]);
         }
     }
 

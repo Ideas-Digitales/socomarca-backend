@@ -983,6 +983,56 @@ describe("Product search endpoint", function (): void {
     );
 
     it(
+        "should find products with typos using fuzzy search",
+        function (): void {
+            $priceListCode = "01P";
+            $user = App\Models\User::factory()->create([
+                "prices_lists" => [$priceListCode],
+            ]);
+            $user->givePermissionTo("read-all-products");
+            Product::truncate();
+
+            Product::factory()
+                ->has(
+                    Price::factory([
+                        "price" => 5000,
+                        "is_active" => true,
+                        "stock" => 10,
+                        "price_list_id" => $priceListCode,
+                    ]),
+                )
+                ->create(["name" => "Arroz Premium 1kg", "status" => true]);
+
+            Product::factory()
+                ->has(
+                    Price::factory([
+                        "price" => 3000,
+                        "is_active" => true,
+                        "stock" => 10,
+                        "price_list_id" => $priceListCode,
+                    ]),
+                )
+                ->create(["name" => "Fideos Guiso", "status" => true]);
+
+            $response = actingAs($user, "sanctum")->postJson(
+                route("products.search"),
+                [
+                    "filters" => [
+                        "price" => ["min" => 0, "max" => 10000],
+                        "name" => "arros",
+                    ],
+                ],
+            );
+
+            $response->assertStatus(200);
+            expect($response->json("data"))->not->toBeEmpty();
+            $names = array_column($response->json("data"), "name");
+            expect($names)->toContain("Arroz Premium 1kg");
+            expect($names)->not->toContain("Fideos Guiso");
+        },
+    );
+
+    it(
         "should exclude inactive prices when filtering zero price products",
         function (): void {
             $priceListCode = "01P";
