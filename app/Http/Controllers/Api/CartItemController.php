@@ -42,11 +42,13 @@ class CartItemController extends Controller
         // Cargar la relación del producto
         $item->load('product');
 
-        $price = null;
+        $price = 0;
         if ($item->product) {
             $price = $item->product->prices()
                 ->where('unit', $item->unit)
-                ->value('price');
+                ->where('is_active', true)
+                ->whereIn('price_list_id', Auth::user()->prices_lists)
+                ->value('price') ?? 0;
         }
         return response()->json([
             'product' => [

@@ -19,8 +19,27 @@ class CartController extends Controller
      */
     public function index()
     {
-        $userId = Auth::user()->id;
-        $items = CartItem::where('user_id', $userId)->orderBy('id','ASC')->get();
+        return $this->getCartItemsCollection(Auth::user());
+    }
+
+    /**
+     * Carga los ítems del carrito de un usuario con su producto y el precio
+     * correspondiente a las listas de precio a las que tiene acceso.
+     *
+     * @return CartItemCollection
+     */
+    private function getCartItemsCollection($user): CartItemCollection
+    {
+        $items = CartItem::where('user_id', $user->id)
+            ->orderBy('id', 'ASC')
+            ->with([
+                'product.category',
+                'product.subcategory',
+                'product.brand',
+                'activePrices' => fn ($query) => $query->whereIn('price_list_id', $user->prices_lists),
+            ])
+            ->get();
+
         return new CartItemCollection($items);
     }
 
@@ -62,7 +81,8 @@ class CartController extends Controller
             return response()->json([
                 'message' => 'Productos de la orden agregados al carrito exitosamente',
                 'added_items' => $addedItems,
-                'updated_items' => $updatedItems
+                'updated_items' => $updatedItems,
+                'cart' => $this->getCartItemsCollection(Auth::user()),
             ], 200);
 
         } catch (\Exception $e) {

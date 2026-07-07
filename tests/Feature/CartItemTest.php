@@ -71,6 +71,43 @@ test('puede agregar un item al carrito', function () {
     ]);
 });
 
+test('el response de store respeta la lista de precios del usuario', function () {
+    // Arrange
+    $this->user->update(['prices_lists' => ['01P']]);
+
+    Price::where('product_id', $this->product->id)->delete();
+    Price::factory()->create([
+        'product_id' => $this->product->id,
+        'unit' => 'kg',
+        'price' => 100,
+        'stock' => 10,
+        'is_active' => true,
+        'price_list_id' => '01P',
+    ]);
+    Price::factory()->create([
+        'product_id' => $this->product->id,
+        'unit' => 'kg',
+        'price' => 999,
+        'stock' => 10,
+        'is_active' => true,
+        'price_list_id' => 'OTHER',
+    ]);
+
+    $data = [
+        'product_id' => $this->product->id,
+        'quantity' => 2,
+        'unit' => 'kg'
+    ];
+
+    // Act
+    $response = $this->postJson(route('cart-items.store'), $data);
+
+    // Assert
+    $response->assertCreated();
+    expect($response->json('product.price'))->toBe(100);
+    expect($response->json('total'))->toBe(200);
+});
+
 test('puede incrementar cantidad si item ya existe en carrito', function () {
 
     //Clear cart items
@@ -554,6 +591,56 @@ test('customer no puede vaciar carros de otros', function () {
         'user_id' => $userB->id,
         'product_id' => $product->id,
     ]);
+});
+
+test('el response de addOrderToCart respeta la lista de precios del usuario', function () {
+    // Arrange
+    CartItem::where('user_id', $this->user->id)->delete();
+    $this->user->update(['prices_lists' => ['01P']]);
+
+    Price::where('product_id', $this->product->id)->delete();
+    Price::factory()->create([
+        'product_id' => $this->product->id,
+        'unit' => 'kg',
+        'price' => 100,
+        'stock' => 10,
+        'is_active' => true,
+        'price_list_id' => '01P',
+    ]);
+    Price::factory()->create([
+        'product_id' => $this->product->id,
+        'unit' => 'kg',
+        'price' => 999,
+        'stock' => 10,
+        'is_active' => true,
+        'price_list_id' => 'OTHER',
+    ]);
+
+    $order = Order::factory()->create([
+        'user_id' => $this->user->id,
+        'status' => 'completed'
+    ]);
+
+    OrderItem::create([
+        'order_id' => $order->id,
+        'product_id' => $this->product->id,
+        'quantity' => 2,
+        'unit' => 'kg',
+        'price' => 100
+    ]);
+
+    // Act
+    $response = $this->postJson(route('cart.add-order'), [
+        'order_id' => $order->id
+    ]);
+
+    // Assert
+    $response->assertStatus(200);
+    $item = collect($response->json('cart.items'))
+        ->firstWhere('id', $this->product->id);
+
+    expect($item)->not->toBeNull();
+    expect($item['price'])->toBe(100);
 });
 
 test('puede agregar productos de una orden al carrito vacío', function () {
