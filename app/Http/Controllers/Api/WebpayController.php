@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\PaymentDocumentType;
+use App\Events\OrderCompleted;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
@@ -49,6 +50,9 @@ class WebpayController extends Controller
                     $order->status = $result['status'] === 'AUTHORIZED' ? 'completed' : 'failed';
                     $order->save();
 
+                    if ($order->status === 'completed') {
+                        OrderCompleted::dispatch($order);
+                    }
                     $payment->response_status = $result['status'];
                     $payment->response_message = json_encode($result);
                     $payment->auth_code = $result['authorization_code'] ?? null;

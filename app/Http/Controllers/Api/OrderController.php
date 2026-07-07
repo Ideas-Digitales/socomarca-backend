@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\BranchType;
 use App\Enums\PaymentDocumentType;
+use App\Events\OrderCompleted;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orders\PayOrderRequest;
 use App\Http\Resources\Orders\OrderCollection;
@@ -326,7 +327,7 @@ class OrderController extends Controller
             'paid_at' => now(),
             'generate_random_doc_type' => $generateRandomDocType,
         ]);
-
+        OrderCompleted::dispatch($order);
         $localCredit = $creditLineInfo;
         $localCredit['CRSDVU'] = floatval(bcadd($creditLineInfo['CRSDVU'], $order->amount));
 

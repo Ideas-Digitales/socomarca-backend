@@ -29,4 +29,6 @@ return [
     'documents' => [
         'dry_run' => env('RANDOM_ERP_DOCUMENTS_DRY_RUN', false),
     ],
+    'warehouse_email_recipient' => env('WAREHOUSE_EMAIL_RECIPIENT', 'warehouse@socomarca.cl'),
+    'site_logo_url' => env('SITE_LOGO_URL', 'https://socomarca-frontend.vercel.app/assets/global/logo.png'),
 ];
