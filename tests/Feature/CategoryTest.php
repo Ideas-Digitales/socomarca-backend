@@ -10,6 +10,11 @@ use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
+function getPriceListCode(): string
+{
+    return "LIST1";
+}
+
 beforeEach(function () {
     /**
      * @var \Tests\TestCase $this
@@ -18,6 +23,7 @@ beforeEach(function () {
 
     $this->user = createUser();
     $this->user->givePermissionTo("read-all-categories");
+    $this->user->update(["prices_lists" => [getPriceListCode()]]);
 });
 
 function createProductWithPrice(array $attributes = []): Product
@@ -25,7 +31,7 @@ function createProductWithPrice(array $attributes = []): Product
     $product = Product::create($attributes);
     Price::create([
         "product_id" => $product->id,
-        "price_list_id" => fake()->regexify("[A-Z]{10}"),
+        "price_list_id" => $attributes["price_list_id"] ?? getPriceListCode(),
         "unit" => "un",
         "price" => 5000,
         "stock" => $attributes["stock"] ?? 50,
