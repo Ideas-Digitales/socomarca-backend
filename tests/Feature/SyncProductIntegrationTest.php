@@ -9,10 +9,8 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Price;
 use App\Models\Brand;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Http;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
@@ -23,6 +21,11 @@ beforeEach(function () {
     Category::where('level', 3)->delete();
     DB::table('brands')->truncate();
 });
+
+function getPriceListCode(): string
+{
+    return "LIST1";
+}
 
 describe('Product Sync Integration', function () {
 
@@ -51,6 +54,10 @@ describe('Product Sync Integration', function () {
 
         Log::shouldReceive('info')->atLeast()->times(1);
         Log::shouldReceive('error')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->zeroOrMoreTimes();
+        Log::shouldReceive('debug')->zeroOrMoreTimes();
+        Log::shouldReceive('alert')->zeroOrMoreTimes();
+        Log::shouldReceive('channel')->andReturnSelf();
 
         $categoriesJob = new SyncRandomCategories();
         $categoriesJob->handle($mockApiService);
@@ -94,8 +101,13 @@ describe('Product Sync Integration', function () {
         expect($product1->category_id)->toBe($category->id);
 
         // 3. Sincronizar precios
+        $priceList = getPriceListCode();
+        User::factory()->create([
+            'prices_lists' => [$priceList],
+        ]);
+
         $pricesResponse = [
-            'nombre' => 'LISTA_PUBLICA',
+            'nombre' => $priceList,
             'datos' => [
                 [
                     'kopr' => 'PROD001',
@@ -122,7 +134,13 @@ describe('Product Sync Integration', function () {
 
         $mockApiService->shouldReceive('getPricesLists')
             ->once()
+            ->with($priceList, 100, 1)
             ->andReturn($pricesResponse);
+
+        $mockApiService->shouldReceive('getPricesLists')
+            ->once()
+            ->with($priceList, 100, 2)
+            ->andReturn(['nombre' => $priceList, 'datos' => []]);
 
         $pricesJob = new SyncRandomPrices();
         $pricesJob->handle($mockApiService);
@@ -162,7 +180,7 @@ describe('Product Sync Integration', function () {
 
         // Verificar integridad de datos completa
         $products = Product::with(['supercategory', 'category', 'prices'])->get();
-        
+
         foreach ($products as $product) {
             expect($product->supercategory)->not->toBeNull();
             expect($product->category)->not->toBeNull();
@@ -174,7 +192,7 @@ describe('Product Sync Integration', function () {
     test('manejo de errores en cadena de sincronización', function () {
         // Simular error en sincronización de productos
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $mockApiService->shouldReceive('getProducts')
             ->once()
             ->andThrow(new Exception('API timeout'));
@@ -183,7 +201,7 @@ describe('Product Sync Integration', function () {
         Log::shouldReceive('error')->once();
 
         $job = new SyncRandomProducts();
-        
+
         expect(fn() => $job->handle($mockApiService))
             ->toThrow(Exception::class, 'API timeout');
 
@@ -215,15 +233,15 @@ describe('Product Sync Integration', function () {
 
         // Medir tiempo de ejecución
         $startTime = microtime(true);
-        
+
         $job = new SyncRandomProducts();
         $job->handle($mockApiService);
-        
+
         $executionTime = microtime(true) - $startTime;
 
         // Verificar que se procesaron todos los productos
         expect(Product::count())->toBe(100);
-        
+
         // Verificar que el tiempo de ejecución es razonable (menos de 5 segundos)
         expect($executionTime)->toBeLessThan(5.0);
 
@@ -335,5 +353,4 @@ describe('Product Sync Integration', function () {
         expect($product->sku)->not->toBeEmpty();
         expect($product->status)->toBe(true);
     });
-
 });
