@@ -18,11 +18,6 @@ beforeEach(function () {
     Cache::flush();
 });
 
-function getPriceListCode(): string
-{
-    return "LIST1";
-}
-
 describe('Product Sync Monitoring', function () {
 
     test('registra logs correctos durante sincronización exitosa', function () {

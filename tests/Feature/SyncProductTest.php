@@ -22,11 +22,6 @@ beforeEach(function () {
     Price::truncate();
 });
 
-function getPriceListCode(): string
-{
-    return "LIST1";
-}
-
 describe('Product Sync Basic', function () {
 
     test('el comando de sincronización encola el job correctamente', function () {
@@ -306,8 +301,8 @@ describe('Product Sync Basic', function () {
 
         Http::assertSent(function ($request) use ($baseUrl) {
             return $request->url() === $baseUrl . '/login' &&
-                   $request['username'] === 'demo@random.cl' &&
-                   $request['password'] === 'd3m0r4nd0m3RP';
+                $request['username'] === 'demo@random.cl' &&
+                $request['password'] === 'd3m0r4nd0m3RP';
         });
     });
 
@@ -472,5 +467,4 @@ describe('Product Sync Basic', function () {
         expect(Product::where('random_product_id', 'PROD_STAY')->first()->status)->toBe(true);
         expect(Product::where('random_product_id', 'PROD_GONE')->first()->status)->toBe(false);
     });
-
 });

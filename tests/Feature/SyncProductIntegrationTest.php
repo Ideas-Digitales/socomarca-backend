@@ -22,11 +22,6 @@ beforeEach(function () {
     DB::table('brands')->truncate();
 });
 
-function getPriceListCode(): string
-{
-    return "LIST1";
-}
-
 describe('Product Sync Integration', function () {
 
     test('flujo completo de sincronización funciona correctamente', function () {

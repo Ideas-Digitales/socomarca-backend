@@ -10,11 +10,6 @@ use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
-function getPriceListCode(): string
-{
-    return "LIST1";
-}
-
 beforeEach(function () {
     /**
      * @var \Tests\TestCase $this
