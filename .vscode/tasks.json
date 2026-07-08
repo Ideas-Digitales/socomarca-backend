@@ -98,6 +98,24 @@
         "panel": "shared"
       },
       "problemMatcher": []
+    },
+    {
+      "label": "Prettier: Format Current File",
+      "type": "shell",
+      "command": "npm run prettier -- ${relativeFile} --write",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      }
     }
   ],
   "inputs": [

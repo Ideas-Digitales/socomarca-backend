@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\BranchType;
-use App\Enums\PaymentDocumentType;
 use App\Events\OrderCompleted;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orders\PayOrderRequest;
@@ -26,53 +25,76 @@ use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\Price;
 use App\Services\Random\RandomDocumentService;
+use App\Services\Random\RandomDocumentPayloadBuilder;
+use App\Services\PaymentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
-    protected $webpayService;
+    protected WebpayService $webpayService;
 
     /**
      * @var RandomDocumentService
      */
     protected RandomDocumentService $documentService;
 
-    public function __construct(WebpayService $webpayService, RandomDocumentService $randomDocumentService)
-    {
+    protected RandomDocumentPayloadBuilder $payloadBuilder;
+
+    protected PaymentService $paymentService;
+
+    public function __construct(
+        WebpayService $webpayService,
+        RandomDocumentService $randomDocumentService,
+        RandomDocumentPayloadBuilder $payloadBuilder,
+        PaymentService $paymentService,
+    ) {
         $this->webpayService = $webpayService;
         $this->documentService = $randomDocumentService;
+        $this->payloadBuilder = $payloadBuilder;
+        $this->paymentService = $paymentService;
     }
 
     public function index(Request $request)
     {
-        $perPage = $request->input('per_page', 20);
-        $sortBy = in_array($request->input('sort'), ['id', 'created_at']) ? $request->input('sort') : 'created_at';
-        $sortDirection = in_array($request->input('sort_direction'), ['asc', 'desc']) ? $request->input('sort_direction') : 'desc';
+        $perPage = $request->input("per_page", 20);
+        $sortBy = in_array($request->input("sort"), ["id", "created_at"])
+            ? $request->input("sort")
+            : "created_at";
+        $sortDirection = in_array($request->input("sort_direction"), [
+            "asc",
+            "desc",
+        ])
+            ? $request->input("sort_direction")
+            : "desc";
 
-        $orders = Order::where('user_id', Auth::user()->id)
-            ->with(['payments', 'branch'])
-            ->when(
-                $request->has('payment_method_code'),
-                function (Builder $query) use ($request) {
-                    $code = $request->input('payment_method_code');
-                    $query->byPaymentMethodCode($code);
-                }
-            )
+        $orders = Order::where("user_id", Auth::user()->id)
+            ->with(["payments", "branch"])
+            ->when($request->has("payment_method_code"), function (
+                Builder $query,
+            ) use ($request) {
+                $code = $request->input("payment_method_code");
+                $query->byPaymentMethodCode($code);
+            })
             ->orderBy($sortBy, $sortDirection)
             ->paginate($perPage);
 
         return new OrderCollection($orders);
     }
 
-    public function createFromCart(int $addressId, int $branchId, ?string $notes = null)
-    {
-
+    public function createFromCart(
+        int $addressId,
+        int $branchId,
+        ?string $notes = null,
+    ) {
         //$this->createCart();
-        $carts = CartItem::where('user_id', Auth::user()->id)->get();
+        $carts = CartItem::where("user_id", Auth::user()->id)->get();
 
         if ($carts->isEmpty()) {
-            return response()->json(['message' => 'El carrito está vacío'], 400);
+            return response()->json(
+                ["message" => "El carrito está vacío"],
+                400,
+            );
         }
 
         try {
@@ -80,38 +102,45 @@ class OrderController extends Controller
 
             // Calcular totales
             $subtotal = $carts->sum(function ($cart) {
-                $price = $cart->product->prices->where('unit', $cart->unit)->first();
+                $price = $cart->product->prices
+                    ->where("unit", $cart->unit)
+                    ->first();
                 return $price->price * $cart->quantity;
             });
 
             $subtotal = (int) round($subtotal);
-            $shippingCost = $subtotal >= 70000 ? 0 : (int) config('random.fixed_shipping_cost');
+            $shippingCost =
+                $subtotal >= 70000
+                    ? 0
+                    : (int) config("random.fixed_shipping_cost");
             $total = $subtotal + $shippingCost;
 
             $user = User::find(Auth::user()->id);
-            $address = $user->addresses()->where('id', $addressId)->first();
+            $address = $user->addresses()->where("id", $addressId)->first();
 
             if (!$branchId) {
-                $branchId = Branch::withoutGlobalScope(SecondaryBranchesScope::class)
-                    ->where('user_id', $user->id)
-                    ->where('branch_type', BranchType::PRIMARY)
-                    ->value('id');
+                $branchId = Branch::withoutGlobalScope(
+                    SecondaryBranchesScope::class,
+                )
+                    ->where("user_id", $user->id)
+                    ->where("branch_type", BranchType::PRIMARY)
+                    ->value("id");
             }
 
             $order_meta = [
-                'user' => $user->toArray(),
-                'address' => $address ? $address->toArray() : null,
+                "user" => $user->toArray(),
+                "address" => $address ? $address->toArray() : null,
             ];
 
             $data = [
-                'user_id' => $user->id,
-                'subtotal' => $subtotal,
-                'shipping_cost' => $shippingCost,
-                'amount' => $total,
-                'status' => 'pending',
-                'order_meta' => $order_meta,
-                'branch_id' => $branchId,
-                'notes' => $notes ?? '',
+                "user_id" => $user->id,
+                "subtotal" => $subtotal,
+                "shipping_cost" => $shippingCost,
+                "amount" => $total,
+                "status" => "pending",
+                "order_meta" => $order_meta,
+                "branch_id" => $branchId,
+                "notes" => $notes ?? "",
             ];
 
             // Crear la orden
@@ -119,13 +148,15 @@ class OrderController extends Controller
 
             // Crear los items de la orden
             foreach ($carts as $cart) {
-                $price = $cart->product->prices->where('unit', $cart->unit)->first();
+                $price = $cart->product->prices
+                    ->where("unit", $cart->unit)
+                    ->first();
                 OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $cart->product_id,
-                    'unit' => $price->unit,
-                    'quantity' => $cart->quantity,
-                    'price' => $price->price ?? 0
+                    "order_id" => $order->id,
+                    "product_id" => $cart->product_id,
+                    "unit" => $price->unit,
+                    "quantity" => $cart->quantity,
+                    "price" => $price->price ?? 0,
                 ]);
             }
 
@@ -143,43 +174,54 @@ class OrderController extends Controller
     public function payOrder(PayOrderRequest $request)
     {
         $orderInfo = $this->createFromCart(
-            intval($request->input('address_id')),
-            intval($request->input('branch_id')),
-            $request->input('notes', ''),
+            intval($request->input("address_id")),
+            intval($request->input("branch_id")),
+            $request->input("notes", ""),
         );
 
         if ($orderInfo instanceof Order && $orderInfo->id) {
-            if ($orderInfo->status !== 'pending') {
-                return response()->json(['message' => 'La orden no está pendiente de pago'], 400);
+            if ($orderInfo->status !== "pending") {
+                return response()->json(
+                    ["message" => "La orden no está pendiente de pago"],
+                    400,
+                );
             }
             $order = Order::find($orderInfo->id);
 
-            if ($request->payment_method === 'random_credit') {
+            if ($request->payment_method === "random_credit") {
                 return $this->processRandomCreditPayment(
                     $order,
-                    $request->input('payment_document_type'),
+                    $request->input("payment_document_type"),
                 );
             }
 
             try {
                 $paymentResponse = $this->webpayService->createTransaction(
                     $order,
-                    $request->input('payment_document_type'),
+                    $request->input("payment_document_type"),
                 );
 
-                return new PaymentResource((object)[
-                    'order' => $order,
-                    'payment_url' => $paymentResponse['url'],
-                    'token' => $paymentResponse['token']
-                ]);
+                return new PaymentResource(
+                    (object) [
+                        "order" => $order,
+                        "payment_url" => $paymentResponse["url"],
+                        "token" => $paymentResponse["token"],
+                    ],
+                );
             } catch (\Exception $e) {
-                return response()->json(['message' => 'Error al procesar el pago: ' . $e->getMessage(), 'order' => $order], 500);
+                return response()->json(
+                    [
+                        "message" =>
+                            "Error al procesar el pago: " . $e->getMessage(),
+                        "order" => $order,
+                    ],
+                    500,
+                );
             }
         }
 
         return $orderInfo; // Devolver la respuesta original si el carrito está vacío
     }
-
 
     /**
      * Process payment using Random credit
@@ -187,166 +229,143 @@ class OrderController extends Controller
      * @param Order $order
      * @param string $generateRandomDocType Random Document type to generate in ERP
      *
-     * @return [type]
+     * @return \Illuminate\Http\JsonResponse
      */
-    private function processRandomCreditPayment(Order $order, string $generateRandomDocType)
-    {
-        $paymentMethod = \App\Models\PaymentMethod::where('code', 'random_credit')->firstOrFail();
+    private function processRandomCreditPayment(
+        Order $order,
+        string $generateRandomDocType,
+    ) {
+        $paymentMethod = \App\Models\PaymentMethod::where(
+            "code",
+            "random_credit",
+        )->firstOrFail();
 
         $randomApiService = app(\App\Services\RandomApiService::class);
         $user = $order->user;
 
-        if ($user?->branch_code === null || $user?->rut === null || $user?->user_code === null) {
-            Log::error(
-                'RandomCredit Error: User missing required attributes',
-                ['user' => $user]
-            );
+        if (
+            $user?->branch_code === null ||
+            $user?->rut === null ||
+            $user?->user_code === null
+        ) {
+            Log::error("RandomCredit Error: User missing required attributes", [
+                "user" => $user,
+            ]);
             // TODO Handle with a custom exception
-            throw new \Exception("Random customer doesn't have complete attributes");
+            throw new \Exception(
+                "Random customer doesn't have complete attributes",
+            );
         }
 
         $creditLine = \App\Models\CreditLine::firstOrCreate(
             [
-                'user_id' => $user->id,
-                'branch_code' => $user->branch_code,
+                "user_id" => $user->id,
+                "branch_code" => $user->branch_code,
             ],
             [
-                'is_blocked' => false,
-            ]
+                "is_blocked" => false,
+            ],
         );
 
         if ($creditLine->isBlocked()) {
             return response()->json([
-                'success' => false,
-                'message' => 'Línea de crédito bloqueada',
-                'data' => [
-                    'transaction' => ['status' => 'FAILED'],
-                ]
+                "success" => false,
+                "message" => "Línea de crédito bloqueada",
+                "data" => [
+                    "transaction" => ["status" => "FAILED"],
+                ],
             ]);
         }
 
-        $creditLineResponse = $randomApiService
-            ->getCreditLine($user->user_code, $user->branch_code);
+        $creditLineResponse = $randomApiService->getCreditLine(
+            $user->user_code,
+            $user->branch_code,
+        );
 
         $creditLineInfo = $creditLineResponse->json();
 
-
         $availableCredit = (int) bcsub(
-            (string) ($creditLineInfo['CRSD'] ?? 0),
-            (string) ($creditLineInfo['CRSDVU'] ?? 0),
-            0
+            (string) ($creditLineInfo["CRSD"] ?? 0),
+            (string) ($creditLineInfo["CRSDVU"] ?? 0),
+            0,
         );
 
         if ($availableCredit < $order->amount) {
             return response()->json([
-                'success' => false,
-                'message' => 'Crédito insuficiente',
-                'payment' => null,
-                'data' => [
-                    'transaction' => ['status' => 'FAILED'],
-                    'payment' => null,
-                    'credit_status' => $creditLineInfo
-                ]
-            ]);
-        }
-
-        $orderItems = \App\Models\OrderItem::where('order_id', $order->id)->get();
-        $lines = $orderItems->map(function ($item) {
-            return [
-                'cantidad' => $item->quantity,
-                'codigoProducto' => $item->product->sku
-            ];
-        })->toArray();
-
-        $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
-        $randomDocFlow = PaymentDocumentType::getSaleFlowOption(
-            $payment->generate_random_doc_type ?? PaymentDocumentType::RECEIPT
-        );
-        $branch = $order
-            ->branch()
-            ->withoutGlobalScope(SecondaryBranchesScope::class)
-            ->first();
-
-        $payload = [
-            'datos' => [
-                'empresa' => config('random.business_code'),
-                'codigoEntidad' => $user->user_code,
-                'sucursalEntidad' => $branch->code,
-                'sucursalEntidadDespacho' => $branch->code,
-                'flujoVenta' => $randomDocFlow,
-                'tido' => 'NVV',
-                "moneda" => "CLP",
-                'modalidad' => config('random.modality'),
-                'funcionario' => config('random.functionary'),
-                'lineas' => $lines,
-                'texto1' => "Pago a crédito. Orden de compra: #{$order->id}",
-                'texto2' => "{$order?->user?->rut} - {$randomDocType}",
-                'texto3' => 'Origen: Compra rápida',
-                'observacion' => $order->notes,
-            ]
-        ];
-
-        $documentResponse = $this->documentService->createDocument($payload, $order);
-
-        if (isset($documentResponse['errorId'])) {
-            $order->update(['status' => 'failed']);
-            $payment = $order->payments()->create([
-                'payment_method_id' => $paymentMethod->id,
-                'status' => 'failed',
-                'response_status' => 'FAILED',
-                'response_message' => [
-                    'message' => 'Error al crear NVV en Random ERP'
+                "success" => false,
+                "message" => "Crédito insuficiente",
+                "payment" => null,
+                "data" => [
+                    "transaction" => ["status" => "FAILED"],
+                    "payment" => null,
+                    "credit_status" => $creditLineInfo,
                 ],
-                'token' => uniqid(),
-                'amount' => $order->amount,
-            ]);
-            $payment->load('order');
-            return response()->json([
-                'success' => false,
-                'message' => 'Creación de nota de venta fallida',
-                'data' => [
-                    'transaction' => ['status' => 'FAILED'],
-                    'payment' => new \App\Http\Resources\PaymentResource($payment),
-                    'credit_status' => $creditLineInfo
-                ]
             ]);
         }
 
-        $order->update([
-            'status' => 'completed',
-            'random_document_number' => $documentResponse['numero'],
-        ]);
-        $payment = $order->payments()->create([
-            'payment_method_id' => $paymentMethod->id,
-            'status' => 'processing',
-            'response_status' => 'AUTHORIZED',
-            'auth_code' => uniqid(),
-            'amount' => $order->amount,
-            'response_message' => ['message' => 'Aprobado'],
-            'token' => uniqid(),
-            'paid_at' => now(),
-            'generate_random_doc_type' => $generateRandomDocType,
-        ]);
+        $payload = $this->payloadBuilder->build(
+            $order,
+            $generateRandomDocType,
+            "Pago a crédito",
+        );
+
+        $documentResponse = $this->documentService->createDocument(
+            $payload,
+            $order,
+        );
+
+        if (isset($documentResponse["errorId"])) {
+            $payment = $this->paymentService->recordFailedCreditPayment(
+                $order,
+                $paymentMethod,
+            );
+            $payment->load("order");
+            return response()->json([
+                "success" => false,
+                "message" => "Creación de nota de venta fallida",
+                "data" => [
+                    "transaction" => ["status" => "FAILED"],
+                    "payment" => new \App\Http\Resources\PaymentResource(
+                        $payment,
+                    ),
+                    "credit_status" => $creditLineInfo,
+                ],
+            ]);
+        }
+
+        $payment = $this->paymentService->recordAuthorizedCreditPayment(
+            $order,
+            $paymentMethod,
+            $generateRandomDocType,
+            $documentResponse["numero"],
+        );
         OrderCompleted::dispatch($order);
         $localCredit = $creditLineInfo;
-        $localCredit['CRSDVU'] = floatval(bcadd($creditLineInfo['CRSDVU'], $order->amount));
+        $localCredit["CRSDVU"] = floatval(
+            bcadd($creditLineInfo["CRSDVU"], $order->amount),
+        );
 
         $creditLine->update([
-            'state' => $localCredit,
-            'is_blocked' => true,
+            "state" => $localCredit,
+            "is_blocked" => true,
         ]);
 
-        $payment->load('order');
+        $payment->load("order");
 
-        \App\Models\CartItem::where('user_id', $user->id)->delete();
+        \App\Models\CartItem::where("user_id", $user->id)->delete();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'transaction' => ['status' => 'AUTHORIZED'],
-                'payment' => new \App\Http\Resources\PaymentResource($payment)
-            ]
-        ], 200);
+        return response()->json(
+            [
+                "success" => true,
+                "data" => [
+                    "transaction" => ["status" => "AUTHORIZED"],
+                    "payment" => new \App\Http\Resources\PaymentResource(
+                        $payment,
+                    ),
+                ],
+            ],
+            200,
+        );
     }
 
     //NOTA: No eliminar este método, es para crear un carrito de prueba
@@ -354,33 +373,33 @@ class OrderController extends Controller
     {
         $category = Category::factory()->create();
         $subcategory = Subcategory::factory()->create([
-            'category_id' => $category->id
+            "category_id" => $category->id,
         ]);
         $brand = Brand::factory()->create();
 
         $product = Product::factory()->create([
-            'category_id' => $category->id,
-            'subcategory_id' => $subcategory->id,
-            'brand_id' => $brand->id
+            "category_id" => $category->id,
+            "subcategory_id" => $subcategory->id,
+            "brand_id" => $brand->id,
         ]);
 
         // Crear productos con sus precios
         $price1 = Price::factory()->create([
-            'product_id' => $product->id,
-            'price_list_id' => fake()->word(),
-            'unit' => 'kg',
-            'price' => 100,
-            'valid_from' => now()->subDays(1),
-            'valid_to' => null,
-            'is_active' => true
+            "product_id" => $product->id,
+            "price_list_id" => fake()->word(),
+            "unit" => "kg",
+            "price" => 100,
+            "valid_from" => now()->subDays(1),
+            "valid_to" => null,
+            "is_active" => true,
         ]);
 
         CartItem::create([
-            'user_id' => Auth::user()->id,
-            'product_id' => $price1->product_id,
-            'quantity' => 2,
-            'price' => $price1->price,
-            'unit' => $price1->unit,
+            "user_id" => Auth::user()->id,
+            "product_id" => $price1->product_id,
+            "quantity" => 2,
+            "price" => $price1->price,
+            "unit" => $price1->unit,
         ]);
     }
 }
