@@ -5,9 +5,17 @@ use App\Models\Price;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\getJson;
+
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    /**
+     * @var \Tests\TestCase $this
+     * @var \App\Models\User $this->user
+     */
+
     $this->user = createUser();
     $this->user->givePermissionTo("read-all-categories");
 });
@@ -29,13 +37,21 @@ function createProductWithPrice(array $attributes = []): Product
 
 describe("Category API", function () {
     it("should require authentication for index", function () {
-        $response = $this->withHeaders(["Accept" => "application/json"])->get(
-            route("categories.index"),
-        );
+        /**
+         * @var \Tests\TestCase $this
+         * @var \App\Models\User $this->user
+         */
+
+        $response = getJson(route("categories.index"));
         $response->assertStatus(401);
     });
 
     it("should return enabled categories only", function () {
+        /**
+         * @var \Tests\TestCase $this
+         * @var \App\Models\User $this->user
+         */
+
         // Super1: enabled, has products through cat1 and cat2
         $super1 = Category::factory()->create([
             "level" => 1,
@@ -163,9 +179,9 @@ describe("Category API", function () {
             ]);
         }
 
-        $response = $this->actingAs($this->user, "sanctum")
-            ->withHeaders(["Accept" => "application/json"])
-            ->get(route("categories.index"));
+        $response = actingAs($this->user, "sanctum")->getJson(
+            route("categories.index"),
+        );
 
         $response->assertStatus(200)->assertJsonStructure([
             "*" => [
@@ -241,6 +257,11 @@ describe("Category API", function () {
     });
 
     it("should return categories with associated products only", function () {
+        /**
+         * @var \Tests\TestCase $this
+         * @var \App\Models\User $this->user
+         */
+
         // Super1: has products directly via supercategory_id
         $super1 = Category::factory()->create([
             "level" => 1,
@@ -356,9 +377,9 @@ describe("Category API", function () {
             ]);
         }
 
-        $response = $this->actingAs($this->user, "sanctum")
-            ->withHeaders(["Accept" => "application/json"])
-            ->get(route("categories.index"));
+        $response = actingAs($this->user, "sanctum")->getJson(
+            route("categories.index"),
+        );
 
         $response->assertStatus(200)->assertJsonStructure([
             "*" => [
@@ -429,6 +450,11 @@ describe("Category API", function () {
     });
 
     it("should return categories with subcategories", function () {
+        /**
+         * @var \Tests\TestCase $this
+         * @var \App\Models\User $this->user
+         */
+
         $super1 = Category::factory()->create(["level" => 1]);
         $super2 = Category::factory()->create(["level" => 1]);
         $cat1 = Category::factory()->create([
@@ -497,9 +523,9 @@ describe("Category API", function () {
             }
         }
 
-        $response = $this->actingAs($this->user, "sanctum")
-            ->withHeaders(["Accept" => "application/json"])
-            ->get(route("categories.index"));
+        $response = actingAs($this->user, "sanctum")->getJson(
+            route("categories.index"),
+        );
 
         $response->assertStatus(200)->assertJsonStructure([
             "*" => [
@@ -574,6 +600,11 @@ describe("Category API", function () {
     });
 
     it("should filter categories by name", function () {
+        /**
+         * @var \Tests\TestCase $this
+         * @var \App\Models\User $this->user
+         */
+
         $super1 = Category::factory()->create([
             "level" => 1,
             "name" => "CONGELADOS",
@@ -605,7 +636,7 @@ describe("Category API", function () {
             "key" => "0002",
         ]);
 
-        $response = $this->actingAs($this->user, "sanctum")->postJson(
+        $response = actingAs($this->user, "sanctum")->postJson(
             route("categories.search"),
             [
                 "filters" => [
@@ -661,6 +692,11 @@ describe("Category API", function () {
     it(
         "should filter categories by name without disabled categories",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super1 = Category::factory()->create([
                 "level" => 1,
                 "name" => "CONGELADOS",
@@ -702,9 +738,9 @@ describe("Category API", function () {
                 "enabled" => false,
             ]);
 
-            // $this->actingAs($this->user, 'sanctum')
+            // actingAs($this->user, 'sanctum')
             //     ->getJson(route('categories.index'))->ddJson();
-            $response = $this->actingAs($this->user, "sanctum")->postJson(
+            $response = actingAs($this->user, "sanctum")->postJson(
                 route("categories.search"),
                 [
                     "filters" => [
@@ -732,6 +768,11 @@ describe("Category stock filter", function () {
     it(
         "should not return supercategory with products stock equal to 0 in index",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -751,9 +792,9 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = $this->actingAs($this->user, "sanctum")
-                ->withHeaders(["Accept" => "application/json"])
-                ->get(route("categories.index"));
+            $response = actingAs($this->user, "sanctum")->getJson(
+                route("categories.index"),
+            );
 
             $response->assertStatus(200);
             $data = $response->json();
@@ -764,6 +805,11 @@ describe("Category stock filter", function () {
     it(
         "should not return supercategory with products stock less than 0 in index",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -783,9 +829,9 @@ describe("Category stock filter", function () {
                 "stock" => -5,
             ]);
 
-            $response = $this->actingAs($this->user, "sanctum")
-                ->withHeaders(["Accept" => "application/json"])
-                ->get(route("categories.index"));
+            $response = actingAs($this->user, "sanctum")->getJson(
+                route("categories.index"),
+            );
 
             $response->assertStatus(200);
             $data = $response->json();
@@ -796,6 +842,11 @@ describe("Category stock filter", function () {
     it(
         "should not return category (level 2) with products stock equal to 0",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -830,9 +881,9 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = $this->actingAs($this->user, "sanctum")
-                ->withHeaders(["Accept" => "application/json"])
-                ->get(route("categories.index"));
+            $response = actingAs($this->user, "sanctum")->getJson(
+                route("categories.index"),
+            );
 
             $response->assertStatus(200);
             $data = $response->json();
@@ -846,6 +897,11 @@ describe("Category stock filter", function () {
     it(
         "should not return subcategory with products stock equal to 0",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -887,9 +943,9 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = $this->actingAs($this->user, "sanctum")
-                ->withHeaders(["Accept" => "application/json"])
-                ->get(route("categories.index"));
+            $response = actingAs($this->user, "sanctum")->getJson(
+                route("categories.index"),
+            );
 
             $response->assertStatus(200);
             $data = $response->json();
@@ -906,6 +962,11 @@ describe("Category stock filter", function () {
     it(
         "should not return supercategory with products stock equal to 0 in search",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -926,7 +987,7 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = $this->actingAs($this->user, "sanctum")->postJson(
+            $response = actingAs($this->user, "sanctum")->postJson(
                 route("categories.search"),
                 [
                     "filters" => [
@@ -948,6 +1009,11 @@ describe("Category stock filter", function () {
     it(
         "should return supercategory with products stock greater than 0 in search",
         function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -968,7 +1034,7 @@ describe("Category stock filter", function () {
                 "stock" => 100,
             ]);
 
-            $response = $this->actingAs($this->user, "sanctum")->postJson(
+            $response = actingAs($this->user, "sanctum")->postJson(
                 route("categories.search"),
                 [
                     "filters" => [
