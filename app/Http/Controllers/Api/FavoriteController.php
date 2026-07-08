@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Auth;
 
 class FavoriteController extends Controller
 {
-    public function index(){
+    public function index()
+    {
 
         $userId = Auth::user()->id;
         $lists = FavoriteList::with([
@@ -26,18 +27,14 @@ class FavoriteController extends Controller
     public function store(StoreRequest $request)
     {
         $data = $request->validated();
-        $favoriteId = Favorite::upsert([
-                [
-                    'favorite_list_id' => $data['favorite_list_id'],
-                    'product_id' => $data['product_id'],
-                    'unit' => $data['unit']
-                ],
+        $favorite = Favorite::updateOrCreate(
+            [
+                'favorite_list_id' => $data['favorite_list_id'],
+                'product_id' => $data['product_id'],
+                'unit' => $data['unit']
             ],
-            uniqueBy: ['unit', 'favorite_list_id', 'product_id'],
-            update: []
+            []
         );
-
-        $favorite = Favorite::findOrFail($favoriteId);
         return response()->json(new FavoriteResource($favorite), 201);
     }
 
