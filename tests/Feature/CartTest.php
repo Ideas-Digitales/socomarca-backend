@@ -7,10 +7,18 @@ use App\Models\Price;
 use App\Models\Product;
 use App\Models\User;
 
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\getJson;
+
 beforeEach(function () {
+    /**
+     * @var \Tests\TestCase $this
+     * @var \App\Models\User $this->user
+     */
+
     $this->user = User::factory()->create();
     $this->user->givePermissionTo('read-own-cart');
-    $this->actingAs($this->user, 'sanctum');
+    actingAs($this->user, 'sanctum');
 
     $supercategory = Category::factory()->create(['level' => 1]);
     $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
@@ -37,6 +45,12 @@ beforeEach(function () {
 });
 
 test('can view their own cart', function () {
+    /**
+     * @var \Tests\TestCase $this
+     * @var \App\Models\User $this->user
+     * @var \App\Models\Product $this->product
+     */
+
     // Arrange
     CartItem::create([
         'user_id' => $this->user->id,
@@ -46,7 +60,7 @@ test('can view their own cart', function () {
     ]);
 
     // Act
-    $response = $this->getJson(route('cart.index'));
+    $response = getJson(route('cart.index'));
 
     // Assert
     $response->assertOk();
@@ -61,11 +75,16 @@ test('can view their own cart', function () {
 });
 
 test('requires authentication to view cart', function () {
+    /**
+     * @var \Tests\TestCase $this
+     * @var \Illuminate\Foundation\Application $this->product
+     */
+
     // Arrange
     $this->app['auth']->forgetUser();
 
     // Act
-    $response = $this->getJson(route('cart.index'));
+    $response = getJson(route('cart.index'));
 
     // Assert
     $response->assertUnauthorized();
@@ -74,16 +93,22 @@ test('requires authentication to view cart', function () {
 test('requires "read-own-cart" permission to view cart', function () {
     // Arrange - Usuario sin permisos
     $userWithoutPermissions = User::factory()->create();
-    $this->actingAs($userWithoutPermissions, 'sanctum');
+    actingAs($userWithoutPermissions, 'sanctum');
 
     // Act
-    $response = $this->getJson(route('cart.index'));
+    $response = getJson(route('cart.index'));
 
     // Assert
     $response->assertForbidden();
 });
 
 test('only shows cart items from authenticated user', function () {
+    /**
+     * @var \Tests\TestCase $this
+     * @var \App\Models\User $this->user
+     * @var \App\Models\Product $this->product
+     */
+
     // Arrange
     $otherUser = User::factory()->create();
     $otherUser->givePermissionTo('read-own-cart');
@@ -103,7 +128,7 @@ test('only shows cart items from authenticated user', function () {
     ]);
 
     // Act
-    $response = $this->getJson(route('cart.index'));
+    $response = getJson(route('cart.index'));
 
     // Assert
     $response->assertOk()
@@ -111,4 +136,51 @@ test('only shows cart items from authenticated user', function () {
 
     $data = $response->json('data.items');
     expect($data[0]['quantity'])->toBe(2);
+});
+
+test('only shows the price from the price list allowed for the user', function () {
+    // Arrange
+    $allowedPriceListCode = '01P';
+    $otherPriceListCode = 'OTHER';
+
+    $user = User::factory()->create([
+        'prices_lists' => [$allowedPriceListCode],
+    ]);
+    $user->givePermissionTo('read-own-cart');
+    actingAs($user, 'sanctum');
+
+    $product = Product::factory()->create();
+
+    Price::factory()->create([
+        'product_id' => $product->id,
+        'unit' => 'kg',
+        'price' => 100,
+        'stock' => 10,
+        'is_active' => true,
+        'price_list_id' => $allowedPriceListCode,
+    ]);
+
+    Price::factory()->create([
+        'product_id' => $product->id,
+        'unit' => 'kg',
+        'price' => 999,
+        'stock' => 10,
+        'is_active' => true,
+        'price_list_id' => $otherPriceListCode,
+    ]);
+
+    CartItem::create([
+        'user_id' => $user->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'unit' => 'kg',
+    ]);
+
+    // Act
+    $response = getJson(route('cart.index'));
+
+    // Assert
+    $response->assertOk();
+    $item = $response->json('data.items.0');
+    expect($item['price'])->toBe(100);
 });

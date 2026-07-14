@@ -110,3 +110,8 @@ function createUserHasFavorite()
             ->has(Favorite::factory(), 'favorites'), 'favoritesList')
         ->create();
 }
+
+function getPriceListCode(): string
+{
+    return "LIST1";
+}

@@ -5,6 +5,7 @@ use App\Jobs\SyncRandomPrices;
 use App\Services\RandomApiService;
 use App\Models\Product;
 use App\Models\Price;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Cache;
@@ -96,7 +97,7 @@ describe('Product Sync Monitoring', function () {
         Log::shouldReceive('info')->twice();
 
         $startTime = now();
-        
+
         $job = new SyncRandomProducts();
         $job->handle($mockApiService);
 
@@ -130,12 +131,18 @@ describe('Product Sync Monitoring', function () {
         ]);
 
         // Simular sincronización de precios con producto que no existe en respuesta
+        $priceList = getPriceListCode();
+        User::factory()->create([
+            'prices_lists' => [$priceList],
+        ]);
+
         $mockApiService = Mockery::mock(RandomApiService::class);
         $pricesResponse = [
-            'nombre' => 'LISTA_001',
+            'nombre' => $priceList,
             'datos' => [
                 [
                     'kopr' => 'PROD999', // Producto que no existe
+                    'venderen' => 0,
                     'unidades' => [
                         [
                             'nombre' => 'UN',
@@ -148,19 +155,24 @@ describe('Product Sync Monitoring', function () {
 
         $mockApiService->shouldReceive('getPricesLists')
             ->once()
+            ->with($priceList, 100, 1)
             ->andReturn($pricesResponse);
 
-        Log::shouldReceive('info')->once();
-        Log::shouldReceive('error')->once();
+        $mockApiService->shouldReceive('getPricesLists')
+            ->once()
+            ->with($priceList, 100, 2)
+            ->andReturn(['nombre' => $priceList, 'datos' => []]);
+
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('debug')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->once();
 
         $job = new SyncRandomPrices();
-        
-        // Este job debería manejar el caso donde el producto no existe
-        expect(fn() => $job->handle($mockApiService))
-            ->toThrow(\Exception::class); // Actualmente falla porque el producto no existe
 
-        // TODO: Implementar manejo de productos faltantes
-        // El job debería registrar una advertencia en lugar de fallar
+        // El job registra una advertencia y continúa en lugar de fallar
+        $job->handle($mockApiService);
+
+        expect(Price::where('random_product_id', 'PROD999')->exists())->toBe(false);
     });
 
     test('verifica tiempo de respuesta de la API', function () {
@@ -176,7 +188,7 @@ describe('Product Sync Monitoring', function () {
         ]);
 
         $service = new RandomApiService();
-        
+
         $startTime = microtime(true);
         $result = $service->getProducts();
         $responseTime = microtime(true) - $startTime;
@@ -196,7 +208,7 @@ describe('Product Sync Monitoring', function () {
         Cache::put('sync_products_historical_count', 1000, 86400);
 
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         // Simular respuesta con dramática reducción de productos
         $apiResponse = [
             'data' => [
@@ -236,7 +248,7 @@ describe('Product Sync Monitoring', function () {
 
     test('valida estructura de respuesta de la API', function () {
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         // Respuesta con estructura incorrecta (falta clave 'data')
         $invalidResponse = [
             'productos' => [ // 'data' es lo esperado
@@ -306,13 +318,13 @@ describe('Product Sync Monitoring', function () {
         ];
 
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         // Test de conexión API
         try {
             $mockApiService->shouldReceive('getProducts')
                 ->once()
                 ->andReturn(['data' => []]);
-            
+
             $result = $mockApiService->getProducts();
             $healthChecks['api_connection'] = is_array($result);
         } catch (Exception $e) {
@@ -329,7 +341,7 @@ describe('Product Sync Monitoring', function () {
 
         // Verificar que todas las verificaciones pasaron
         expect(array_filter($healthChecks))->toHaveCount(count($healthChecks));
-        
+
         // En producción, esto debería exponerse como endpoint de health check
         $overallHealth = !in_array(false, $healthChecks);
         expect($overallHealth)->toBe(true);

@@ -19,4 +19,10 @@ class CartItem extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function activePrices()
+    {
+        return $this->hasMany(Price::class, 'product_id', 'product_id')
+            ->where('is_active', true);
+    }
 }

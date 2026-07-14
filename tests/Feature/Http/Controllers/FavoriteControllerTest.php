@@ -7,10 +7,13 @@ use App\Models\Product;
 use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
 
+use function Pest\Laravel\actingAs;
+use function Pest\Laravel\getJson;
+
 describe('Favorites read endpoint', function () {
     it('should fail when requesting without authentication', function () {
         $route = route('favorites.index');
-        $this->getJson($route)->assertStatus(401);
+        getJson($route)->assertStatus(401);
     });
 
     it('should return a successful list of user favorites with products', function () {
@@ -50,7 +53,7 @@ describe('Favorites read endpoint', function () {
             ->create();
         $user->givePermissionTo('read-own-favorites');
 
-        $this->actingAs($user, 'sanctum')
+        actingAs($user, 'sanctum')
             ->getJson($route)
             ->assertOk()
             ->assertJsonStructure([
@@ -122,21 +125,21 @@ describe('Favorite creation endpoint', function () {
             )
             ->create();
 
-        $this->actingAs($user, 'sanctum')
+        actingAs($user, 'sanctum')
             ->postJson($route, [
                 'product_id' => Product::factory()->create()->id,
                 'favorite_list_id' => FavoriteList::factory()->create()->id,
             ])
             ->assertForbidden();
 
-        $this->actingAs($user2, 'sanctum')
+        actingAs($user2, 'sanctum')
             ->postJson($route, [
                 'favorite_list_id' => $user2->favoritesList()->first()->id,
                 'unit' => 'lt'
             ])
             ->assertInvalid(['product_id', 'unit']);
 
-        $this->actingAs($user2, 'sanctum')
+        actingAs($user2, 'sanctum')
             ->postJson($route, [
                 'favorite_list_id' => $user2->favoritesList()->first()->id,
                 'product_id' => $product->id,
@@ -162,7 +165,7 @@ describe('Favorite creation endpoint', function () {
             )
             ->create();
 
-        $this->actingAs($user, 'sanctum')
+        actingAs($user, 'sanctum')
             ->postJson($route, [
                 'favorite_list_id' => $user->favoritesList()->first()->id,
                 'product_id' => $product->id,
@@ -172,7 +175,7 @@ describe('Favorite creation endpoint', function () {
 
         $route = route('favorites.index');
 
-        $this->actingAs($user, 'sanctum')
+        actingAs($user, 'sanctum')
             ->getJson($route)
             ->assertOk()
             ->assertJson(
@@ -205,8 +208,7 @@ describe('Favorite deletion endpoint', function () {
             )
             ->create();
 
-        $this
-            ->actingAs($user, 'sanctum')
+        actingAs($user, 'sanctum')
             ->postJson($route, [
                 'favorite_list_id' => $user->favoritesList()->first()->id,
                 'product_id' => $product->id,
@@ -223,8 +225,7 @@ describe('Favorite deletion endpoint', function () {
             'favorite' => $user->favoritesList()->first()->favorites()->first()->id,
         ]);
 
-        $this
-            ->actingAs($user, 'sanctum')
+        actingAs($user, 'sanctum')
             ->deleteJson($route)
             ->assertOk();
 

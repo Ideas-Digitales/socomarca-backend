@@ -8,6 +8,7 @@ use App\Services\RandomApiService;
 use App\Models\Product;
 use App\Models\Category;
 use App\Models\Price;
+use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -33,7 +34,7 @@ describe('Product Sync Basic', function () {
 
     test('el job de sincronización procesa productos correctamente', function () {
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $supercategory = Category::create([
             'name' => 'Super Categoría Test',
             'code' => 'CAT001',
@@ -106,7 +107,7 @@ describe('Product Sync Basic', function () {
         ]);
 
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $apiResponse = [
             'data' => [
                 [
@@ -130,7 +131,7 @@ describe('Product Sync Basic', function () {
 
         // Verificar que solo hay un producto y se actualizó
         expect(Product::count())->toBe(1);
-        
+
         $updatedProduct = Product::where('random_product_id', 'PROD001')->first();
         expect($updatedProduct->id)->toBe($existingProduct->id);
         expect($updatedProduct->name)->toBe('Producto Actualizado');
@@ -139,7 +140,7 @@ describe('Product Sync Basic', function () {
 
     test('el job maneja errores correctamente', function () {
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $mockApiService->shouldReceive('getProducts')
             ->once()
             ->andThrow(new Exception('Error de API'));
@@ -149,7 +150,7 @@ describe('Product Sync Basic', function () {
 
         // Ejecutar el job y esperar que lance excepción
         $job = new SyncRandomProducts();
-        
+
         expect(fn() => $job->handle($mockApiService))
             ->toThrow(Exception::class, 'Error de API');
     });
@@ -163,10 +164,16 @@ describe('Product Sync Basic', function () {
             'status' => true
         ]);
 
+        $priceList = getPriceListCode();
+
+        User::factory()->create([
+            'prices_lists' => [$priceList],
+        ]);
+
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $pricesResponse = [
-            'nombre' => 'LISTA_001',
+            'nombre' => $priceList,
             'datos' => [
                 [
                     'kopr' => 'PROD001',
@@ -191,10 +198,19 @@ describe('Product Sync Basic', function () {
 
         $mockApiService->shouldReceive('getPricesLists')
             ->once()
+            ->with($priceList, 100, 1)
             ->andReturn($pricesResponse);
 
-        Log::shouldReceive('info')->twice();
+        $mockApiService->shouldReceive('getPricesLists')
+            ->once()
+            ->with($priceList, 100, 2)
+            ->andReturn(['nombre' => $priceList, 'datos' => []]);
+
+        Log::shouldReceive('info')->zeroOrMoreTimes();
+        Log::shouldReceive('debug')->zeroOrMoreTimes();
+        Log::shouldReceive('warning')->zeroOrMoreTimes();
         Log::shouldReceive('error')->zeroOrMoreTimes();
+        Log::shouldReceive('alert')->zeroOrMoreTimes();
 
         // Ejecutar el job de precios
         $job = new SyncRandomPrices();
@@ -226,11 +242,11 @@ describe('Product Sync Basic', function () {
             'name' => 'Producto Test',
             'status' => true
         ]);
-
+        $priceList = getPriceListCode();
         $price = Price::create([
             'product_id' => $product->id,
             'random_product_id' => 'PROD001',
-            'price_list_id' => 'LISTA_001',
+            'price_list_id' => $priceList,
             'unit' => 'UN',
             'price' => 1500,
             'is_active' => true,
@@ -238,7 +254,7 @@ describe('Product Sync Basic', function () {
         ]);
 
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $stockResponse = [
             'data' => [
                 [
@@ -266,6 +282,7 @@ describe('Product Sync Basic', function () {
     });
 
     test('el servicio RandomApiService obtiene token correctamente', function () {
+        config(['app.env' => 'testing']);
         $baseUrl = config('random.url');
         Http::fake([
             $baseUrl . '/login' => Http::response([
@@ -284,12 +301,13 @@ describe('Product Sync Basic', function () {
 
         Http::assertSent(function ($request) use ($baseUrl) {
             return $request->url() === $baseUrl . '/login' &&
-                   $request['username'] === 'demo@random.cl' &&
-                   $request['password'] === 'd3m0r4nd0m3RP';
+                $request['username'] === 'demo@random.cl' &&
+                $request['password'] === 'd3m0r4nd0m3RP';
         });
     });
 
     test('el servicio maneja tokens expirados correctamente', function () {
+        config(['app.env' => 'testing']);
         $baseUrl = config('random.url');
         Http::fake([
             $baseUrl . '/login' => Http::response([
@@ -328,7 +346,7 @@ describe('Product Sync Basic', function () {
         ]);
 
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $apiResponse = [
             'data' => [
                 [
@@ -375,7 +393,7 @@ describe('Product Sync Basic', function () {
 
     test('la sincronización maneja productos sin categorías', function () {
         $mockApiService = Mockery::mock(RandomApiService::class);
-        
+
         $apiResponse = [
             'data' => [
                 [
@@ -449,5 +467,4 @@ describe('Product Sync Basic', function () {
         expect(Product::where('random_product_id', 'PROD_STAY')->first()->status)->toBe(true);
         expect(Product::where('random_product_id', 'PROD_GONE')->first()->status)->toBe(false);
     });
-
 });

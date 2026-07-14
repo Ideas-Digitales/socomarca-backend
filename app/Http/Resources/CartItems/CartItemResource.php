@@ -2,9 +2,6 @@
 
 namespace App\Http\Resources\CartItems;
 
-use App\Http\Resources\Products\ProductResource;
-use App\Models\Price;
-use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
@@ -18,18 +15,14 @@ class CartItemResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $product = $this->product;
+        $priceObj = $this->activePrices->firstWhere('unit', $this->unit);
 
-        $product = Product::where('id', $this->product_id)->first();
-        $priceObj = Price::where('product_id', $product->id)->where('is_active', 1)->where('unit', $this->unit)->first();
         $price = $priceObj->price ?? 0;
-        $unit = $priceObj->unit;
-        $totalPrice = $price * $this->quantity;
+        $unit = $priceObj->unit ?? $this->unit;
         $stock = $priceObj->stock ?? null;
         $totalPrice = $price * $this->quantity;
-   
-        
-        
-    
+
         return [
             "id" => $product->id,
             "name" => $product->name,
@@ -46,10 +39,10 @@ class CartItemResource extends JsonResource
                 "name" => $product->brand->name,
             ] : null,
             "quantity" => (int)$this->quantity,
-            "unit" => $unit ?? null,
+            "unit" => $unit,
             "price" => (int)$price,
             "stock" => (int)$stock,
-            "image" => $this->product->image !== null ? Storage::url($this->product->image) : "",
+            "image" => $product->image !== null ? Storage::url($product->image) : "",
             "sku" => $product->sku ?? null,
             "subtotal" => $totalPrice,
             "is_favorite" => false,

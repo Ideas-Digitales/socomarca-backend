@@ -11,345 +11,445 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\CartItem;
+use App\Listeners\CreateWebpayRandomDocument;
 use App\Services\WebpayService;
+use Illuminate\Events\CallQueuedListener;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Mockery;
 use Tests\TestCase;
 
 uses(RefreshDatabase::class);
 
-test('webpay return handles successful payment, updates order status and creates random document', function () {
-    /** @var \Tests\TestCase $this */
-    $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9']);
-    $user->assignRole('customer');
+test(
+    "webpay return handles successful payment, updates order status and creates random document",
+    function () {
+        /** @var \Tests\TestCase $this */
+        $user = User::factory()->create([
+            "rut" => "12345678-9",
+            "user_code" => "12345678-9",
+        ]);
+        $user->assignRole("customer");
 
-    $branch = Branch::factory()->create(['user_id' => $user->id]);
+        $branch = Branch::factory()->create(["user_id" => $user->id]);
 
-    $order = Order::factory()->create([
-        'user_id' => $user->id,
-        'status' => 'pending',
-        'amount' => 10000,
-        'branch_id' => $branch->id,
-        'notes' => '',
-    ]);
-
-    $product = Product::factory()->create(['sku' => 'TEST-SKU-123']);
-
-    OrderItem::factory()->create([
-        'order_id' => $order->id,
-        'product_id' => $product->id,
-        'quantity' => 2
-    ]);
-
-    CartItem::factory()->create(['user_id' => $user->id, 'product_id' => $product->id]);
-
-    $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
-
-    $payment = Payment::factory()->create([
-        'order_id' => $order->id,
-        'payment_method_id' => $paymentMethod->id,
-        'token' => 'fake_token_ws',
-        'status' => 'pending',
-        'response_status' => 'INITIALIZED',
-        'generate_random_doc_type' => PaymentDocumentType::INVOICE,
-    ]);
-
-    // Mock WebpayService to return successful authorization
-    $webpayServiceMock = Mockery::mock(WebpayService::class);
-    $webpayServiceMock->shouldReceive('getTransactionResult')
-        ->with('fake_token_ws')
-        ->once()
-        ->andReturn([
-            'status' => 'AUTHORIZED',
-            'authorization_code' => '7654321',
-            'amount' => 10000,
-            'buy_order' => $order->id,
+        $order = Order::factory()->create([
+            "user_id" => $user->id,
+            "status" => "pending",
+            "amount" => 10000,
+            "branch_id" => $branch->id,
+            "notes" => "",
         ]);
 
-    $this->instance(WebpayService::class, $webpayServiceMock);
+        $product = Product::factory()->create(["sku" => "TEST-SKU-123"]);
 
-    // Fake Random API response for NVV creation
-    $baseUrl = config('random.url');
-    Http::fake([
-        "{$baseUrl}/web32/documento" => Http::response([
-            "numero" => "0000000088",
-            "tido" => "NVV",
-            "idmaeedo" => 999,
-            "estado" => [
-                "codigo" => "1",
-                "mensaje" => "Grabación exitosa"
-            ]
-        ], 200),
-    ]);
-
-    // Act
-    $response = $this->actingAs($user)->getJson(route('webpay.return', ['token_ws' => 'fake_token_ws']));
-
-    // Assert Response
-    $response->assertStatus(200)
-        ->assertJson([
-            'success' => true,
-            'message' => 'Pago exitoso',
-            'data' => [
-                'status' => 'AUTHORIZED'
-            ]
+        OrderItem::factory()->create([
+            "order_id" => $order->id,
+            "product_id" => $product->id,
+            "quantity" => 2,
         ]);
 
-    // Assert Order changed to completed
-    $order->refresh();
-    expect($order->status)->toBe('completed');
-    expect($order->random_document_number)->toBe("0000000088");
-
-    // Assert Payment updated
-    $payment->refresh();
-    expect($payment->response_status)->toBe('AUTHORIZED');
-    expect($payment->auth_code)->toBe('7654321');
-    expect($payment->paid_at)->not->toBeNull();
-
-    // Assert Cart is cleared
-    expect(CartItem::where('user_id', $user->id)->count())->toBe(0);
-
-    // Verify Random NVV Document payload sent
-    Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($baseUrl, $user, $product) {
-        if (!str_starts_with($request->url(), "{$baseUrl}/web32/documento")) {
-            return false;
-        }
-
-        $payload = $request->data();
-
-        return isset($payload['datos'])
-            && $payload['datos']['codigoEntidad'] === $user->user_code
-            && $payload['datos']['tido'] === 'NVV'
-            && count($payload['datos']['lineas']) === 1
-            && $payload['datos']['lineas'][0]['codigoProducto'] === $product->sku
-            && $payload['datos']['lineas'][0]['cantidad'] === 2;
-    });
-
-    // Assert Document attached to the Order
-    expect($order->randomDocuments()->count())->toBe(1);
-    expect($order->randomDocuments()->first()->idmaeedo)->toBe(999);
-    expect($order->random_document_number)->toBe("0000000088");
-});
-
-test('webpay return handles successful payment, updates order status and creates random document when choosing primary branch', function () {
-    /** @var \Tests\TestCase $this */
-    $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9']);
-    $user->assignRole('customer');
-
-    $branch = Branch::factory()->create([
-        'user_id' => $user->id,
-        'branch_type'      => BranchType::PRIMARY, // ¡IMPORTANT!
-    ]);
-
-    $order = Order::factory()->create([
-        'user_id' => $user->id,
-        'status' => 'pending',
-        'amount' => 10000,
-        'branch_id' => $branch->id,
-        'notes' => '',
-    ]);
-
-    $product = Product::factory()->create(['sku' => 'TEST-SKU-123']);
-
-    OrderItem::factory()->create([
-        'order_id' => $order->id,
-        'product_id' => $product->id,
-        'quantity' => 2
-    ]);
-
-    CartItem::factory()->create(['user_id' => $user->id, 'product_id' => $product->id]);
-
-    $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
-
-    $payment = Payment::factory()->create([
-        'order_id' => $order->id,
-        'payment_method_id' => $paymentMethod->id,
-        'token' => 'fake_token_ws',
-        'status' => 'pending',
-        'response_status' => 'INITIALIZED',
-        'generate_random_doc_type' => PaymentDocumentType::INVOICE,
-    ]);
-
-    // Mock WebpayService to return successful authorization
-    $webpayServiceMock = Mockery::mock(WebpayService::class);
-    $webpayServiceMock->shouldReceive('getTransactionResult')
-        ->with('fake_token_ws')
-        ->once()
-        ->andReturn([
-            'status' => 'AUTHORIZED',
-            'authorization_code' => '7654321',
-            'amount' => 10000,
-            'buy_order' => $order->id,
+        CartItem::factory()->create([
+            "user_id" => $user->id,
+            "product_id" => $product->id,
         ]);
 
-    $this->instance(WebpayService::class, $webpayServiceMock);
-
-    // Fake Random API response for NVV creation
-    $baseUrl = config('random.url');
-    Http::fake([
-        "{$baseUrl}/web32/documento" => Http::response([
-            "numero" => "0000000088",
-            "tido" => "NVV",
-            "idmaeedo" => 999,
-            "estado" => [
-                "codigo" => "1",
-                "mensaje" => "Grabación exitosa"
-            ]
-        ], 200),
-    ]);
-
-    // Act
-    $response = $this->actingAs($user)->getJson(route('webpay.return', ['token_ws' => 'fake_token_ws']));
-
-    // Assert Response
-    $response->assertStatus(200)
-        ->assertJson([
-            'success' => true,
-            'message' => 'Pago exitoso',
-            'data' => [
-                'status' => 'AUTHORIZED'
-            ]
+        $paymentMethod = \App\Models\PaymentMethod::factory()->create([
+            "code" => "webpay",
         ]);
 
-    // Assert Order changed to completed
-    $order->refresh();
-    expect($order->status)->toBe('completed');
-    expect($order->random_document_number)->toBe("0000000088");
+        $payment = Payment::factory()->create([
+            "order_id" => $order->id,
+            "payment_method_id" => $paymentMethod->id,
+            "token" => "fake_token_ws",
+            "status" => "pending",
+            "response_status" => "INITIALIZED",
+            "generate_random_doc_type" => PaymentDocumentType::INVOICE,
+        ]);
 
-    // Assert Payment updated
-    $payment->refresh();
-    expect($payment->response_status)->toBe('AUTHORIZED');
-    expect($payment->auth_code)->toBe('7654321');
-    expect($payment->paid_at)->not->toBeNull();
+        // Mock WebpayService to return successful authorization
+        $webpayServiceMock = Mockery::mock(WebpayService::class);
+        $webpayServiceMock
+            ->shouldReceive("getTransactionResult")
+            ->with("fake_token_ws")
+            ->once()
+            ->andReturn([
+                "status" => "AUTHORIZED",
+                "authorization_code" => "7654321",
+                "amount" => 10000,
+                "buy_order" => $order->id,
+            ]);
 
-    // Assert Cart is cleared
-    expect(CartItem::where('user_id', $user->id)->count())->toBe(0);
+        $this->instance(WebpayService::class, $webpayServiceMock);
 
-    // Verify Random NVV Document payload sent
-    Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($baseUrl, $user, $product) {
-        if (!str_starts_with($request->url(), "{$baseUrl}/web32/documento")) {
-            return false;
-        }
+        // Fake Random API response for NVV creation
+        $baseUrl = config("random.url");
+        Http::fake([
+            "{$baseUrl}/web32/documento" => Http::response(
+                [
+                    "numero" => "0000000088",
+                    "tido" => "NVV",
+                    "idmaeedo" => 999,
+                    "estado" => [
+                        "codigo" => "1",
+                        "mensaje" => "Grabación exitosa",
+                    ],
+                ],
+                200,
+            ),
+        ]);
 
-        $payload = $request->data();
+        // Act
+        $response = $this->actingAs($user)->getJson(
+            route("webpay.return", ["token_ws" => "fake_token_ws"]),
+        );
 
-        return isset($payload['datos'])
-            && $payload['datos']['codigoEntidad'] === $user->user_code
-            && $payload['datos']['tido'] === 'NVV'
-            && count($payload['datos']['lineas']) === 1
-            && $payload['datos']['lineas'][0]['codigoProducto'] === $product->sku
-            && $payload['datos']['lineas'][0]['cantidad'] === 2;
-    });
+        // Assert Response
+        $response->assertStatus(200)->assertJson([
+            "success" => true,
+            "message" => "Pago exitoso",
+            "data" => [
+                "status" => "AUTHORIZED",
+            ],
+        ]);
 
-    // Assert Document attached to the Order
-    expect($order->randomDocuments()->count())->toBe(1);
-    expect($order->randomDocuments()->first()->idmaeedo)->toBe(999);
-    expect($order->random_document_number)->toBe("0000000088");
-    expect(
-        $order->branch()
-            ->withoutGlobalScope(
-                \App\Models\Scopes\SecondaryBranchesScope::class
-            )
-            ->first()
-            ->id
-    )->toBe($branch->id); // ¡IMPORTANT!
-});
-test('webpay return handles failed transaction', function () {
+        // Assert Order changed to completed
+        $order->refresh();
+        expect($order->status)->toBe("completed");
+        expect($order->random_document_number)->toBe("0000000088");
+
+        // Assert Payment updated
+        $payment->refresh();
+        expect($payment->response_status)->toBe("AUTHORIZED");
+        expect($payment->auth_code)->toBe("7654321");
+        expect($payment->paid_at)->not->toBeNull();
+
+        // Assert Cart is cleared
+        expect(CartItem::where("user_id", $user->id)->count())->toBe(0);
+
+        // Verify Random NVV Document payload sent
+        Http::assertSent(function (
+            \Illuminate\Http\Client\Request $request,
+        ) use ($baseUrl, $user, $product) {
+            if (
+                !str_starts_with($request->url(), "{$baseUrl}/web32/documento")
+            ) {
+                return false;
+            }
+
+            $payload = $request->data();
+
+            return isset($payload["datos"]) &&
+                $payload["datos"]["codigoEntidad"] === $user->user_code &&
+                $payload["datos"]["tido"] === "NVV" &&
+                count($payload["datos"]["lineas"]) === 1 &&
+                $payload["datos"]["lineas"][0]["codigoProducto"] ===
+                    $product->sku &&
+                $payload["datos"]["lineas"][0]["cantidad"] === 2;
+        });
+
+        // Assert Document attached to the Order
+        expect($order->randomDocuments()->count())->toBe(1);
+        expect($order->randomDocuments()->first()->idmaeedo)->toBe(999);
+        expect($order->random_document_number)->toBe("0000000088");
+    },
+);
+
+test(
+    "webpay return handles successful payment, updates order status and creates random document when choosing primary branch",
+    function () {
+        /** @var \Tests\TestCase $this */
+        $user = User::factory()->create([
+            "rut" => "12345678-9",
+            "user_code" => "12345678-9",
+        ]);
+        $user->assignRole("customer");
+
+        $branch = Branch::factory()->create([
+            "user_id" => $user->id,
+            "branch_type" => BranchType::PRIMARY, // ¡IMPORTANT!
+        ]);
+
+        $order = Order::factory()->create([
+            "user_id" => $user->id,
+            "status" => "pending",
+            "amount" => 10000,
+            "branch_id" => $branch->id,
+            "notes" => "",
+        ]);
+
+        $product = Product::factory()->create(["sku" => "TEST-SKU-123"]);
+
+        OrderItem::factory()->create([
+            "order_id" => $order->id,
+            "product_id" => $product->id,
+            "quantity" => 2,
+        ]);
+
+        CartItem::factory()->create([
+            "user_id" => $user->id,
+            "product_id" => $product->id,
+        ]);
+
+        $paymentMethod = \App\Models\PaymentMethod::factory()->create([
+            "code" => "webpay",
+        ]);
+
+        $payment = Payment::factory()->create([
+            "order_id" => $order->id,
+            "payment_method_id" => $paymentMethod->id,
+            "token" => "fake_token_ws",
+            "status" => "pending",
+            "response_status" => "INITIALIZED",
+            "generate_random_doc_type" => PaymentDocumentType::INVOICE,
+        ]);
+
+        // Mock WebpayService to return successful authorization
+        $webpayServiceMock = Mockery::mock(WebpayService::class);
+        $webpayServiceMock
+            ->shouldReceive("getTransactionResult")
+            ->with("fake_token_ws")
+            ->once()
+            ->andReturn([
+                "status" => "AUTHORIZED",
+                "authorization_code" => "7654321",
+                "amount" => 10000,
+                "buy_order" => $order->id,
+            ]);
+
+        $this->instance(WebpayService::class, $webpayServiceMock);
+
+        // Fake Random API response for NVV creation
+        $baseUrl = config("random.url");
+        Http::fake([
+            "{$baseUrl}/web32/documento" => Http::response(
+                [
+                    "numero" => "0000000088",
+                    "tido" => "NVV",
+                    "idmaeedo" => 999,
+                    "estado" => [
+                        "codigo" => "1",
+                        "mensaje" => "Grabación exitosa",
+                    ],
+                ],
+                200,
+            ),
+        ]);
+
+        // Act
+        $response = $this->actingAs($user)->getJson(
+            route("webpay.return", ["token_ws" => "fake_token_ws"]),
+        );
+
+        // Assert Response
+        $response->assertStatus(200)->assertJson([
+            "success" => true,
+            "message" => "Pago exitoso",
+            "data" => [
+                "status" => "AUTHORIZED",
+            ],
+        ]);
+
+        // Assert Order changed to completed
+        $order->refresh();
+        expect($order->status)->toBe("completed");
+        expect($order->random_document_number)->toBe("0000000088");
+
+        // Assert Payment updated
+        $payment->refresh();
+        expect($payment->response_status)->toBe("AUTHORIZED");
+        expect($payment->auth_code)->toBe("7654321");
+        expect($payment->paid_at)->not->toBeNull();
+
+        // Assert Cart is cleared
+        expect(CartItem::where("user_id", $user->id)->count())->toBe(0);
+
+        // Verify Random NVV Document payload sent
+        Http::assertSent(function (
+            \Illuminate\Http\Client\Request $request,
+        ) use ($baseUrl, $user, $product) {
+            if (
+                !str_starts_with($request->url(), "{$baseUrl}/web32/documento")
+            ) {
+                return false;
+            }
+
+            $payload = $request->data();
+
+            return isset($payload["datos"]) &&
+                $payload["datos"]["codigoEntidad"] === $user->user_code &&
+                $payload["datos"]["tido"] === "NVV" &&
+                count($payload["datos"]["lineas"]) === 1 &&
+                $payload["datos"]["lineas"][0]["codigoProducto"] ===
+                    $product->sku &&
+                $payload["datos"]["lineas"][0]["cantidad"] === 2;
+        });
+
+        // Assert Document attached to the Order
+        expect($order->randomDocuments()->count())->toBe(1);
+        expect($order->randomDocuments()->first()->idmaeedo)->toBe(999);
+        expect($order->random_document_number)->toBe("0000000088");
+        expect(
+            $order
+                ->branch()
+                ->withoutGlobalScope(
+                    \App\Models\Scopes\SecondaryBranchesScope::class,
+                )
+                ->first()->id,
+        )->toBe($branch->id); // ¡IMPORTANT!
+    },
+);
+test("webpay return handles failed transaction", function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
-    $branch = Branch::factory()->create(['user_id' => $user->id]);
+    $branch = Branch::factory()->create(["user_id" => $user->id]);
     $order = Order::factory()->create([
-        'user_id' => $user->id,
-        'status' => 'pending',
-        'branch_id' => $branch->id,
-        'notes' => '',
+        "user_id" => $user->id,
+        "status" => "pending",
+        "branch_id" => $branch->id,
+        "notes" => "",
     ]);
 
-    $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
+    $paymentMethod = \App\Models\PaymentMethod::factory()->create([
+        "code" => "webpay",
+    ]);
 
     $payment = Payment::factory()->create([
-        'order_id' => $order->id,
-        'payment_method_id' => $paymentMethod->id,
-        'token' => 'failed_token_ws',
-        'status' => 'pending',
-        'generate_random_doc_type' => PaymentDocumentType::RECEIPT,
+        "order_id" => $order->id,
+        "payment_method_id" => $paymentMethod->id,
+        "token" => "failed_token_ws",
+        "status" => "pending",
+        "generate_random_doc_type" => PaymentDocumentType::RECEIPT,
     ]);
 
     $webpayServiceMock = Mockery::mock(WebpayService::class);
-    $webpayServiceMock->shouldReceive('getTransactionResult')
-        ->with('failed_token_ws')
+    $webpayServiceMock
+        ->shouldReceive("getTransactionResult")
+        ->with("failed_token_ws")
         ->once()
         ->andReturn([
-            'status' => 'FAILED' // transbank failed status
+            "status" => "FAILED", // transbank failed status
         ]);
 
     $this->instance(WebpayService::class, $webpayServiceMock);
 
     // Act
-    $response = $this->actingAs($user)->getJson(route('webpay.return', ['token_ws' => 'failed_token_ws']));
+    $response = $this->actingAs($user)->getJson(
+        route("webpay.return", ["token_ws" => "failed_token_ws"]),
+    );
 
-    $response->assertStatus(200)
-        ->assertJson([
-            'success' => false,
-            'message' => 'Pago fallido',
-            'data' => [
-                'status' => 'FAILED'
-            ]
-        ]);
+    $response->assertStatus(200)->assertJson([
+        "success" => false,
+        "message" => "Pago fallido",
+        "data" => [
+            "status" => "FAILED",
+        ],
+    ]);
 
     $order->refresh();
-    expect($order->status)->toBe('failed');
+    expect($order->status)->toBe("failed");
 
     // Document creation URL should not have been called
     Http::fake();
     Http::assertNothingSent();
 });
 
-test('webpay return handles user aborted transaction', function () {
+test("webpay return handles user aborted transaction", function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
-    $branch = Branch::factory()->create(['user_id' => $user->id]);
+    $branch = Branch::factory()->create(["user_id" => $user->id]);
     $order = Order::factory()->create([
-        'user_id' => $user->id,
-        'status' => 'pending',
-        'branch_id' => $branch->id,
-        'notes' => '',
+        "user_id" => $user->id,
+        "status" => "pending",
+        "branch_id" => $branch->id,
+        "notes" => "",
     ]);
 
-    $paymentMethod = \App\Models\PaymentMethod::factory()->create(['code' => 'webpay']);
+    $paymentMethod = \App\Models\PaymentMethod::factory()->create([
+        "code" => "webpay",
+    ]);
 
     $payment = Payment::factory()->create([
-        'order_id' => $order->id,
-        'payment_method_id' => $paymentMethod->id,
-        'token' => 'aborted_token_ws',
-        'status' => 'pending',
+        "order_id" => $order->id,
+        "payment_method_id" => $paymentMethod->id,
+        "token" => "aborted_token_ws",
+        "status" => "pending",
     ]);
 
     // Act
-    $response = $this->actingAs($user)->getJson(route('webpay.return', ['TBK_TOKEN' => 'aborted_token_ws']));
+    $response = $this->actingAs($user)->getJson(
+        route("webpay.return", ["TBK_TOKEN" => "aborted_token_ws"]),
+    );
 
-    $response->assertStatus(400)
-        ->assertJson([
-            'success' => false,
-            'message' => 'Pago abortado por el usuario',
-            'token' => 'aborted_token_ws'
-        ]);
+    $response->assertStatus(400)->assertJson([
+        "success" => false,
+        "message" => "Pago abortado por el usuario",
+        "token" => "aborted_token_ws",
+    ]);
 
     $payment->refresh();
-    expect($payment->response_status)->toBe('failed');
+    expect($payment->response_status)->toBe("failed");
 });
 
-test('webpay return handles timeout', function () {
+test("webpay return handles timeout", function () {
     /** @var \Tests\TestCase $this */
     $user = User::factory()->create();
 
     // Act
-    $response = $this->actingAs($user)->getJson(route('webpay.return'));
+    $response = $this->actingAs($user)->getJson(route("webpay.return"));
 
-    $response->assertStatus(408)
-        ->assertJson([
-            'success' => false,
-            'message' => 'Tiempo de espera agotado'
-        ]);
+    $response->assertStatus(408)->assertJson([
+        "success" => false,
+        "message" => "Tiempo de espera agotado",
+    ]);
 });
+
+test(
+    "webpay return queues the random document listener on authorized payment",
+    function () {
+        /** @var \Tests\TestCase $this */
+        Queue::fake();
+
+        $user = User::factory()->create([
+            "rut" => "12345678-9",
+            "user_code" => "12345678-9",
+        ]);
+        $branch = Branch::factory()->create(["user_id" => $user->id]);
+        $order = Order::factory()->create([
+            "user_id" => $user->id,
+            "status" => "pending",
+            "branch_id" => $branch->id,
+            "notes" => "",
+        ]);
+
+        $paymentMethod = \App\Models\PaymentMethod::factory()->create([
+            "code" => "webpay",
+        ]);
+        Payment::factory()->create([
+            "order_id" => $order->id,
+            "payment_method_id" => $paymentMethod->id,
+            "token" => "queue_token_ws",
+            "status" => "pending",
+        ]);
+
+        $webpayServiceMock = Mockery::mock(WebpayService::class);
+        $webpayServiceMock
+            ->shouldReceive("getTransactionResult")
+            ->with("queue_token_ws")
+            ->once()
+            ->andReturn([
+                "status" => "AUTHORIZED",
+                "authorization_code" => "1",
+            ]);
+        $this->instance(WebpayService::class, $webpayServiceMock);
+
+        $this->actingAs($user)->getJson(
+            route("webpay.return", ["token_ws" => "queue_token_ws"]),
+        );
+
+        Queue::assertPushed(CallQueuedListener::class, function ($job) {
+            return $job->class === CreateWebpayRandomDocument::class;
+        });
+    },
+);
