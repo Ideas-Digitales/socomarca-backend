@@ -31,4 +31,7 @@ return [
     ],
     'warehouse_email_recipient' => env('WAREHOUSE_EMAIL_RECIPIENT', 'warehouse@socomarca.cl'),
     'site_logo_url' => env('SITE_LOGO_URL', 'https://socomarca-frontend.vercel.app/assets/global/logo.png'),
+    // Base URL for email icons (cart + social). Defaults to the app's public assets;
+    // point it to the S3/CDN folder (e.g. https://cdn.socomarca.cl/email-assets/icons) once uploaded.
+    'email_icons_base_url' => env('EMAIL_ICONS_BASE_URL', rtrim((string) env('APP_URL'), '/') . '/images/email-icons'),
 ];
