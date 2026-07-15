@@ -14,6 +14,20 @@ class SendOrderCompletedEmail implements ShouldQueue
     use InteractsWithQueue;
 
     /**
+     * The name of the queue the job should be sent to.
+     *
+     * @var string|null
+     */
+    public $queue = 'email';
+
+    /**
+     * The time (seconds) before the job should be processed.
+     *
+     * @var int
+     */
+    public $delay = 5;
+
+    /**
      * Create the event listener.
      */
     public function __construct()

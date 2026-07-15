@@ -5,10 +5,11 @@ namespace App\Notifications;
 use App\Mail\UserNotificationMail;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Notifications\Notification;
 
-class UserSavedNotification extends Notification
+class UserSavedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -29,6 +30,18 @@ class UserSavedNotification extends Notification
     public function via(object $notifiable): array
     {
         return ['mail'];
+    }
+
+    /**
+     * Determine which queues should be used for each notification channel.
+     *
+     * @return array<string, string>
+     */
+    public function viaQueues(): array
+    {
+        return [
+            'mail' => 'email',
+        ];
     }
 
     /**
