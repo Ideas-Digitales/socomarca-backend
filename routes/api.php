@@ -18,6 +18,7 @@ use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\FavoriteListController;
 use App\Http\Controllers\Api\CartItemController;
+use App\Http\Controllers\Api\CredentialController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ReportController;
@@ -43,6 +44,7 @@ Route::prefix('auth')->group(function () {
             return response()->json(['valid' => true]);
         })->name('auth.check.token');
         Route::delete('/token', [AuthController::class, 'destroy'])->name('auth.token.destroy');
+        Route::patch('/credentials', [CredentialController::class, 'update'])->name('credentials.update');
         Route::prefix('/password')->group(function () {
             Route::put('', [PasswordResetController::class, 'changePassword'])->name('password.update');
             Route::get('/status', [PasswordResetController::class, 'checkPasswordStatus'])->name('password.status');

@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 use Carbon\Carbon;
 use App\Http\Requests\AuthRequest;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
@@ -25,7 +25,7 @@ class AuthController extends Controller
             'last_login' => Carbon::now()
         ]);
 
-    
+
         // Crear token con el nombre del dispositivo
 
         $tokenName = $request->device_name ?? 'unknown-device';
@@ -34,8 +34,7 @@ class AuthController extends Controller
         // Obtener roles y permisos
         $roles = $user->getRoleNames();
         $permissions = $user->getAllPermissions()->pluck('name');
-
-        return response()->json([
+        $response = [
             'token' => $token,
             'user' => [
                 'id' => $user->id,
@@ -45,9 +44,22 @@ class AuthController extends Controller
                 'roles' => $roles,
                 'permissions' => $permissions,
             ]
-                
-            
-        ]);
+        ];
+
+        $response['extra'] = [
+            'missing_email' => false,
+            'weak_password' => false,
+        ];
+
+        if ($user->email == null) {
+            $response['extra']['missing_email'] = true;
+        }
+
+        if (Hash::check('password', $user->password)) {
+            $response['extra']['weak_password'] = true;
+        }
+
+        return response()->json($response);
     }
 
     /**
