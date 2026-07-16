@@ -270,7 +270,7 @@
             <div class="product-row">
                 <div class="product-image">
                     @if (! empty($imageUrl))
-                        <img src="{{ $imageUrl }}" alt="{{ $product?->name ?? 'Producto' }}" />
+                        <img src="{{ \Illuminate\Support\Facades\Storage::url($imageUrl) }}" alt="{{ $product?->name ?? 'Producto' }}" />
                     @else
                         Producto
                     @endif
