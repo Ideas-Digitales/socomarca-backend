@@ -35,13 +35,8 @@
         }
         .cart-icon {
             display: inline-block;
-            width: 80px;
-            height: 80px;
-            line-height: 80px;
-            border-radius: 50%;
-            background-color: #6cb409;
-            color: #ffffff;
-            font-size: 36px;
+            width: 90px;
+            height: 90px;
         }
         .intro {
             text-align: center;
@@ -204,15 +199,14 @@
         }
         .social a {
             display: inline-block;
-            width: 32px;
-            height: 32px;
-            line-height: 32px;
-            border: 2px solid #ffffff;
-            border-radius: 50%;
-            color: #ffffff;
             margin: 0 6px;
             text-decoration: none;
-            font-size: 14px;
+        }
+        .social a img {
+            display: block;
+            width: 36px;
+            height: 36px;
+            border: 0;
         }
         .footer .sent-by {
             font-size: 14px;
@@ -240,6 +234,7 @@
         $refund = 0;
         $total = (int) $order->amount;
         $orderDate = optional($order->created_at)->format('d/m/Y H:i');
+        $iconBase = rtrim(config('random.email_icons_base_url'), '/');
     @endphp
 
     <div class="container">
@@ -249,7 +244,7 @@
         <div class="divider"></div>
 
         <div class="cart-icon-wrapper">
-            <span class="cart-icon">&#128722;</span>
+            <img class="cart-icon" src="{{ $iconBase }}/cart.png" width="90" height="90" alt="" />
         </div>
 
         <p class="intro">
@@ -367,11 +362,11 @@
         <div class="footer">
             <div class="tagline">Socomarca Compra Rápida</div>
             <div class="social">
-                <a href="#" aria-label="Facebook">f</a>
-                <a href="#" aria-label="Twitter">t</a>
-                <a href="#" aria-label="Instagram">i</a>
-                <a href="#" aria-label="YouTube">y</a>
-                <a href="#" aria-label="Pinterest">p</a>
+                <a href="#" aria-label="Facebook"><img src="{{ $iconBase }}/facebook.png" width="36" height="36" alt="Facebook" /></a>
+                <a href="#" aria-label="Twitter"><img src="{{ $iconBase }}/twitter.png" width="36" height="36" alt="Twitter" /></a>
+                <a href="#" aria-label="Instagram"><img src="{{ $iconBase }}/instagram.png" width="36" height="36" alt="Instagram" /></a>
+                <a href="#" aria-label="YouTube"><img src="{{ $iconBase }}/youtube.png" width="36" height="36" alt="YouTube" /></a>
+                <a href="#" aria-label="Pinterest"><img src="{{ $iconBase }}/pinterest.png" width="36" height="36" alt="Pinterest" /></a>
             </div>
             <div class="sent-by">Este correo fue enviado por: contacto@socomarca.cl</div>
             <div class="contact">Por cualquier duda comunicarse a contacto@socomarca.cl</div>
