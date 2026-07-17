@@ -134,3 +134,22 @@ function createUserWithPermissions(array $permissions): User {
     $user->givePermissionTo($permissions);
     return $user;
 }
+
+function createCustomerWithBranch(): array
+{
+    $user = User::factory()->create([
+        "rut" => "12345678-9",
+        "user_code" => "12345678-9",
+        "branch_code" => "CM",
+    ]);
+    if (!$user->hasRole("customer")) {
+        $user->assignRole("customer");
+    }
+    $branch = Branch::factory()->create([
+        "user_id" => $user->id,
+        "code" => "CM",
+        "user_code" => "12345678-9",
+    ]);
+
+    return [$user, $branch];
+}

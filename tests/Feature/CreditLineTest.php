@@ -1,20 +1,19 @@
 <?php
 
 use App\Models\User;
-use App\Services\RandomApiService;
-use Illuminate\Support\Facades\Log;
-use Mockery\MockInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Laravel\Sanctum\Sanctum;
+
+use function Pest\Laravel\getJson;
 
 uses(RefreshDatabase::class);
 
-test('it returns valid credit line successfully', function () {
-    /** @var TestCase $this */
-
+it('should return valid credit line successfully', function () {
     /** @var User $user */
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
+    Sanctum::actingAs($user, ['api-access']);
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/gestion/credito/resumen/*" => Http::response([
@@ -28,9 +27,8 @@ test('it returns valid credit line successfully', function () {
         ], 200)
     ]);
 
-    $response = $this->actingAs($user, 'sanctum')->getJson(route('users.credit-lines', $user->id));
-
-    $response->assertStatus(200)
+    getJson(route('users.credit-lines', $user->id))
+        ->assertStatus(200)
         ->assertJson([
             'KOEN' => '12345678-9',
             'SUEN' => 'CM',
@@ -42,20 +40,18 @@ test('it returns valid credit line successfully', function () {
         ]);
 });
 
-test('it returns 500 when Random API returns 200 but with invalid response', function () {
-    /** @var TestCase $this */
-
+it('should return 500 when Random API returns 200 but with invalid response', function () {
     /** @var User $user */
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
+    Sanctum::actingAs($user, ['api-access']);
 
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/gestion/credito/resumen/*" => Http::response([], 200)
     ]);
 
-    $response = $this->actingAs($user)->getJson(route('users.credit-lines', $user->id));
-    $response
+    getJson(route('users.credit-lines', $user->id))
         ->assertJson([
             'message' => 'No se pudo obtener el crédito del cliente',
             'detail' => 'Error de comunicación con el servicio de Random API'
@@ -63,20 +59,18 @@ test('it returns 500 when Random API returns 200 but with invalid response', fun
         ->assertStatus(500);
 });
 
-test('it returns 500 when Random API fails with a code different from 404', function () {
-    /** @var TestCase $this */
-
+it('should return 500 when Random API fails with a code different from 404', function () {
     /** @var User $user */
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
+    Sanctum::actingAs($user, ['api-access']);
 
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/gestion/credito/resumen/*" => Http::response([], 500)
     ]);
 
-    $response = $this->actingAs($user)->getJson(route('users.credit-lines', $user->id));
-    $response
+    getJson(route('users.credit-lines', $user->id))
         ->assertJson([
             'message' => 'No se pudo obtener el crédito del cliente',
             'detail' => 'Error de comunicación con el servicio de Random API'
@@ -84,12 +78,11 @@ test('it returns 500 when Random API fails with a code different from 404', func
         ->assertStatus(500);
 });
 
-test('it returns 404 when credit is not found', function () {
-    /** @var TestCase $this */
-
+it('should return 404 when credit is not found', function () {
     /** @var User $user */
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
+    Sanctum::actingAs($user, ['api-access']);
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/gestion/credito/resumen/*" => Http::response([
@@ -99,8 +92,7 @@ test('it returns 404 when credit is not found', function () {
         ], 404)
     ]);
 
-    $response = $this->actingAs($user)->getJson(route('users.credit-lines', $user->id));
-    $response
+    getJson(route('users.credit-lines', $user->id))
         ->assertJson([
             'message' => 'No se pudo obtener el crédito del cliente',
             'detail' => 'Recurso no encontrado en Random API'
@@ -108,13 +100,12 @@ test('it returns 404 when credit is not found', function () {
         ->assertNotFound();
 });
 
-test('it returns local credit state and skips Random API when credit line is blocked', function () {
-    /** @var TestCase $this */
-
+it('should return local credit state and skips Random API when credit line is blocked', function () {
     /** @var User $user */
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
-    
+    Sanctum::actingAs($user, ['api-access']);
+
     $localState = [
         'KOEN' => '12345678-9',
         'SUEN' => 'CM',
@@ -133,7 +124,7 @@ test('it returns local credit state and skips Random API when credit line is blo
 
     Http::fake();
 
-    $response = $this->actingAs($user, 'sanctum')->getJson(route('users.credit-lines', $user->id));
+    $response = getJson(route('users.credit-lines', $user->id));
 
     Http::assertNothingSent();
 
@@ -141,13 +132,12 @@ test('it returns local credit state and skips Random API when credit line is blo
         ->assertJson($localState);
 });
 
-test('it calls Random API when local credit line exists but is not blocked', function () {
-    /** @var TestCase $this */
-
+it('should call Random API when local credit line exists but is not blocked', function () {
     /** @var User $user */
     $user = User::factory()->create(['rut' => '12345678-9', 'user_code' => '12345678-9', 'branch_code' => 'CM']);
     $user->givePermissionTo('read-own-credit-lines');
-    
+    Sanctum::actingAs($user, ['api-access']);
+
     $localState = [
         'KOEN' => '12345678-9',
         'SUEN' => 'CM',
@@ -174,12 +164,12 @@ test('it calls Random API when local credit line exists but is not blocked', fun
         ], 200)
     ]);
 
-    $response = $this->actingAs($user, 'sanctum')->getJson(route('users.credit-lines', $user->id));
+    $response = getJson(route('users.credit-lines', $user->id));
 
     Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($baseUrl) {
         return str_starts_with($request->url(), "{$baseUrl}/gestion/credito/resumen/");
     });
-    
+
     $response->assertStatus(200)
         ->assertJson([
             'KOEN' => '12345678-9',

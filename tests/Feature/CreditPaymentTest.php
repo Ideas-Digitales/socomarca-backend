@@ -11,34 +11,13 @@ use App\Models\Product;
 use App\Models\Branch;
 use App\Services\Random\RandomDocumentService;
 use Illuminate\Events\CallQueuedListener;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
-use Mockery\MockInterface;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-use function Pest\Laravel\actingAs;
-
-uses(RefreshDatabase::class);
-
-function createCustomerWithBranch(): array
-{
-    $user = User::factory()->create([
-        "rut" => "12345678-9",
-        "user_code" => "12345678-9",
-        "branch_code" => "CM",
-    ]);
-    if (!$user->hasRole("customer")) {
-        $user->assignRole("customer");
-    }
-    $branch = Branch::factory()->create([
-        "user_id" => $user->id,
-        "code" => "CM",
-        "user_code" => "12345678-9",
-    ]);
-
-    return [$user, $branch];
-}
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
 
 test("it rejects payment if the user credit line is blocked", function () {
     [$user, $branch] = createCustomerWithBranch();
@@ -65,7 +44,8 @@ test("it rejects payment if the user credit line is blocked", function () {
 
     PaymentMethod::where("code", "random_credit")->firstOrFail();
 
-    $response = actingAs($user)->postJson(route("orders.pay"), [
+    Sanctum::actingAs($user, ['api-access']);
+    $response = postJson(route("orders.pay"), [
         "address_id" => $address->id,
         "payment_method" => "random_credit",
         "branch_id" => $branch->id,
@@ -118,13 +98,14 @@ test(
                 200,
             ),
         ]);
-        $this->actingAs($user)
-            ->getJson(route("users.credit-lines", ["user" => $user->id]))
+        Sanctum::actingAs($user, ['api-access']);
+        getJson(route("users.credit-lines", ["user" => $user->id]))
             ->json();
 
         $randomDocumentServiceSpy = $this->spy(RandomDocumentService::class);
 
-        $this->actingAs($user)->postJson(route("orders.pay"), [
+        Sanctum::actingAs($user, ['api-access']);
+        postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
@@ -228,7 +209,8 @@ test(
             ),
         ]);
 
-        $this->actingAs($user)->postJson(route("orders.pay"), [
+        Sanctum::actingAs($user, ['api-access']);
+        postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
@@ -308,12 +290,12 @@ test("it can process a credit line payment successfully", function () {
         ),
     ]);
 
-    $currentCredit = $this->actingAs($user)
-        ->getJson(route("users.credit-lines", ["user" => $user->id]))
+    Sanctum::actingAs($user, ['api-access']);
+    $currentCredit = getJson(route("users.credit-lines", ["user" => $user->id]))
         ->json();
     $CRSDVU = $currentCredit["CRSDVU"];
 
-    $response = $this->actingAs($user)->postJson(route("orders.pay"), [
+    $response = postJson(route("orders.pay"), [
         "address_id" => $address->id,
         "payment_method" => "random_credit",
         "branch_id" => $branch->id,
@@ -380,7 +362,7 @@ test("it can process a credit line payment successfully", function () {
             $payload["datos"]["tido"] === "NVV" &&
             count($payload["datos"]["lineas"]) === 1 &&
             $payload["datos"]["lineas"][0]["codigoProducto"] ===
-                $product->sku &&
+            $product->sku &&
             $payload["datos"]["lineas"][0]["cantidad"] === 1;
     });
 
@@ -389,7 +371,7 @@ test("it can process a credit line payment successfully", function () {
     expect($order->random_document_number)->toBe("0000000001");
     expect($payment->status)->toBe("processing");
 
-    $response = $this->actingAs($user)->getJson(
+    $response = getJson(
         route("orders.index", [
             "payment_method_code" => "random_credit",
         ]),
@@ -406,7 +388,7 @@ test("it can process a credit line payment successfully", function () {
         "random_credit",
     );
 
-    $response = $this->actingAs($user)->getJson(route("orders.index"));
+    $response = getJson(route("orders.index"));
 
     expect($response->json("data.0.payments.0.auth_code"))->toBe(
         $payment->auth_code,
@@ -419,7 +401,7 @@ test("it can process a credit line payment successfully", function () {
         "random_credit",
     );
 
-    $response = $this->actingAs($user)->getJson(
+    $response = getJson(
         route("orders.index", [
             "payment_method_code" => "transbank",
         ]),
@@ -493,12 +475,12 @@ test(
             ),
         ]);
 
-        $currentCredit = $this->actingAs($user)
-            ->getJson(route("users.credit-lines", ["user" => $user->id]))
+        Sanctum::actingAs($user, ['api-access']);
+        $currentCredit = getJson(route("users.credit-lines", ["user" => $user->id]))
             ->json();
         $CRSDVU = $currentCredit["CRSDVU"];
 
-        $response = $this->actingAs($user)->postJson(route("orders.pay"), [
+        $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
@@ -567,7 +549,7 @@ test(
                 $payload["datos"]["tido"] === "NVV" &&
                 count($payload["datos"]["lineas"]) === 1 &&
                 $payload["datos"]["lineas"][0]["codigoProducto"] ===
-                    $product->sku &&
+                $product->sku &&
                 $payload["datos"]["lineas"][0]["cantidad"] === 1;
         });
 
@@ -584,7 +566,7 @@ test(
         )->toBe($branch->id); // ¡IMPORTANT!
         expect($payment->status)->toBe("processing");
 
-        $response = $this->actingAs($user)->getJson(
+        $response = getJson(
             route("orders.index", [
                 "payment_method_code" => "random_credit",
             ]),
@@ -603,7 +585,7 @@ test(
             "random_credit",
         );
 
-        $response = $this->actingAs($user)->getJson(route("orders.index"));
+        $response = getJson(route("orders.index"));
 
         expect($response->json("data.0.payments.0.auth_code"))->toBe(
             $payment->auth_code,
@@ -618,7 +600,7 @@ test(
             "random_credit",
         );
 
-        $response = $this->actingAs($user)->getJson(
+        $response = getJson(
             route("orders.index", [
                 "payment_method_code" => "transbank",
             ]),
@@ -669,14 +651,15 @@ test("it handles credit line payment failure correctly", function () {
         "{$baseUrl}/web32/documento" => Http::response(
             [
                 "message" =>
-                    "5B8F5331-D5AF-4C80-A1E8-E7C9E096150A| El funcionario del documento no es válido",
+                "5B8F5331-D5AF-4C80-A1E8-E7C9E096150A| El funcionario del documento no es válido",
                 "errorId" => "3YiKmHn_",
             ],
             200,
         ),
     ]);
 
-    $response = $this->actingAs($user)->postJson(route("orders.pay"), [
+    Sanctum::actingAs($user, ['api-access']);
+    $response = postJson(route("orders.pay"), [
         "address_id" => $address->id,
         "payment_method" => "random_credit",
         "branch_id" => $branch->id,
@@ -731,7 +714,8 @@ test(
             ),
         ]);
 
-        $response = $this->actingAs($user)->postJson(route("orders.pay"), [
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
@@ -767,7 +751,8 @@ test(
 
         \App\Models\PaymentMethod::where("code", "random_credit")->delete();
 
-        $response = $this->actingAs($user)->postJson(route("orders.pay"), [
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
@@ -835,7 +820,8 @@ test(
             ),
         ]);
 
-        $response = $this->actingAs($user)->postJson(route("orders.pay"), [
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
@@ -902,7 +888,8 @@ test(
             ),
         ]);
 
-        $this->actingAs($user)->postJson(route("orders.pay"), [
+        Sanctum::actingAs($user, ['api-access']);
+        postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
             "branch_id" => $branch->id,
