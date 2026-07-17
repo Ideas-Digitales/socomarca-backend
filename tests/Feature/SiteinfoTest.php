@@ -1,35 +1,33 @@
 <?php
 
-namespace Tests\Feature;
-
 use App\Models\Siteinfo;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 
-uses(RefreshDatabase::class);
+use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\putJson;
 
 describe('Siteinfo API', function () {
     describe('Show endpoint', function () {
         it('requires authentication', function () {
-            $this->getJson(route('siteinfo.show'))->assertUnauthorized();
+            getJson(route('siteinfo.show'))->assertUnauthorized();
         });
 
         it('requires read-content-settings permission', function () {
-            $user = User::factory()->create(); // User without permission
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.show'))
-                ->assertForbidden();
+            $user = User::factory()->create();
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('siteinfo.show'))->assertForbidden();
         });
 
         it('returns default structure when database is empty', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-content-settings');
-            
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.show'))
+            $user = createUserWithPermissions(['read-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('siteinfo.show'))
                 ->assertOk()
                 ->assertJsonStructure([
                     'header' => ['contact_phone', 'contact_email'],
@@ -39,14 +37,14 @@ describe('Siteinfo API', function () {
         });
 
         it('returns saved values from database', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-content-settings');
+            $user = createUserWithPermissions(['read-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
+
             Siteinfo::create(['key' => 'header', 'value' => ['contact_phone' => '123', 'contact_email' => 'a@b.com']]);
             Siteinfo::create(['key' => 'footer', 'value' => ['contact_phone' => '456', 'contact_email' => 'c@d.com']]);
             Siteinfo::create(['key' => 'social_media', 'value' => [['label' => 'fb', 'link' => 'fb.com']]]);
 
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.show'))
+            getJson(route('siteinfo.show'))
                 ->assertOk()
                 ->assertJson([
                     'header' => ['contact_phone' => '123', 'contact_email' => 'a@b.com'],
@@ -58,16 +56,17 @@ describe('Siteinfo API', function () {
 
     describe('Update endpoint', function () {
         it('requires authentication and correct permission', function () {
-            $this->putJson(route('siteinfo.update'), [])->assertUnauthorized();
+            putJson(route('siteinfo.update'), [])->assertUnauthorized();
 
             $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-            $this->putJson(route('siteinfo.update'), [])->assertForbidden();
+            Sanctum::actingAs($user, ['api-access']);
+
+            putJson(route('siteinfo.update'), [])->assertForbidden();
         });
 
         it('allows admin to update siteinfo', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-content-settings');
+            $user = createUserWithPermissions(['update-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
 
             $payload = [
                 'header' => ['contact_phone' => '999', 'contact_email' => 'x@y.com'],
@@ -75,14 +74,13 @@ describe('Siteinfo API', function () {
                 'social_media' => [['label' => 'ig', 'link' => 'ig.com']]
             ];
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson(route('siteinfo.update'), $payload)
+            putJson(route('siteinfo.update'), $payload)
                 ->assertOk()
                 ->assertJson(['message' => 'Siteinfo updated successfully']);
 
-            $this->assertDatabaseHas('siteinfo', ['key' => 'header']);
-            $this->assertDatabaseHas('siteinfo', ['key' => 'footer']);
-            $this->assertDatabaseHas('siteinfo', ['key' => 'social_media']);
+            assertDatabaseHas('siteinfo', ['key' => 'header']);
+            assertDatabaseHas('siteinfo', ['key' => 'footer']);
+            assertDatabaseHas('siteinfo', ['key' => 'social_media']);
         });
     });
 });
@@ -90,33 +88,32 @@ describe('Siteinfo API', function () {
 describe('Terms and Privacy Policy API', function () {
     describe('Authentication and Authorization', function () {
         it('requires authentication for terms and privacy policy', function () {
-            $this->getJson(route('siteinfo.terms'))->assertUnauthorized();
-            $this->getJson(route('siteinfo.privacy-policy'))
+            getJson(route('siteinfo.terms'))->assertUnauthorized();
+            getJson(route('siteinfo.privacy-policy'))
                 ->assertJsonStructure(['content']);
         });
 
         it('requires read-content-settings permission', function () {
-            $user = User::factory()->create(); // User without permission
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.terms'))
-                ->assertForbidden();
+            $user = User::factory()->create();
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('siteinfo.terms'))->assertForbidden();
         });
     });
 
     describe('Content Display', function () {
         it('returns correct content for terms and privacy policy', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-content-settings');
+            $user = createUserWithPermissions(['read-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
+
             Siteinfo::create(['key' => 'terms', 'content' => '<h1>Terms</h1>']);
             Siteinfo::create(['key' => 'privacy_policy', 'content' => '<h1>Policy</h1>']);
 
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.terms'))
+            getJson(route('siteinfo.terms'))
                 ->assertOk()
                 ->assertJson(['content' => '<h1>Terms</h1>']);
 
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.privacy-policy'))
+            getJson(route('siteinfo.privacy-policy'))
                 ->assertOk()
                 ->assertJson(['content' => '<h1>Policy</h1>']);
         });
@@ -124,21 +121,19 @@ describe('Terms and Privacy Policy API', function () {
 
     describe('Content Updates', function () {
         it('allows editor to update terms and privacy policy', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-content-settings');
+            $user = createUserWithPermissions(['update-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
 
-            $this->actingAs($user, 'sanctum');
-
-            $this->putJson(route('siteinfo.terms.update'), ['content' => '<h1>New Terms</h1>'])
+            putJson(route('siteinfo.terms.update'), ['content' => '<h1>New Terms</h1>'])
                 ->assertOk()
                 ->assertJson(['message' => 'Terms upadated succesfully']);
 
-            $this->putJson(route('siteinfo.privacy-policy.update'), ['content' => '<h1>New Policy</h1>'])
+            putJson(route('siteinfo.privacy-policy.update'), ['content' => '<h1>New Policy</h1>'])
                 ->assertOk()
                 ->assertJson(['message' => 'Privacy Policy updated successfully']);
 
-            $this->assertDatabaseHas('siteinfo', ['key' => 'terms', 'content' => '<h1>New Terms</h1>']);
-            $this->assertDatabaseHas('siteinfo', ['key' => 'privacy_policy', 'content' => '<h1>New Policy</h1>']);
+            assertDatabaseHas('siteinfo', ['key' => 'terms', 'content' => '<h1>New Terms</h1>']);
+            assertDatabaseHas('siteinfo', ['key' => 'privacy_policy', 'content' => '<h1>New Policy</h1>']);
         });
     });
 });
@@ -146,24 +141,23 @@ describe('Terms and Privacy Policy API', function () {
 describe('Customer Message API', function () {
     describe('Authentication and Authorization', function () {
         it('requires authentication', function () {
-            $this->getJson(route('siteinfo.customer-message'))->assertUnauthorized();
+            getJson(route('siteinfo.customer-message'))->assertUnauthorized();
         });
 
         it('requires read-content-settings permission', function () {
-            $user = User::factory()->create(); // User without permission
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.customer-message'))
-                ->assertForbidden();
+            $user = User::factory()->create();
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('siteinfo.customer-message'))->assertForbidden();
         });
     });
 
     describe('Content Display', function () {
         it('returns default structure', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-content-settings');
-            
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('siteinfo.customer-message'))
+            $user = createUserWithPermissions(['read-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('siteinfo.customer-message'))
                 ->assertOk()
                 ->assertJsonStructure([
                     'header' => ['color', 'content'],
@@ -186,11 +180,13 @@ describe('Customer Message API', function () {
                 ],
             ]);
 
-            Artisan::call('migrate', [
-                '--path' => 'database/migrations/2026_06_16_210000_migrate_customer_message_banner_to_slides.php',
-                '--realpath' => false,
-                '--force' => true,
-            ]);
+            // RefreshDatabase already ran every migration (including this one) against
+            // an empty table, so re-running it through the tracked migrator is a no-op.
+            // Invoke the migration class directly to exercise its transformation logic.
+            $migration = require database_path(
+                'migrations/2026_06_16_210000_migrate_customer_message_banner_to_slides.php'
+            );
+            $migration->up();
 
             $record = Siteinfo::where('key', 'customer_message')->first();
 
@@ -203,8 +199,8 @@ describe('Customer Message API', function () {
 
     describe('Content Updates', function () {
         it('allows superadmin to update customer message without header_content', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-content-settings');
+            $user = createUserWithPermissions(['update-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
 
             $payload = [
                 'header_color' => '#fff',
@@ -213,20 +209,22 @@ describe('Customer Message API', function () {
                 'message_enabled' => true,
             ];
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson(route('siteinfo.customer-message.update'), $payload)
+            putJson(route('siteinfo.customer-message.update'), $payload)
                 ->assertOk()
                 ->assertJson(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
 
             $record = Siteinfo::where('key', 'customer_message')->first();
             expect($record)->not->toBeNull();
-            expect($record->value['header']['content'])->toBe(''); // Debe ser string vacío
+            expect($record->value['header']['content'])->toBe('');
         });
 
         it('allows superadmin to update customer message with images', function () {
-            Storage::fake('public');
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-content-settings');
+            // AWS_URL is unset in testing, so the fake disk falls back to a relative
+            // "/storage/..." URL; force an absolute one to match what S3 returns in production.
+            Storage::fake('s3', ['url' => 'https://s3-fake-url.amazonaws.com']);
+            $user = createUserWithPermissions(['update-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
+
             $imagePath = public_path('images/test-image.png');
 
             if (!file_exists($imagePath)) {
@@ -247,8 +245,7 @@ describe('Customer Message API', function () {
                 'modal_image' => new UploadedFile($imagePath, 'modal.png', 'image/png', null, true),
             ];
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson(route('siteinfo.customer-message.update'), $payload)
+            putJson(route('siteinfo.customer-message.update'), $payload)
                 ->assertOk()
                 ->assertJson(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
 
@@ -258,15 +255,15 @@ describe('Customer Message API', function () {
             expect($record->value['banner']['enabled'])->toBeBool();
             expect($record->value['modal']['enabled'])->toBeBool();
             expect($record->value['message']['enabled'])->toBeBool();
-            
+
             expect($record->value['banner']['slides'][0]['desktop_image'])->toStartWith('http');
             expect($record->value['banner']['slides'][0]['mobile_image'])->toStartWith('http');
             expect($record->value['modal']['image'])->toStartWith('http');
         });
 
         it('stores multiple banner slides and preserves existing images', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-content-settings');
+            $user = createUserWithPermissions(['update-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
 
             $payload = [
                 'header_color' => '#fff',
@@ -294,8 +291,7 @@ describe('Customer Message API', function () {
                 ],
             ];
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson(route('siteinfo.customer-message.update'), $payload)
+            putJson(route('siteinfo.customer-message.update'), $payload)
                 ->assertOk();
 
             $record = Siteinfo::where('key', 'customer_message')->first();
@@ -308,8 +304,8 @@ describe('Customer Message API', function () {
         });
 
         it('allows superadmin to update customer message without images', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-content-settings');
+            $user = createUserWithPermissions(['update-content-settings']);
+            Sanctum::actingAs($user, ['api-access']);
 
             $payload = [
                 'header_color' => '#fff',
@@ -319,20 +315,17 @@ describe('Customer Message API', function () {
                 'message_enabled' => true,
             ];
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson(route('siteinfo.customer-message.update'), $payload)
+            putJson(route('siteinfo.customer-message.update'), $payload)
                 ->assertOk()
                 ->assertJson(['message' => 'Mensaje de bienvenida actualizado correctamente.']);
 
             $record = Siteinfo::where('key', 'customer_message')->first();
             expect($record)->not->toBeNull();
 
-            // Verifica que los campos booleanos sean booleanos
             expect($record->value['banner']['enabled'])->toBeBool();
             expect($record->value['modal']['enabled'])->toBeBool();
             expect($record->value['message']['enabled'])->toBeBool();
 
-            // Verifica que las imágenes sean string vacíos (no concatenados)
             expect($record->value['banner']['slides'])->toBe([]);
             expect($record->value['modal']['image'])->toBe('');
         });
@@ -342,24 +335,23 @@ describe('Customer Message API', function () {
 describe('Webpay Configuration API', function () {
     describe('Authentication and Authorization', function () {
         it('requires authentication for webpay config', function () {
-            $this->getJson(route('webpay.config'))->assertUnauthorized();
+            getJson(route('webpay.config'))->assertUnauthorized();
         });
 
         it('requires read-all-system-config permission', function () {
-            $user = User::factory()->create(); // User without permission
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('webpay.config'))
-                ->assertForbidden();
+            $user = User::factory()->create();
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('webpay.config'))->assertForbidden();
         });
     });
 
     describe('Configuration Display', function () {
         it('returns default structure when database is empty', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-all-system-config');
-            
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('webpay.config'))
+            $user = createUserWithPermissions(['read-all-system-config']);
+            Sanctum::actingAs($user, ['api-access']);
+
+            getJson(route('webpay.config'))
                 ->assertStatus(404)
                 ->assertJson([
                     'message' => 'No se encontró la configuración de Webpay',
@@ -368,8 +360,9 @@ describe('Webpay Configuration API', function () {
         });
 
         it('returns stored values', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-all-system-config');
+            $user = createUserWithPermissions(['read-all-system-config']);
+            Sanctum::actingAs($user, ['api-access']);
+
             $stored = [
                 'WEBPAY_COMMERCE_CODE' => '123456',
                 'WEBPAY_API_KEY' => 'SOMEKEY',
@@ -382,8 +375,7 @@ describe('Webpay Configuration API', function () {
                 'content' => 'Informacion de entorno webpay',
             ]);
 
-            $this->actingAs($user, 'sanctum')
-                ->getJson(route('webpay.config'))
+            getJson(route('webpay.config'))
                 ->assertOk()
                 ->assertJson($stored);
         });
@@ -398,18 +390,17 @@ describe('Webpay Configuration API', function () {
                 'WEBPAY_RETURN_URL' => 'https://abc.com',
             ];
 
-            // Unauthenticated
-            $this->putJson(route('webpay.config.update'), $payload)->assertUnauthorized();
+            putJson(route('webpay.config.update'), $payload)->assertUnauthorized();
 
-            // Authenticated but without permission (user doesn't have system config permission)
             $user = User::factory()->create();
-            $this->actingAs($user, 'sanctum');
-            $this->putJson(route('webpay.config.update'), $payload)->assertForbidden();
+            Sanctum::actingAs($user, ['api-access']);
+
+            putJson(route('webpay.config.update'), $payload)->assertForbidden();
         });
 
         it('allows user with update-system-config permission to update webpay config', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('update-system-config');
+            $user = createUserWithPermissions(['update-system-config']);
+            Sanctum::actingAs($user, ['api-access']);
 
             $payload = [
                 'WEBPAY_COMMERCE_CODE' => '7654321',
@@ -418,12 +409,11 @@ describe('Webpay Configuration API', function () {
                 'WEBPAY_RETURN_URL' => 'https://mysite.com/webpay/return',
             ];
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson(route('webpay.config.update'), $payload)
+            putJson(route('webpay.config.update'), $payload)
                 ->assertOk()
                 ->assertJson(['message' => 'Configuración de Webpay actualizada exitosamente']);
 
-            $this->assertDatabaseHas('siteinfo', [
+            assertDatabaseHas('siteinfo', [
                 'key' => 'WEBPAY_INFO',
             ]);
 
