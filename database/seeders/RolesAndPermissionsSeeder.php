@@ -18,13 +18,19 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions = config('authorization.permissions');
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+            Permission::firstOrCreate([
+                'name' => $permission,
+                'guard_name' => 'web',
+            ]);
         }
 
         $roles = config('authorization.roles');
 
         foreach ($roles as $roleName => $_permissions) {
-            $role = Role::firstOrCreate(['name' => $roleName]);
+            $role = Role::firstOrCreate([
+                'name' => $roleName,
+                'guard_name' => 'web',
+            ]);
             $role->syncPermissions($_permissions);
         }
     }
