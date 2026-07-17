@@ -1,40 +1,10 @@
 <?php
 
 use App\Models\Category;
-use App\Models\Price;
-use App\Models\Product;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-use function Pest\Laravel\actingAs;
+use Laravel\Sanctum\Sanctum;
+use Tests\Scenarios\CategoryScenario;
 use function Pest\Laravel\getJson;
-
-uses(RefreshDatabase::class);
-
-beforeEach(function () {
-    /**
-     * @var \Tests\TestCase $this
-     * @var \App\Models\User $this->user
-     */
-
-    $this->user = createUser();
-    $this->user->givePermissionTo("read-all-categories");
-    $this->user->update(["prices_lists" => [getPriceListCode()]]);
-});
-
-function createProductWithPrice(array $attributes = []): Product
-{
-    $product = Product::create($attributes);
-    Price::create([
-        "product_id" => $product->id,
-        "price_list_id" => $attributes["price_list_id"] ?? getPriceListCode(),
-        "unit" => "un",
-        "price" => 5000,
-        "stock" => $attributes["stock"] ?? 50,
-        "is_active" => $attributes["price_is_active"] ?? true,
-        "valid_from" => now()->subDays(10),
-    ]);
-    return $product;
-}
+use function Pest\Laravel\postJson;
 
 describe("Category API", function () {
     it("should require authentication for index", function () {
@@ -52,6 +22,10 @@ describe("Category API", function () {
          * @var \Tests\TestCase $this
          * @var \App\Models\User $this->user
          */
+
+        $scenario = CategoryScenario::make();
+        $user = $scenario->user;
+        Sanctum::actingAs($user, ['api-access']);
 
         // Super1: enabled, has products through cat1 and cat2
         $super1 = Category::factory()->create([
@@ -180,40 +154,11 @@ describe("Category API", function () {
             ]);
         }
 
-        $response = actingAs($this->user, "sanctum")->getJson(
+        $response = getJson(
             route("categories.index"),
         );
 
-        $response->assertStatus(200)->assertJsonStructure([
-            "*" => [
-                "id",
-                "name",
-                "code",
-                "level",
-                "key",
-                "products_count",
-                "categories" => [
-                    "*" => [
-                        "id",
-                        "name",
-                        "code",
-                        "level",
-                        "key",
-                        "products_count",
-                        "subcategories" => [
-                            "*" => [
-                                "id",
-                                "name",
-                                "code",
-                                "level",
-                                "key",
-                                "products_count",
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ]);
+        $response->assertStatus(200)->assertJsonStructure($scenario->listJsonStructure);
 
         $data = $response->json();
 
@@ -262,6 +207,10 @@ describe("Category API", function () {
          * @var \Tests\TestCase $this
          * @var \App\Models\User $this->user
          */
+
+        $scenario = CategoryScenario::make();
+        $user = $scenario->user;
+        Sanctum::actingAs($user, ['api-access']);
 
         // Super1: has products directly via supercategory_id
         $super1 = Category::factory()->create([
@@ -378,40 +327,11 @@ describe("Category API", function () {
             ]);
         }
 
-        $response = actingAs($this->user, "sanctum")->getJson(
+        $response = getJson(
             route("categories.index"),
         );
 
-        $response->assertStatus(200)->assertJsonStructure([
-            "*" => [
-                "id",
-                "name",
-                "code",
-                "level",
-                "key",
-                "products_count",
-                "categories" => [
-                    "*" => [
-                        "id",
-                        "name",
-                        "code",
-                        "level",
-                        "key",
-                        "products_count",
-                        "subcategories" => [
-                            "*" => [
-                                "id",
-                                "name",
-                                "code",
-                                "level",
-                                "key",
-                                "products_count",
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ]);
+        $response->assertStatus(200)->assertJsonStructure($scenario->listJsonStructure);
 
         $data = $response->json();
 
@@ -455,6 +375,10 @@ describe("Category API", function () {
          * @var \Tests\TestCase $this
          * @var \App\Models\User $this->user
          */
+
+        $scenario = CategoryScenario::make();
+        $user = $scenario->user;
+        Sanctum::actingAs($user, ['api-access']);
 
         $super1 = Category::factory()->create(["level" => 1]);
         $super2 = Category::factory()->create(["level" => 1]);
@@ -524,40 +448,11 @@ describe("Category API", function () {
             }
         }
 
-        $response = actingAs($this->user, "sanctum")->getJson(
+        $response = getJson(
             route("categories.index"),
         );
 
-        $response->assertStatus(200)->assertJsonStructure([
-            "*" => [
-                "id",
-                "name",
-                "code",
-                "level",
-                "key",
-                "products_count",
-                "categories" => [
-                    "*" => [
-                        "id",
-                        "name",
-                        "code",
-                        "level",
-                        "key",
-                        "products_count",
-                        "subcategories" => [
-                            "*" => [
-                                "id",
-                                "name",
-                                "code",
-                                "level",
-                                "key",
-                                "products_count",
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ]);
+        $response->assertStatus(200)->assertJsonStructure($scenario->listJsonStructure);
 
         $data = $response->json();
 
@@ -606,6 +501,10 @@ describe("Category API", function () {
          * @var \App\Models\User $this->user
          */
 
+        $scenario = CategoryScenario::make();
+        $user = $scenario->user;
+        Sanctum::actingAs($user, ['api-access']);
+
         $super1 = Category::factory()->create([
             "level" => 1,
             "name" => "CONGELADOS",
@@ -637,7 +536,7 @@ describe("Category API", function () {
             "key" => "0002",
         ]);
 
-        $response = actingAs($this->user, "sanctum")->postJson(
+        $response = postJson(
             route("categories.search"),
             [
                 "filters" => [
@@ -650,36 +549,7 @@ describe("Category API", function () {
             ],
         );
 
-        $response->assertStatus(200)->assertJsonStructure([
-            "*" => [
-                "id",
-                "name",
-                "code",
-                "level",
-                "key",
-                "products_count",
-                "categories" => [
-                    "*" => [
-                        "id",
-                        "name",
-                        "code",
-                        "level",
-                        "key",
-                        "products_count",
-                        "subcategories" => [
-                            "*" => [
-                                "id",
-                                "name",
-                                "code",
-                                "level",
-                                "key",
-                                "products_count",
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ]);
+        $response->assertStatus(200)->assertJsonStructure($scenario->listJsonStructure);
 
         $data = $response->json();
         expect($data)->toHaveCount(1);
@@ -697,6 +567,10 @@ describe("Category API", function () {
              * @var \Tests\TestCase $this
              * @var \App\Models\User $this->user
              */
+
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
 
             $super1 = Category::factory()->create([
                 "level" => 1,
@@ -739,9 +613,7 @@ describe("Category API", function () {
                 "enabled" => false,
             ]);
 
-            // actingAs($this->user, 'sanctum')
-            //     ->getJson(route('categories.index'))->ddJson();
-            $response = actingAs($this->user, "sanctum")->postJson(
+            $response = postJson(
                 route("categories.search"),
                 [
                     "filters" => [
@@ -774,6 +646,10 @@ describe("Category stock filter", function () {
              * @var \App\Models\User $this->user
              */
 
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -793,7 +669,7 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = actingAs($this->user, "sanctum")->getJson(
+            $response = getJson(
                 route("categories.index"),
             );
 
@@ -810,6 +686,10 @@ describe("Category stock filter", function () {
              * @var \Tests\TestCase $this
              * @var \App\Models\User $this->user
              */
+
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
 
             $super = Category::factory()->create([
                 "level" => 1,
@@ -830,7 +710,7 @@ describe("Category stock filter", function () {
                 "stock" => -5,
             ]);
 
-            $response = actingAs($this->user, "sanctum")->getJson(
+            $response = getJson(
                 route("categories.index"),
             );
 
@@ -847,6 +727,10 @@ describe("Category stock filter", function () {
              * @var \Tests\TestCase $this
              * @var \App\Models\User $this->user
              */
+
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
 
             $super = Category::factory()->create([
                 "level" => 1,
@@ -882,7 +766,7 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = actingAs($this->user, "sanctum")->getJson(
+            $response = getJson(
                 route("categories.index"),
             );
 
@@ -902,6 +786,10 @@ describe("Category stock filter", function () {
              * @var \Tests\TestCase $this
              * @var \App\Models\User $this->user
              */
+
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
 
             $super = Category::factory()->create([
                 "level" => 1,
@@ -944,7 +832,7 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = actingAs($this->user, "sanctum")->getJson(
+            $response = getJson(
                 route("categories.index"),
             );
 
@@ -968,6 +856,10 @@ describe("Category stock filter", function () {
              * @var \App\Models\User $this->user
              */
 
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -988,7 +880,7 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = actingAs($this->user, "sanctum")->postJson(
+            $response = postJson(
                 route("categories.search"),
                 [
                     "filters" => [
@@ -1015,6 +907,10 @@ describe("Category stock filter", function () {
              * @var \App\Models\User $this->user
              */
 
+            $scenario = CategoryScenario::make();
+            $user = $scenario->user;
+            Sanctum::actingAs($user, ['api-access']);
+
             $super = Category::factory()->create([
                 "level" => 1,
                 "enabled" => true,
@@ -1035,7 +931,7 @@ describe("Category stock filter", function () {
                 "stock" => 100,
             ]);
 
-            $response = actingAs($this->user, "sanctum")->postJson(
+            $response = postJson(
                 route("categories.search"),
                 [
                     "filters" => [

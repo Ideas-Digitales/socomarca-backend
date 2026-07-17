@@ -153,3 +153,18 @@ function createCustomerWithBranch(): array
 
     return [$user, $branch];
 }
+
+function createProductWithPrice(array $attributes = []): Product
+{
+    $product = Product::create($attributes);
+    Price::create([
+        "product_id" => $product->id,
+        "price_list_id" => $attributes["price_list_id"] ?? getPriceListCode(),
+        "unit" => "un",
+        "price" => 5000,
+        "stock" => $attributes["stock"] ?? 50,
+        "is_active" => $attributes["price_is_active"] ?? true,
+        "valid_from" => now()->subDays(10),
+    ]);
+    return $product;
+}
