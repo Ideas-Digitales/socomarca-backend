@@ -23,8 +23,6 @@ class UpdateRequest extends FormRequest
     {
         return [
             'email' => 'sometimes|email|unique:App\Models\User,email',
-            'current_password' => 'required|string',
-            'password' => 'sometimes|string|min:8|confirmed|different:current_password',
         ];
     }
 }

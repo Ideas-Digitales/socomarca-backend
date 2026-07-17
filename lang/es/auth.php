@@ -15,7 +15,9 @@ return [
 
     'failed' => 'Las credenciales ingresadas no coinciden con los registros del servidor',
     'password' => 'La contraseña es incorrecta',
+    'password_reset' => 'Una nueva contraseña provisional ha sido enviada.',
     'throttle' => 'Demasiados intentos de login. Por favor intente de nuevo en :seconds segundos.',
     'credentials_update' => 'Credenciales actualizadas exitosamente.',
+    'missing_email' => 'El usuario no tiene una dirección de correo asociada.',
 
 ];

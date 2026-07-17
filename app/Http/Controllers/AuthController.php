@@ -29,7 +29,7 @@ class AuthController extends Controller
         // Crear token con el nombre del dispositivo
 
         $tokenName = $request->device_name ?? 'unknown-device';
-        $token = $user->createToken($tokenName)->plainTextToken;
+        $token = $user->createToken($tokenName, ['api-access'])->plainTextToken;
 
         // Obtener roles y permisos
         $roles = $user->getRoleNames();
