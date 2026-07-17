@@ -2,16 +2,26 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Tests\TestCase;
 
-function createPermissions(array $permissions) {
+use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\assertDatabaseMissing;
+use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\patchJson;
+use function Pest\Laravel\postJson;
+
+function createPermissions(array $permissions)
+{
     foreach ($permissions as $permission) {
         Permission::firstOrCreate(['name' => $permission]);
     }
 }
 
-describe('Users read endpoint', function() {
+describe('Users read endpoint', function () {
     it('should return a paginated normal users list', function () {
         $permissions = ['read-users'];
         Role::firstOrCreate(['name' => 'customer', 'guard_name' => 'web']);
@@ -23,9 +33,8 @@ describe('Users read endpoint', function() {
         foreach ($users as $user) {
             $user->assignRole('customer');
         }
-
-        $this->actingAs($admin, 'sanctum')
-            ->getJson('/api/users')
+        Sanctum::actingAs($admin, ['api-access']);
+        getJson('/api/users')
             ->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
@@ -66,15 +75,15 @@ describe('Users read endpoint', function() {
         $superadminUser = User::factory()->create();
         $superadminUser->assignRole('superadmin');
 
-        $response = $this->actingAs($admin, 'sanctum')
-            ->getJson('/api/users')
+        Sanctum::actingAs($admin, ['api-access']);
+        $response = getJson('/api/users')
             ->assertStatus(200);
         $userIds = collect($response->json('data'))->pluck('id')->toArray();
-//        dd([
-//            'userIds' => $userIds,
-//            'adminUser' => $adminUser->id,
-//            'superadminUser' => $superadminUser->id,
-//        ]);
+        //        dd([
+        //            'userIds' => $userIds,
+        //            'adminUser' => $adminUser->id,
+        //            'superadminUser' => $superadminUser->id,
+        //        ]);
 
         // Verify admin users are not included in the response
         expect($userIds)->not->toContain($adminUser->id)
@@ -102,8 +111,8 @@ describe('Users read endpoint', function() {
         $superadminUser = User::factory()->create();
         $superadminUser->assignRole('superadmin');
 
-        $response = $this->actingAs($admin, 'sanctum')
-            ->getJson('/api/users')
+        Sanctum::actingAs($admin, ['api-access']);
+        $response = getJson('/api/users')
             ->assertStatus(200);
 
         // Verify all users (including admin users) are included in the response
@@ -122,8 +131,8 @@ describe('User show endpoint', function () {
         $admin->givePermissionTo($permissions);
         User::factory()->count(3)->create();
 
-        $this->actingAs($admin, 'sanctum')
-            ->getJson('/api/users/99999')
+        Sanctum::actingAs($admin, ['api-access']);
+        getJson('/api/users/99999')
             ->assertStatus(404);
     });
 
@@ -136,8 +145,8 @@ describe('User show endpoint', function () {
         $user = User::factory()->create();
         $user->assignRole('customer');
 
-        $this->actingAs($admin, 'sanctum')
-            ->getJson("/api/users/{$user->id}")
+        Sanctum::actingAs($admin, ['api-access']);
+        getJson("/api/users/{$user->id}")
             ->assertStatus(200)
             ->assertJsonStructure([
                 'id',
@@ -160,8 +169,8 @@ describe('User show endpoint', function () {
         $adminUser = User::factory()->create();
         $adminUser->assignRole('admin');
 
-        $this->actingAs($admin, 'sanctum')
-            ->getJson("/api/users/{$adminUser->id}")
+        Sanctum::actingAs($admin, ['api-access']);
+        getJson("/api/users/{$adminUser->id}")
             ->assertStatus(200)
             ->assertJsonStructure([
                 'id',
@@ -188,8 +197,8 @@ describe('User creation endpoint', function () {
         $userData['password_confirmation'] = $userData['password'];
         $userData['email'] = $existingUser->email;
 
-        $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
     });
@@ -203,8 +212,8 @@ describe('User creation endpoint', function () {
         $userData = generateUserData();
         $userData['password_confirmation'] = $userData['password'];
         $userData['rut'] = $existingUser->rut;
-        $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertStatus(422)
             ->assertJsonValidationErrors(['rut']);
     });
@@ -212,8 +221,8 @@ describe('User creation endpoint', function () {
     it('should deny user creation without \'create-users\' permission', function () {
         $user = User::factory()->create();
         $userData = generateUserData();
-        $this->actingAs($user, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($user, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertForbidden();
     });
 
@@ -232,11 +241,10 @@ describe('User creation endpoint', function () {
         $userData2['password_confirmation'] = $userData2['password'];
         $userData2['roles'] = ['superadmin'];
 
-        $this->actingAs($admin, 'sanctum')
-            ->postJson(route('users.store'), $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson(route('users.store'), $userData)
             ->assertCreated();
-        $response = $this->actingAs($admin, 'sanctum')
-            ->postJson(route('users.store'), $userData2)
+        $response = postJson(route('users.store'), $userData2)
             ->assertCreated();
 
         $adminCreated = User::where('email', $userData['email'])->first();
@@ -261,8 +269,8 @@ describe('User creation endpoint', function () {
         $userData = generateUserData();
         $userData['password_confirmation'] = 'different_password';
 
-        $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertStatus(422)
             ->assertJsonValidationErrors(['password']);
     });
@@ -277,8 +285,8 @@ describe('User creation endpoint', function () {
         $userData['password_confirmation'] = $userData['password'];
         $userData['email'] = 'invalid-email-format';
 
-        $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
     });
@@ -293,8 +301,8 @@ describe('User creation endpoint', function () {
         $userData['password_confirmation'] = $userData['password'];
         $userData['roles'] = ['admin'];
 
-        $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertForbidden();
     });
 
@@ -310,8 +318,8 @@ describe('User creation endpoint', function () {
         $userData['password_confirmation'] = $userData['password'];
         $userData['roles'] = ['customer'];
 
-        $response = $this->actingAs($admin, 'sanctum')
-            ->postJson('/api/users', $userData)
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
             ->assertCreated();
 
         $createdUser = User::where('email', $userData['email'])->first();
@@ -342,8 +350,8 @@ describe('User update endpoint', function () {
                 'roles' => [$role]
             ];
 
-            $this->actingAs($admin, 'sanctum')
-                ->patchJson("/api/users/{$user->id}", $updateData)
+            Sanctum::actingAs($admin, ['api-access']);
+            patchJson("/api/users/{$user->id}", $updateData)
                 ->assertStatus(200);
 
             $user->refresh();
@@ -352,7 +360,9 @@ describe('User update endpoint', function () {
         }
     });
 
-    it('should send the temporary password email after password update', function() {
+    it('should send the temporary password email after password update', function () {
+        /** @var TestCase $this */
+
         $this->freezeTime(function (\Illuminate\Support\Carbon $time) {
             \Illuminate\Support\Facades\Notification::fake();
             Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
@@ -370,14 +380,15 @@ describe('User update endpoint', function () {
                 'password_confirmation' => $password,
             ];
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->patchJson("/api/users/{$user->id}", $payload);
+            Sanctum::actingAs($admin, ['api-access']);
+            $response = patchJson("/api/users/{$user->id}", $payload);
 
             $response
                 ->assertSuccessful()
-                ->assertJson(fn(\Illuminate\Testing\Fluent\AssertableJson $json) => $json->has('user.password_changed_at')
-                    ->where('password_changed', true)
-                    ->etc()
+                ->assertJson(
+                    fn(\Illuminate\Testing\Fluent\AssertableJson $json) => $json->has('user.password_changed_at')
+                        ->where('password_changed', true)
+                        ->etc()
                 );
 
             \Illuminate\Support\Facades\Notification::assertSentTo(
@@ -407,26 +418,10 @@ describe('User update endpoint', function () {
             'name' => fake()->firstName() . ' UpdateTest ' . fake()->lastName(),
         ];
 
-        $this->actingAs($admin, 'sanctum')
-            ->patchJson("/api/users/{$adminUser->id}", $updateData)
+        Sanctum::actingAs($admin, ['api-access']);
+        patchJson("/api/users/{$adminUser->id}", $updateData)
             ->assertForbidden();
     });
-
-//    it('should fail when payload is incomplete during a full update', function() {
-//        $admin = User::factory()->create();
-//        $admin->assignRole('admin');
-//
-//        $user = User::factory()->create();
-//        $user->assignRole('cliente');
-//
-//        $payload = [
-//            'name' => fake()->name,
-//        ];
-//
-//        $this->actingAs($admin, 'sanctum')
-//            ->putJson("/api/users/{$user->id}", $payload)
-//            ->assertInvalid(['email', 'phone', 'is_active', 'password', 'roles']);
-//    });
 });
 
 describe('User deletion endpoint', function () {
@@ -446,11 +441,11 @@ describe('User deletion endpoint', function () {
             $user = User::factory()->create($userData);
             $user->assignRole($role);
 
-            $this->actingAs($admin, 'sanctum')
-                ->deleteJson("/api/users/{$user->id}")
+            Sanctum::actingAs($admin, ['api-access']);
+            deleteJson("/api/users/{$user->id}")
                 ->assertStatus(200);
 
-            $this->assertDatabaseMissing('users', [
+            assertDatabaseMissing('users', [
                 'id' => $user->id
             ]);
         }
@@ -465,11 +460,11 @@ describe('User deletion endpoint', function () {
         $admin->givePermissionTo($permissions);
         $admin->refresh();
 
-        $this->actingAs($admin, 'sanctum')
-            ->deleteJson("/api/users/{$admin->id}")
+        Sanctum::actingAs($admin, ['api-access']);
+        deleteJson("/api/users/{$admin->id}")
             ->assertForbidden();
 
-        $this->assertDatabaseHas('users', [
+        assertDatabaseHas('users', [
             'id' => $admin->id
         ]);
     });
@@ -485,49 +480,12 @@ describe('User deletion endpoint', function () {
         $adminUser = User::factory()->create();
         $adminUser->assignRole('admin');
 
-        $this->actingAs($admin, 'sanctum')
-            ->deleteJson("/api/users/{$adminUser->id}")
+        Sanctum::actingAs($admin, ['api-access']);
+        deleteJson("/api/users/{$adminUser->id}")
             ->assertForbidden();
 
-        $this->assertDatabaseHas('users', [
+        assertDatabaseHas('users', [
             'id' => $adminUser->id
         ]);
     });
 });
-
-//test('puede buscar usuarios con filtros', function () {
-//    // Arrange
-//    $admin = User::factory()->create();
-//    $admin->givePermissionTo('manage-users');
-//
-//    User::factory()->create(['name' => 'Juan Pérez']);
-//    User::factory()->create(['name' => 'María García']);
-//    User::factory()->create(['name' => 'Carlos López']);
-//
-//    // Act
-//    $response = $this->actingAs($admin, 'sanctum')
-//        ->postJson('/api/users/search', [
-//            'filters' => [
-//                [
-//                    'field' => 'name',
-//                    'operator' => 'ILIKE',
-//                    'value' => '%Juan%'
-//                ]
-//            ]
-//        ]);
-//
-//    // Assert
-//    $response->assertStatus(200)
-//        ->assertJsonStructure([
-//            'data' => [
-//                '*' => [
-//                    'id',
-//                    'name',
-//                    'email',
-//                    'roles'
-//                ]
-//            ],
-//            'links',
-//            'meta'
-//        ]);
-//});

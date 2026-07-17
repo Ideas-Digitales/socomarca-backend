@@ -6,9 +6,11 @@ use App\Models\Price;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Testing\Fluent\AssertableJson;
+use Laravel\Sanctum\Sanctum;
 
-use function Pest\Laravel\actingAs;
+use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
 
 describe('Favorites read endpoint', function () {
     it('should fail when requesting without authentication', function () {
@@ -53,8 +55,8 @@ describe('Favorites read endpoint', function () {
             ->create();
         $user->givePermissionTo('read-own-favorites');
 
-        actingAs($user, 'sanctum')
-            ->getJson($route)
+        Sanctum::actingAs($user, ['api-access']);
+        getJson($route)
             ->assertOk()
             ->assertJsonStructure([
                 'data' => [
@@ -125,22 +127,22 @@ describe('Favorite creation endpoint', function () {
             )
             ->create();
 
-        actingAs($user, 'sanctum')
-            ->postJson($route, [
+        Sanctum::actingAs($user, ['api-access']);
+        postJson($route, [
                 'product_id' => Product::factory()->create()->id,
                 'favorite_list_id' => FavoriteList::factory()->create()->id,
             ])
             ->assertForbidden();
 
-        actingAs($user2, 'sanctum')
-            ->postJson($route, [
+        Sanctum::actingAs($user2, ['api-access']);
+        postJson($route, [
                 'favorite_list_id' => $user2->favoritesList()->first()->id,
                 'unit' => 'lt'
             ])
             ->assertInvalid(['product_id', 'unit']);
 
-        actingAs($user2, 'sanctum')
-            ->postJson($route, [
+        Sanctum::actingAs($user2, ['api-access']);
+        postJson($route, [
                 'favorite_list_id' => $user2->favoritesList()->first()->id,
                 'product_id' => $product->id,
                 'unit' => 'lt'
@@ -165,8 +167,8 @@ describe('Favorite creation endpoint', function () {
             )
             ->create();
 
-        actingAs($user, 'sanctum')
-            ->postJson($route, [
+        Sanctum::actingAs($user, ['api-access']);
+        postJson($route, [
                 'favorite_list_id' => $user->favoritesList()->first()->id,
                 'product_id' => $product->id,
                 'unit' => $unit
@@ -175,8 +177,8 @@ describe('Favorite creation endpoint', function () {
 
         $route = route('favorites.index');
 
-        actingAs($user, 'sanctum')
-            ->getJson($route)
+        Sanctum::actingAs($user, ['api-access']);
+        getJson($route)
             ->assertOk()
             ->assertJson(
                 fn(AssertableJson $json) =>
@@ -208,8 +210,8 @@ describe('Favorite deletion endpoint', function () {
             )
             ->create();
 
-        actingAs($user, 'sanctum')
-            ->postJson($route, [
+        Sanctum::actingAs($user, ['api-access']);
+        postJson($route, [
                 'favorite_list_id' => $user->favoritesList()->first()->id,
                 'product_id' => $product->id,
                 'unit' => $unit
@@ -225,8 +227,8 @@ describe('Favorite deletion endpoint', function () {
             'favorite' => $user->favoritesList()->first()->favorites()->first()->id,
         ]);
 
-        actingAs($user, 'sanctum')
-            ->deleteJson($route)
+        Sanctum::actingAs($user, ['api-access']);
+        deleteJson($route)
             ->assertOk();
 
         $user->refresh();
