@@ -22,6 +22,7 @@ use App\Models\Price;
 use App\Models\Product;
 use App\Models\Subcategory;
 use App\Models\User;
+use Laragear\Rut\Facades\Generator as RutGenerator;
 
 pest()->extend(\Tests\TestCase::class);
 
@@ -114,4 +115,16 @@ function createUserHasFavorite()
 function getPriceListCode(): string
 {
     return "LIST1";
+}
+
+function generateUserData() {
+    return [
+        'name' => fake()->firstName() . ' ' . fake()->lastName(),
+        'email' => fake()->email,
+        'password' => fake()->password(10, 12),
+        'phone' => strval(fake()->numberBetween(1000000000, 2000000000)),
+        'rut' => RutGenerator::makeOne()->formatBasic(),
+        'business_name' => fake()->company(),
+        'is_active' => true,
+    ];
 }

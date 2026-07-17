@@ -4,19 +4,6 @@ use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use Laragear\Rut\Facades\Generator as RutGenerator;
-
-function generateUserData() {
-    return [
-        'name' => fake()->firstName() . ' ' . fake()->lastName(),
-        'email' => fake()->email,
-        'password' => fake()->password(10, 12),
-        'phone' => strval(fake()->numberBetween(1000000000, 2000000000)),
-        'rut' => RutGenerator::makeOne()->formatBasic(),
-        'business_name' => fake()->company(),
-        'is_active' => true,
-    ];
-}
 
 function createPermissions(array $permissions) {
     foreach ($permissions as $permission) {
