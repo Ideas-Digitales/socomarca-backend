@@ -1,53 +1,34 @@
 <?php
 
-use App\Models\Brand;
 use App\Models\CartItem;
-use App\Models\Category;
 use App\Models\Price;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\OrderItem;
+use Laravel\Sanctum\Sanctum;
+use Tests\Scenarios\CartItemScenario;
 
-beforeEach(function () {
-    $this->user = User::factory()->create();
-    $this->user->givePermissionTo(['create-cart-items', 'delete-cart-items', 'create-orders']);
-    $this->actingAs($this->user, 'sanctum');
+use function Pest\Laravel\assertDatabaseCount;
+use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\assertDatabaseMissing;
+use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\postJson;
 
-    $supercategory = Category::factory()->create(['level' => 1]);
-    $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
-    $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
-    $brand = Brand::factory()->create();
-
-    $this->product = Product::factory()->create([
-        'supercategory_id' => $supercategory->id,
-        'category_id' => $category->id,
-        'subcategory_id' => $subcategory->id,
-        'brand_id' => $brand->id
-    ]);
-
-    // Crear precio activo para el producto
-    $this->price = Price::factory()->create([
-        'product_id' => $this->product->id,
-        'unit' => 'kg',
-        'price' => 100,
-        'stock' => 10,
-        'is_active' => true,
-        'valid_from' => now()->subDays(1),
-        'valid_to' => null
-    ]);
-});
-
-test('puede agregar un item al carrito', function () {
+it('verifies that a user can add item to cart', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response
@@ -63,21 +44,25 @@ test('puede agregar un item al carrito', function () {
             'total',
         ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 });
 
-test('el response de store respeta la lista de precios del usuario', function () {
+it('verifies that store response works according to the allowed user price lists', function () {
     // Arrange
-    $this->user->update(['prices_lists' => ['01P']]);
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
+    $user->update(['prices_lists' => ['01P']]);
 
-    Price::where('product_id', $this->product->id)->delete();
+    Price::where('product_id', $product->id)->delete();
     Price::factory()->create([
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'kg',
         'price' => 100,
         'stock' => 10,
@@ -85,7 +70,7 @@ test('el response de store respeta la lista de precios del usuario', function ()
         'price_list_id' => '01P',
     ]);
     Price::factory()->create([
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'kg',
         'price' => 999,
         'stock' => 10,
@@ -94,13 +79,13 @@ test('el response de store respeta la lista de precios del usuario', function ()
     ]);
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertCreated();
@@ -108,62 +93,72 @@ test('el response de store respeta la lista de precios del usuario', function ()
     expect($response->json('total'))->toBe(200);
 });
 
-test('puede incrementar cantidad si item ya existe en carrito', function () {
-
+it('should increment item quantity when a product is in the cart', function () {
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     //Clear cart items
-    CartItem::where('user_id', $this->user->id)->delete();
+    CartItem::where('user_id', $user->id)->delete();
 
     // Arrange
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ]);
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(201);
 
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 5,
         'unit' => 'kg'
     ]);
 
-    expect(CartItem::where('user_id', $this->user->id)
-        ->where('product_id', $this->product->id)
+    expect(CartItem::where('user_id', $user->id)
+        ->where('product_id', $product->id)
         ->where('unit', 'kg')
         ->count())->toBe(1);
 });
 
-test('falla al agregar item sin product_id', function () {
+it('should fail when adding an item without product_id', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['product_id']);
 });
 
-test('falla al agregar item con product_id inexistente', function () {
+it('should fail when adding an item with inexistent product_id', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
         'product_id' => 99999,
         'quantity' => 2,
@@ -171,92 +166,112 @@ test('falla al agregar item con product_id inexistente', function () {
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['product_id']);
 });
 
-test('falla al agregar item sin quantity', function () {
+it('should fail when trying to add an item without quantity', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al agregar item con quantity menor a 1', function () {
+it('should fail when trying to add an item with a quantity lower than 1', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 0,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al agregar item con quantity mayor a 99', function () {
+it('should fail when trying to add an item with quantity greater than 99', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 100,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al agregar item sin unit', function () {
+it('should fail when trying to add an item without unit', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['unit']);
 });
 
-test('puede eliminar cantidad parcial de item del carrito', function () {
+it('should delete partial item quantity from the cart', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 5,
         'unit' => 'kg'
     ]);
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200)
@@ -264,31 +279,35 @@ test('puede eliminar cantidad parcial de item del carrito', function () {
             'message' => 'Product item quantity has been removed from cart'
         ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3, // 5 - 2 = 3
         'unit' => 'kg'
     ]);
 });
 
-test('puede eliminar item completo del carrito cuando quantity llega a cero', function () {
+it('should delete an item from the cart when its quantity is 0', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ]);
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200)
@@ -296,23 +315,27 @@ test('puede eliminar item completo del carrito cuando quantity llega a cero', fu
             'message' => 'Product item quantity has been removed from cart'
         ]);
 
-    $this->assertDatabaseMissing('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseMissing('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'unit' => 'kg'
     ]);
 });
 
-test('retorna mensaje cuando item no existe para eliminar', function () {
+it('should return a message when an item doesn\'t exist to be deleted', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 1,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200)
@@ -321,126 +344,148 @@ test('retorna mensaje cuando item no existe para eliminar', function () {
         ]);
 });
 
-test('falla al eliminar mas cantidad de la disponible', function () {
+it('should fail when trying to deleted more quantity than the available', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 5, // Intentar eliminar más de lo disponible
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('falla al eliminar item sin product_id', function () {
+it('should fail when trying to delete an item without product_id', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
         'quantity' => 1,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['product_id']);
 });
 
-test('falla al eliminar item sin unit', function () {
+it('should fail when trying to delete an item without unit', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 1
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['unit']);
 });
 
-test('falla al eliminar item sin quantity', function () {
+it('should fail when trying to delete an item without quantity', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['quantity']);
 });
 
-test('usuarios diferentes no pueden ver items de otros carritos', function () {
+it('should prevent a user from getting another owner\'s cart', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
     $otherUser = User::factory()->create();
     $otherUser->givePermissionTo(['create-cart-items', 'delete-cart-items']);
 
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ]);
 
     CartItem::create([
         'user_id' => $otherUser->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
-    $this->actingAs($otherUser, 'sanctum');
+    Sanctum::actingAs($otherUser, ['api-access']);
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 1,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(200);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ]);
 
-    $this->assertDatabaseHas('cart_items', [
+    assertDatabaseHas('cart_items', [
         'user_id' => $otherUser->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 1, // 2 - 1 = 1
         'unit' => 'kg'
     ]);
 });
 
-test('puede manejar diferentes unidades del mismo producto', function () {
+it('should handle different units of the same product', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     Price::factory()->create([
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'g',
         'price' => 50,
         'stock' => 100,
@@ -450,88 +495,102 @@ test('puede manejar diferentes unidades del mismo producto', function () {
     ]);
 
     $dataKg = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     $dataG = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 50,
         'unit' => 'g'
     ];
 
     // Act
-    $responseKg = $this->postJson(route('cart-items.store'), $dataKg);
-    $responseG = $this->postJson(route('cart-items.store'), $dataG);
+    $responseKg = postJson(route('cart-items.store'), $dataKg);
+    $responseG = postJson(route('cart-items.store'), $dataG);
 
     // Assert
     $responseKg->assertStatus(201);
     $responseG->assertStatus(201);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 50,
         'unit' => 'g'
     ]);
 
-    expect(CartItem::where('user_id', $this->user->id)
-        ->where('product_id', $this->product->id)
+    expect(CartItem::where('user_id', $user->id)
+        ->where('product_id', $product->id)
         ->count())->toBe(2);
 });
 
-test('requiere autenticacion para agregar items', function () {
+it('should require authentication to add items', function () {
+    /** @var \Tests\TestCase $this */
+
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $this->app['auth']->forgetUser();
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->postJson(route('cart-items.store'), $data);
+    $response = postJson(route('cart-items.store'), $data);
 
     // Assert
     $response->assertStatus(401);
 });
 
-test('requiere autenticacion para eliminar items', function () {
+it('should required authentication to delete items', function () {
+    /** @var \Tests\TestCase $this */
+
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
     $this->app['auth']->forgetUser();
 
     $data = [
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 1,
         'unit' => 'kg'
     ];
 
     // Act
-    $response = $this->deleteJson(route('cart-items.destroy'), $data);
+    $response = deleteJson(route('cart-items.destroy'), $data);
 
     // Assert
     $response->assertStatus(401);
 });
 
-test('vaciar su carrito', function () {
+it('should empty cart when requested', function () {
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
 
     \App\Models\CartItem::truncate();
 
-    $user = \App\Models\User::factory()->create();
     $user->givePermissionTo('delete-cart');
 
     $product = \App\Models\Product::factory()->create();
 
-
     \App\Models\CartItem::factory()->create([
         'user_id' => $user->id,
         'product_id' => $product->id,
@@ -543,24 +602,21 @@ test('vaciar su carrito', function () {
         'quantity' => 1,
     ]);
 
-    $this->assertDatabaseCount('cart_items', 2);
+    assertDatabaseCount('cart_items', 2);
 
     $route = route('cart.empty');
 
-    $response = $this->actingAs($user, 'sanctum')
-        ->deleteJson($route);
+    $response = deleteJson($route);
 
     $response->assertStatus(200)
         ->assertJsonFragment(['message' => 'The cart has been emptied']);
 
-
-    $this->assertDatabaseMissing('cart_items', [
+    assertDatabaseMissing('cart_items', [
         'user_id' => $user->id,
     ]);
 });
 
-test('customer no puede vaciar carros de otros', function () {
-
+it('should prevent to emptying cart of another user', function () {
     $userA = \App\Models\User::factory()->create();
     $userA->givePermissionTo('delete-cart');
 
@@ -580,27 +636,31 @@ test('customer no puede vaciar carros de otros', function () {
     // userA intenta vaciar el carrito (la ruta solo debe vaciar su propio carrito)
     $route = route('cart.empty');
 
-    $response = $this->actingAs($userA, 'sanctum')
-        ->deleteJson($route);
+    Sanctum::actingAs($userA, ['api-access']);
+    $response = deleteJson($route);
 
     $response->assertStatus(200)
         ->assertJsonFragment(['message' => 'The cart has been emptied']);
 
     // El carrito de userB debe seguir teniendo sus ítems
-    $this->assertDatabaseHas('cart_items', [
+    assertDatabaseHas('cart_items', [
         'user_id' => $userB->id,
         'product_id' => $product->id,
     ]);
 });
 
-test('el response de addOrderToCart respeta la lista de precios del usuario', function () {
+it('verifies that addOrderToCart response work with user price lists', function () {
     // Arrange
-    CartItem::where('user_id', $this->user->id)->delete();
-    $this->user->update(['prices_lists' => ['01P']]);
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
+    CartItem::where('user_id', $user->id)->delete();
+    $user->update(['prices_lists' => ['01P']]);
 
-    Price::where('product_id', $this->product->id)->delete();
+    Price::where('product_id', $product->id)->delete();
     Price::factory()->create([
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'kg',
         'price' => 100,
         'stock' => 10,
@@ -608,7 +668,7 @@ test('el response de addOrderToCart respeta la lista de precios del usuario', fu
         'price_list_id' => '01P',
     ]);
     Price::factory()->create([
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'kg',
         'price' => 999,
         'stock' => 10,
@@ -617,46 +677,50 @@ test('el response de addOrderToCart respeta la lista de precios del usuario', fu
     ]);
 
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     OrderItem::create([
         'order_id' => $order->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg',
         'price' => 100
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
     // Assert
     $response->assertStatus(200);
     $item = collect($response->json('cart.items'))
-        ->firstWhere('id', $this->product->id);
+        ->firstWhere('id', $product->id);
 
     expect($item)->not->toBeNull();
     expect($item['price'])->toBe(100);
 });
 
-test('puede agregar productos de una orden al carrito vacío', function () {
+it('should add products from order to the empty cart', function () {
     // Arrange
-    CartItem::where('user_id', $this->user->id)->delete();
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
+    CartItem::where('user_id', $user->id)->delete();
 
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     $product2 = Product::factory()->create([
-        'supercategory_id' => $this->product->supercategory_id,
-        'category_id' => $this->product->category_id,
-        'subcategory_id' => $this->product->subcategory_id,
-        'brand_id' => $this->product->brand_id
+        'supercategory_id' => $product->supercategory_id,
+        'category_id' => $product->category_id,
+        'subcategory_id' => $product->subcategory_id,
+        'brand_id' => $product->brand_id
     ]);
 
     Price::factory()->create([
@@ -668,7 +732,7 @@ test('puede agregar productos de una orden al carrito vacío', function () {
 
     OrderItem::create([
         'order_id' => $order->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg',
         'price' => 100
@@ -683,7 +747,7 @@ test('puede agregar productos de una orden al carrito vacío', function () {
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -695,47 +759,51 @@ test('puede agregar productos de una orden al carrito vacío', function () {
             'updated_items' => 0
         ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
         'product_id' => $product2->id,
         'quantity' => 5,
         'unit' => 'g'
     ]);
 });
 
-test('puede sumar cantidades cuando el producto ya existe en el carrito', function () {
+it('should increment product quantity when the product is in the cart', function () {
     // Arrange
-    CartItem::where('user_id', $this->user->id)->delete();
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
+    CartItem::where('user_id', $user->id)->delete();
 
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     OrderItem::create([
         'order_id' => $order->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 3,
         'unit' => 'kg',
         'price' => 100
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -747,35 +815,39 @@ test('puede sumar cantidades cuando el producto ya existe en el carrito', functi
             'updated_items' => 1
         ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 5, // 2 + 3 = 5
         'unit' => 'kg'
     ]);
 
-    expect(CartItem::where('user_id', $this->user->id)
-        ->where('product_id', $this->product->id)
+    expect(CartItem::where('user_id', $user->id)
+        ->where('product_id', $product->id)
         ->where('unit', 'kg')
         ->count())->toBe(1);
 });
 
-test('puede manejar productos existentes y nuevos en la misma operación', function () {
+it('should handle existent and new products within the same operation', function () {
     // Arrange
-    CartItem::where('user_id', $this->user->id)->delete();
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
+    CartItem::where('user_id', $user->id)->delete();
 
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 1,
         'unit' => 'kg'
     ]);
 
     $product2 = Product::factory()->create([
-        'supercategory_id' => $this->product->supercategory_id,
-        'category_id' => $this->product->category_id,
-        'subcategory_id' => $this->product->subcategory_id,
-        'brand_id' => $this->product->brand_id
+        'supercategory_id' => $product->supercategory_id,
+        'category_id' => $product->category_id,
+        'subcategory_id' => $product->subcategory_id,
+        'brand_id' => $product->brand_id
     ]);
 
     Price::factory()->create([
@@ -786,13 +858,13 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
     ]);
 
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     OrderItem::create([
         'order_id' => $order->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg',
         'price' => 100
@@ -807,7 +879,7 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -819,33 +891,39 @@ test('puede manejar productos existentes y nuevos en la misma operación', funct
             'updated_items' => 1
         ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 3, // 1 + 2 = 3
         'unit' => 'kg'
     ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
         'product_id' => $product2->id,
         'quantity' => 3,
         'unit' => 'g'
     ]);
 });
 
-test('falla al agregar orden sin order_id', function () {
+it('should fail when adding an order without order_id', function () {
     // Act
-    $response = $this->postJson(route('cart.add-order'), []);
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
+    $response = postJson(route('cart.add-order'), []);
 
     // Assert
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['order_id']);
 });
 
-test('falla al agregar orden con order_id inexistente', function () {
+it('should fail when adding an order with inexistent order_id', function () {
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
+    $response = postJson(route('cart.add-order'), [
         'order_id' => 99999
     ]);
 
@@ -854,8 +932,11 @@ test('falla al agregar orden con order_id inexistente', function () {
         ->assertJsonValidationErrors(['order_id']);
 });
 
-test('falla al agregar orden que no pertenece al usuario', function () {
+it('should fail when adding an order that doesn\'t belong to the user', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
     $otherUser = User::factory()->create();
     $otherUser->givePermissionTo(['create-orders', 'read-own-orders']);
     $order = Order::factory()->create([
@@ -864,7 +945,7 @@ test('falla al agregar orden que no pertenece al usuario', function () {
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -872,17 +953,22 @@ test('falla al agregar orden que no pertenece al usuario', function () {
     $response->assertStatus(403);
 });
 
-test('requiere autenticación para agregar orden al carrito', function () {
+it('should require authentication to add order to cart', function () {
+    /** @var \Tests\TestCase $this */
+
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
     $this->app['auth']->forgetUser();
 
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -890,15 +976,18 @@ test('requiere autenticación para agregar orden al carrito', function () {
     $response->assertStatus(401);
 });
 
-test('maneja orden sin items correctamente', function () {
+it('should handle order without items', function () {
     // Arrange
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -911,25 +1000,29 @@ test('maneja orden sin items correctamente', function () {
         ]);
 });
 
-test('respeta diferentes unidades del mismo producto de la orden', function () {
+it('should handle different units of the same product in the same order', function () {
     // Arrange
-    CartItem::where('user_id', $this->user->id)->delete();
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    $product = $scenario->product;
+    Sanctum::actingAs($user, ['api-access']);
+    CartItem::where('user_id', $user->id)->delete();
 
     Price::factory()->create([
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'unit' => 'g',
         'price' => 30,
         'is_active' => true
     ]);
 
     $order = Order::factory()->create([
-        'user_id' => $this->user->id,
+        'user_id' => $user->id,
         'status' => 'completed'
     ]);
 
     OrderItem::create([
         'order_id' => $order->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg',
         'price' => 100
@@ -937,14 +1030,14 @@ test('respeta diferentes unidades del mismo producto de la orden', function () {
 
     OrderItem::create([
         'order_id' => $order->id,
-        'product_id' => $this->product->id,
+        'product_id' => $product->id,
         'quantity' => 500,
         'unit' => 'g',
         'price' => 30
     ]);
 
     // Act
-    $response = $this->postJson(route('cart.add-order'), [
+    $response = postJson(route('cart.add-order'), [
         'order_id' => $order->id
     ]);
 
@@ -956,21 +1049,21 @@ test('respeta diferentes unidades del mismo producto de la orden', function () {
             'updated_items' => 0
         ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
-    $this->assertDatabaseHas('cart_items', [
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $product->id,
         'quantity' => 500,
         'unit' => 'g'
     ]);
 
-    expect(CartItem::where('user_id', $this->user->id)
-        ->where('product_id', $this->product->id)
+    expect(CartItem::where('user_id', $user->id)
+        ->where('product_id', $product->id)
         ->count())->toBe(2);
 });

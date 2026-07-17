@@ -128,3 +128,9 @@ function generateUserData() {
         'is_active' => true,
     ];
 }
+
+function createUserWithPermissions(array $permissions): User {
+    $user = User::factory()->create();
+    $user->givePermissionTo($permissions);
+    return $user;
+}
