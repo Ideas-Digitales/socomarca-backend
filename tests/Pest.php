@@ -22,6 +22,7 @@ use App\Models\Price;
 use App\Models\Product;
 use App\Models\Subcategory;
 use App\Models\User;
+use Laragear\Rut\Facades\Generator as RutGenerator;
 
 pest()->extend(\Tests\TestCase::class);
 
@@ -114,4 +115,56 @@ function createUserHasFavorite()
 function getPriceListCode(): string
 {
     return "LIST1";
+}
+
+function generateUserData() {
+    return [
+        'name' => fake()->firstName() . ' ' . fake()->lastName(),
+        'email' => fake()->email,
+        'password' => fake()->password(10, 12),
+        'phone' => strval(fake()->numberBetween(1000000000, 2000000000)),
+        'rut' => RutGenerator::makeOne()->formatBasic(),
+        'business_name' => fake()->company(),
+        'is_active' => true,
+    ];
+}
+
+function createUserWithPermissions(array $permissions): User {
+    $user = User::factory()->create();
+    $user->givePermissionTo($permissions);
+    return $user;
+}
+
+function createCustomerWithBranch(): array
+{
+    $user = User::factory()->create([
+        "rut" => "12345678-9",
+        "user_code" => "12345678-9",
+        "branch_code" => "CM",
+    ]);
+    if (!$user->hasRole("customer")) {
+        $user->assignRole("customer");
+    }
+    $branch = Branch::factory()->create([
+        "user_id" => $user->id,
+        "code" => "CM",
+        "user_code" => "12345678-9",
+    ]);
+
+    return [$user, $branch];
+}
+
+function createProductWithPrice(array $attributes = []): Product
+{
+    $product = Product::create($attributes);
+    Price::create([
+        "product_id" => $product->id,
+        "price_list_id" => $attributes["price_list_id"] ?? getPriceListCode(),
+        "unit" => "un",
+        "price" => 5000,
+        "stock" => $attributes["stock"] ?? 50,
+        "is_active" => $attributes["price_is_active"] ?? true,
+        "valid_from" => now()->subDays(10),
+    ]);
+    return $product;
 }

@@ -42,12 +42,13 @@ class RandomApiService
 
     protected function makeRequest($method, $endpoint, $params = [])
     {
-        if (config('app.env') == 'local') {
-            $this->baseUrl = config('random.url');
-            $token = config('random.token');
-        } else {
-            $token = $this->getToken();
-        }
+        // if (config('app.env') == 'local') {
+        //     $this->baseUrl = config('random.url');
+        //     $token = config('random.token');
+        // } else {
+        //     $token = $this->getToken();
+        // }
+        $token = config('random.token');
         $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
 
         //If token is expired, get new token and make request again
@@ -194,11 +195,11 @@ class RandomApiService
             'size' => $size,
             'page' => $page,
         ];
-        
+
         if ($kolt !== null) {
             $params['kolt'] = $kolt;
         }
-        
+
         return $this->makeRequest('get', '/web32/precios/pidelistaprecio', $params);
     }
 

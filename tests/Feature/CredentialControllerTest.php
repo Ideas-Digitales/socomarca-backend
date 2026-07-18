@@ -1,289 +1,119 @@
 <?php
 
+use App\Mail\TemporaryPasswordMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use Tests\Scenarios\CredentialScenario;
 
-use function Pest\Laravel\actingAs;
 use function Pest\Laravel\patchJson;
-use function Pest\Laravel\withHeader;
+use function Pest\Laravel\withHeaders;
 
 describe('successful updates', function () {
-    it('allows an authenticated user to update only their email', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'email' => 'old@example.com',
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
+    it('updates the user email and returns a success message', function () {
+        Mail::fake();
 
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'email' => 'new@example.com',
-        ]);
-
-        // Assert
-        $response->assertStatus(200)
-            ->assertJson([
-                'status' => true,
+        $scenario = CredentialScenario::make();
+        $email = fake()->email();
+        $maskedEmail = Str::maskEmail($email);
+        $response = withHeaders($scenario->authHeaders())
+            ->patchJson(route('credentials.update'), [
+                'email' => $email,
             ]);
 
-        $user->refresh();
-        expect($user->email)->toBe('new@example.com');
-        expect(Hash::check('CurrentPass123', $user->password))->toBeTrue();
+        $response->assertStatus(200)
+            ->assertJson([
+                'message' => __('auth.password_reset', ['email' => $maskedEmail]),
+            ]);
+
+        $scenario->user->refresh();
+        expect($scenario->user->email)->toBe($email);
     });
 
-    it('allows an authenticated user to update only their password', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'email' => 'user@example.com',
-            'password' => Hash::make('CurrentPass123'),
-            'password_changed_at' => null,
-        ]);
-        actingAs($user);
+    it('generates a new temporary password and sends it by mail', function () {
+        Mail::fake();
 
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'password' => 'NewStrongPass456',
-            'password_confirmation' => 'NewStrongPass456',
-        ]);
+        $scenario = CredentialScenario::make();
+        $previousPasswordHash = $scenario->user->password;
 
-        // Assert
-        $response->assertStatus(200)
-            ->assertJson([
-                'status' => true,
-            ]);
+        withHeaders($scenario->authHeaders())
+            ->patchJson(route('credentials.update'), [
+                'email' => 'new@example.com',
+            ])
+            ->assertStatus(200);
 
-        $user->refresh();
-        expect(Hash::check('NewStrongPass456', $user->password))->toBeTrue();
-        expect($user->email)->toBe('user@example.com');
-        expect($user->password_changed_at)->not->toBeNull();
+        $scenario->user->refresh();
+        expect($scenario->user->password)->not->toBe($previousPasswordHash);
+        expect($scenario->user->password_changed_at)->toBeNull();
+
+        Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($scenario) {
+            return $mail->hasTo('new@example.com')
+                && Hash::check($mail->temporaryPassword, $scenario->user->password);
+        });
     });
 
-    it('allows an authenticated user to update email and password simultaneously', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'email' => 'old@example.com',
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
+    it('revokes all other tokens except the current one', function () {
+        Mail::fake();
 
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'email' => 'new@example.com',
-            'password' => 'NewStrongPass456',
-            'password_confirmation' => 'NewStrongPass456',
-        ]);
+        $scenario = CredentialScenario::make();
+        $scenario->user->createToken('other-device');
 
-        // Assert
-        $response->assertStatus(200)
-            ->assertJson([
-                'status' => true,
-            ]);
+        withHeaders($scenario->authHeaders())
+            ->patchJson(route('credentials.update'), [
+                'email' => 'new@example.com',
+            ])
+            ->assertStatus(200);
 
-        $user->refresh();
-        expect($user->email)->toBe('new@example.com');
-        expect(Hash::check('NewStrongPass456', $user->password))->toBeTrue();
+        expect($scenario->user->tokens()->count())->toBe(1);
+        expect($scenario->user->tokens()->first()->id)->toBe($scenario->token->accessToken->id);
     });
 });
 
-describe('authentication', function () {
+describe('authorization', function () {
     it('rejects unauthenticated requests', function () {
-        // Act
         $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
             'email' => 'new@example.com',
         ]);
 
-        // Assert
         $response->assertStatus(401);
     });
 
-    it('rejects the update when the current password is incorrect', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'email' => 'user@example.com',
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
+    it('rejects requests from tokens without the credentials-restore ability', function () {
+        $scenario = CredentialScenario::make(['api-access']);
 
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'WrongPassword',
-            'email' => 'new@example.com',
-        ]);
+        $response = withHeaders($scenario->authHeaders())
+            ->patchJson(route('credentials.update'), [
+                'email' => 'new@example.com',
+            ]);
 
-        // Assert
-        $response->assertStatus(400)
-            ->assertJson([
-                'status' => false,
-            ])
-            ->assertJsonStructure(['errors' => ['current_password']]);
-
-        $user->refresh();
-        expect($user->email)->toBe('user@example.com');
+        $response->assertStatus(403);
     });
 });
 
 describe('validation', function () {
-    it('requires the current_password field', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
-
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'email' => 'new@example.com',
-        ]);
-
-        // Assert
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['current_password']);
-    });
-
     it('rejects an invalid email format', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
+        $scenario = CredentialScenario::make();
 
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'email' => 'not-an-email',
-        ]);
+        $response = withHeaders($scenario->authHeaders())
+            ->patchJson(route('credentials.update'), [
+                'email' => 'not-an-email',
+            ]);
 
-        // Assert
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
     });
 
     it('rejects an email already used by another user', function () {
-        // Arrange
         User::factory()->create(['email' => 'taken@example.com']);
-        $user = User::factory()->create([
-            'email' => 'user@example.com',
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
+        $scenario = CredentialScenario::make();
 
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'email' => 'taken@example.com',
-        ]);
+        $response = withHeaders($scenario->authHeaders())
+            ->patchJson(route('credentials.update'), [
+                'email' => 'taken@example.com',
+            ]);
 
-        // Assert
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['email']);
-    });
-
-    it('rejects a new password shorter than 8 characters', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
-
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'password' => 'short',
-            'password_confirmation' => 'short',
-        ]);
-
-        // Assert
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['password']);
-    });
-
-    it('rejects a password confirmation mismatch', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
-
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'password' => 'NewStrongPass456',
-            'password_confirmation' => 'DoesNotMatch789',
-        ]);
-
-        // Assert
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['password']);
-    });
-
-    it('rejects a new password equal to the current password', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        actingAs($user);
-
-        // Act
-        $response = patchJson(route('credentials.update'), [
-            'current_password' => 'CurrentPass123',
-            'password' => 'CurrentPass123',
-            'password_confirmation' => 'CurrentPass123',
-        ]);
-
-        // Assert
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['password']);
-    });
-});
-
-describe('token revocation', function () {
-    it('revokes the other tokens when revoke_all_tokens is true', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        $currentToken = $user->createToken('current-device');
-        $user->createToken('other-device');
-
-        // Act
-        $response = withHeader('Authorization', 'Bearer ' . $currentToken->plainTextToken)
-            ->patchJson(route('credentials.update'), [
-                'current_password' => 'CurrentPass123',
-                'email' => 'new@example.com',
-                'revoke_all_tokens' => true,
-            ]);
-
-        // Assert
-        $response->assertStatus(200);
-
-        $user->refresh();
-        expect($user->tokens()->count())->toBe(1);
-        expect($user->tokens()->first()->id)->toBe($currentToken->accessToken->id);
-    });
-
-    it('keeps the other tokens when revoke_all_tokens is false', function () {
-        // Arrange
-        $user = User::factory()->create([
-            'password' => Hash::make('CurrentPass123'),
-        ]);
-        $currentToken = $user->createToken('current-device');
-        $user->createToken('other-device');
-
-        // Act
-        $response = withHeader('Authorization', 'Bearer ' . $currentToken->plainTextToken)
-            ->patchJson(route('credentials.update'), [
-                'current_password' => 'CurrentPass123',
-                'email' => 'new@example.com',
-                'revoke_all_tokens' => false,
-            ]);
-
-        // Assert
-        $response->assertStatus(200);
-        expect($user->tokens()->count())->toBe(2);
     });
 });

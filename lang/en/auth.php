@@ -15,7 +15,9 @@ return [
 
     'failed' => 'These credentials do not match our records.',
     'password' => 'The provided password is incorrect.',
+    'password_reset' => 'A new provisional password has been sent to :email.',
     'throttle' => 'Too many login attempts. Please try again in :seconds seconds.',
     'credentials_update' => 'Credentials updated successfully.',
+    'missing_email' => 'The user doesn\'t have a valid email address.',
 
 ];

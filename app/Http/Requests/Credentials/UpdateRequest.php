@@ -21,10 +21,19 @@ class UpdateRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'email' => 'sometimes|email|unique:App\Models\User,email',
-            'current_password' => 'required|string',
-            'password' => 'sometimes|string|min:8|confirmed|different:current_password',
+        $rules = [
+            'email' => []
         ];
+        $user = $this->user();
+
+        if ($user->email === null) {
+            $rules['email'][] = 'required';
+        } else {
+            $rules['email'][] = 'sometimes';
+        }
+
+        $rules['email'][] = 'email';
+        $rules['email'][] = 'unique:App\Models\User,email';
+        return $rules;
     }
 }

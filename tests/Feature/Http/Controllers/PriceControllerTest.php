@@ -1,11 +1,13 @@
 <?php
 
+use Laravel\Sanctum\Sanctum;
+use function Pest\Laravel\getJson;
+
 describe('Prices read endpoint', function () {
     it('should respond forbidden when not having \'read-all-prices\' permission', function () {
         $user = \App\Models\User::factory()->create();
-        $this
-            ->actingAs($user, 'sanctum')
-            ->getJson(route('prices.index'))
+        Sanctum::actingAs($user, ['api-access']);
+        getJson(route('prices.index'))
             ->assertForbidden();
     });
 
@@ -18,9 +20,8 @@ describe('Prices read endpoint', function () {
         $user = \App\Models\User::factory()->create();
         $user->givePermissionTo('read-all-prices');
 
-        $response = $this
-            ->actingAs($user, 'sanctum')
-            ->getJson(route('prices.index'))
+        Sanctum::actingAs($user, ['api-access']);
+        $response = getJson(route('prices.index'))
             ->assertOk()
             ->assertJsonStructure([
                 [
@@ -49,7 +50,6 @@ describe('Prices read endpoint', function () {
         // Verificar que todos los IDs en la respuesta correspondan a precios activos en la BD
         $responseIds = collect($responseData)->pluck('id')->sort()->values();
         $pricesIds = $prices->pluck('id')->sort()->values();
-        expect($responseIds)->each(fn ($id) => $id->toBeIn($pricesIds));
+        expect($responseIds)->each(fn($id) => $id->toBeIn($pricesIds));
     });
-
 });

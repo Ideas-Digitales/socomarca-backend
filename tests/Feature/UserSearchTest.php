@@ -1,98 +1,43 @@
 <?php
 
 use App\Models\User;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\Models\Permission;
-use Laragear\Rut\Facades\Generator;
+use Laravel\Sanctum\Sanctum;
+use Tests\Scenarios\UserSearchScenario;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
 
-beforeEach(function () {
-    $this->user = createUser();
-
-    // Crear permiso directamente
-    $manageUsersPermission = Permission::firstOrCreate(['name' => 'manage-users']);
-
-    // Crear roles y asignar permisos
-    $adminRole = Role::firstOrCreate(['name' => 'admin']);
-    $adminRole->givePermissionTo($manageUsersPermission);
-
-    $clientRole = Role::firstOrCreate(['name' => 'cliente']);
-
-    // Usuario admin con permisos
-    $this->adminUser = User::factory()->create();
-    $this->adminUser->assignRole('admin');
-
-    // Usuario cliente sin permisos
-    $this->clientUser = User::factory()->create();
-    $this->clientUser->assignRole('cliente');
-
-    $this->userListJsonStructure = [
-        'data' => [
-            [
-                'id',
-                'name',
-                'email',
-                'phone',
-                'rut',
-                'business_name',
-                'is_active',
-                'last_login',
-                'roles',
-                'created_at',
-                'updated_at',
-            ],
-        ],
-        'meta' => [
-            'current_page',
-            'from',
-            'last_page',
-            'path',
-            'per_page',
-            'to',
-            'total',
-            'links' => [
-                ['url', 'label', 'active']
-            ],
-        ]
-    ];
-});
-
-test('requiere autenticacion con token', function () {
-    $response = $this->withHeaders(['Accept' => 'application/json'])
-        ->get('/api/users');
-
+it('should require authentication', function () {
+    $response = getJson('/api/users');
     $response->assertStatus(401);
 });
 
-test('user search permissions', function () {
-   $response = $this->actingAs($this->clientUser, 'sanctum')
-       ->withHeaders(['Accept' => 'application/json'])
-       ->postJson('/api/users/search');
-
-   $response->assertStatus(403);
+it('should require user search permissions', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->userWithoutPermissions, ['api-access']);
+    postJson('/api/users/search')->assertStatus(403);
 });
 
-test('permite busqueda con permiso manage-users', function () {
+it('should allow search using "manage-users" permission', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
     User::factory()->count(3)->create();
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->withHeaders(['Accept' => 'application/json'])
-        ->postJson('/api/users/search');
-
-    $response
+    postJson('/api/users/search')
         ->assertStatus(200)
-        ->assertJsonStructure($this->userListJsonStructure);
+        ->assertJsonStructure($scenario->listJsonStructure);
 });
 
-test('filtra usuarios por nombre exacto', function () {
+it('should filter users by exact name', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['name' => 'Juan Pérez']);
     User::factory()->create(['name' => 'María González']);
     User::factory()->create(['name' => 'Carlos López']);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'name',
@@ -107,15 +52,16 @@ test('filtra usuarios por nombre exacto', function () {
     $response->assertStatus(200);
 });
 
-test('filtra usuarios por nombre parcial', function () {
+it('should filter users by partial name', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['name' => 'Juan Pérez']);
     User::factory()->create(['name' => 'Juana Martínez']);
     User::factory()->create(['name' => 'María González']);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'name',
@@ -132,15 +78,16 @@ test('filtra usuarios por nombre parcial', function () {
     $response->assertStatus(200);
 });
 
-test('filtra usuarios por email', function () {
+it('should filter users by email', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['email' => 'juan@empresa.com']);
     User::factory()->create(['email' => 'maria@empresa.com']);
     User::factory()->create(['email' => 'carlos@otrodominio.com']);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'email',
@@ -157,15 +104,16 @@ test('filtra usuarios por email', function () {
     $response->assertStatus(200);
 });
 
-test('filtra usuarios por estado activo', function () {
+it('should filter users by active status', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['is_active' => true]);
     User::factory()->create(['is_active' => false]);
     User::factory()->create(['is_active' => true]);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'is_active',
@@ -182,15 +130,16 @@ test('filtra usuarios por estado activo', function () {
     $response->assertStatus(200);
 });
 
-test('ordena usuarios por nombre', function () {
+it('should sort users by name', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['name' => 'Zebra García']);
     User::factory()->create(['name' => 'Ana López']);
     User::factory()->create(['name' => 'Beta Martínez']);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'name',
@@ -209,15 +158,16 @@ test('ordena usuarios por nombre', function () {
     $response->assertStatus(200);
 });
 
-test('filtra usuarios por rut', function () {
+it('filter users by role', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['rut' => '12345678-9']);
     User::factory()->create(['rut' => '98765432-1']);
     User::factory()->create(['rut' => '12000000-0']);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'rut',
@@ -234,15 +184,16 @@ test('filtra usuarios por rut', function () {
     $response->assertStatus(200);
 });
 
-test('combina múltiples filtros', function () {
+it('should be able to combine multiple filters', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     User::factory()->create(['name' => 'Juan Pérez', 'is_active' => true]);
     User::factory()->create(['name' => 'Juan García', 'is_active' => false]);
     User::factory()->create(['name' => 'María López', 'is_active' => true]);
 
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $response = postJson('/api/users/search', [
             'filters' => [
                 [
                     'field' => 'name',
@@ -263,19 +214,18 @@ test('combina múltiples filtros', function () {
     $response->assertStatus(200);
 });
 
-test('filtra usuarios por roles', function () {
+it('should filters users by roles', function () {
     \App\Models\User::truncate();
 
     $admin = User::factory()->create(['name' => 'Ana Admin']);
     $admin->assignRole('admin');
 
-    $cliente = User::factory()->create(['name' => 'Carlos Cliente']);
-    $cliente->assignRole('cliente');
+    $customer = User::factory()->create(['name' => 'Carlos Cliente']);
+    $customer->assignRole('customer');
 
-
-    $response = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
-            'roles' => ['admin', 'cliente'],
+    Sanctum::actingAs($admin, ['api-access']);
+    $response = postJson('/api/users/search', [
+            'roles' => ['admin', 'customer'],
             'sort_field' => 'name',
             'sort_direction' => 'asc'
         ]);
@@ -288,7 +238,9 @@ test('filtra usuarios por roles', function () {
     $response->assertStatus(200);
 });
 
-test('ordena usuarios por nombre ascendente y por id descendente', function () {
+it('should sort users by name (asc) and id (desc)', function () {
+    $scenario = UserSearchScenario::make();
+    Sanctum::actingAs($scenario->adminUser, ['api-access']);
     User::truncate();
 
     $juan = User::factory()->create(['name' => 'Juan Pérez']);
@@ -296,8 +248,7 @@ test('ordena usuarios por nombre ascendente y por id descendente', function () {
     $carlos = User::factory()->create(['name' => 'Carlos Gómez']);
 
     // Ordenar por nombre ascendente
-    $responseAsc = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $responseAsc = postJson('/api/users/search', [
             'sort_field' => 'name',
             'sort_direction' => 'asc'
         ]);
@@ -305,8 +256,7 @@ test('ordena usuarios por nombre ascendente y por id descendente', function () {
     expect($namesAsc)->toBe(['Ana López', 'Carlos Gómez', 'Juan Pérez']);
 
     // Ordenar por id descendente
-    $responseDesc = $this->actingAs($this->adminUser, 'sanctum')
-        ->postJson('/api/users/search', [
+    $responseDesc = postJson('/api/users/search', [
             'sort_field' => 'id',
             'sort_direction' => 'desc'
         ]);

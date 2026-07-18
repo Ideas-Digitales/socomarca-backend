@@ -1,11 +1,12 @@
 <?php
+use Laravel\Sanctum\Sanctum;
+use function Pest\Laravel\getJson;
 
 describe('Prices extremes read endpoint', function () {
     it('should return a forbidden response when not having \'read-all-prices\' permission', function () {
         $user = \App\Models\User::factory()->create();
-        $this
-            ->actingAs($user, 'sanctum')
-            ->getJson(route('products.price-extremes'))
+        Sanctum::actingAs($user, ['api-access']);
+        getJson(route('products.price-extremes'))
             ->assertForbidden();
     });
 
@@ -40,9 +41,8 @@ describe('Prices extremes read endpoint', function () {
         $user = \App\Models\User::factory()->create();
         $user->givePermissionTo('read-all-prices');
 
-        $response = $this
-            ->actingAs($user, 'sanctum')
-            ->getJson(route('products.price-extremes'))
+        Sanctum::actingAs($user, ['api-access']);
+        $response = getJson(route('products.price-extremes'))
             ->assertOk()
             ->assertJsonStructure([
                 'lowest_price_product',

@@ -1,13 +1,18 @@
 <?php
 
-test('admin user can list permissions', function () {
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-    $user = \App\Models\User::factory()->create();
+use App\Models\User;
+use Laravel\Sanctum\Sanctum;
+
+use function Pest\Laravel\getJson;
+
+it('allows an admin user to list permissions', function () {
+    $user = User::factory()->create();
     $user->assignRole('admin');
-    $url = route('permissions.index');
-    $this->actingAs($user, 'sanctum')
-        ->getJson($url)
-        ->assertStatus(200)
+    Sanctum::actingAs($user, ['api-access']);
+
+    $response = getJson(route('permissions.index'));
+
+    $response->assertStatus(200)
         ->assertJsonStructure([
             [
                 'id',
@@ -16,12 +21,12 @@ test('admin user can list permissions', function () {
         ]);
 });
 
-test('supervisor cannot list permissions', function () {
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-    $user = \App\Models\User::factory()->create();
+it('forbids a supervisor from listing permissions', function () {
+    $user = User::factory()->create();
     $user->assignRole('supervisor');
-    $url = route('permissions.index');
-    $this->actingAs($user, 'sanctum')
-        ->getJson($url)
-        ->assertForbidden();
+    Sanctum::actingAs($user, ['api-access']);
+
+    $response = getJson(route('permissions.index'));
+
+    $response->assertForbidden();
 });

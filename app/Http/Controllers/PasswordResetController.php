@@ -13,35 +13,49 @@ use Illuminate\Auth\Events\PasswordReset;
 use App\Mail\TemporaryPasswordMail;
 use Illuminate\Support\Facades\Mail;
 use App\Rules\ValidateRut;
+use App\Services\Security\PasswordGeneratorService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class PasswordResetController extends Controller
 {
+    public function __construct(
+        public PasswordGeneratorService $passwordService
+    ) {}
+
     public function forgotPassword(PasswordRequest $request)
     {
-
-
         $user = $request->user;
 
+        if ($user->email == null) {
+            $tokenName = $request->device_name ?? 'unknown-device';
+            $token = $user->createToken($tokenName, ['credentials-restore'])->plainTextToken;
+
+            return response()->json([
+                'message' => __('auth.missing_email'),
+                'data' => [
+                    'email' => null,
+                    'missing_email' => true,
+                    'provisional_token' => $token,
+                ]
+            ]);
+        }
+
         // Generar contraseña temporal alfanumérica de 8 caracteres
-        $temporaryPassword = Str::random(8);
+        $passwordDto = $this->passwordService->generate();
+        $temporaryPassword = $passwordDto->password;
 
         // Actualizar la contraseña del usuario en la base de datos
-        $user->password = Hash::make($temporaryPassword);
+        $user->password = $passwordDto->passwordHash;
         $user->password_changed_at = null; // Para forzar el cambio de contraseña en el próximo login
         $user->save();
 
-        // Enviar email con la contraseña temporal
         Mail::to($user->email)->send(new TemporaryPasswordMail($user, $temporaryPassword));
 
-
-       return response()->json([
-
-            'message' => 'A new provisional password has been sent',
+        return response()->json([
+            'message' => __('auth.password_reset', ['email' => Str::maskEmail($user->email)]),
             'data' => [
-                'email' => $user->email,
-                'temporary_password' => $temporaryPassword
+                'email' => Str::maskEmail($user->email),
             ]
         ]);
     }

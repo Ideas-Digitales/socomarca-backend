@@ -39,20 +39,23 @@ Route::prefix('auth')->group(function () {
     Route::middleware('throttle:6,1')->group(function () {
         Route::post('/restore', [PasswordResetController::class, 'forgotPassword'])->name('auth.password.restore');
     });
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum','abilities:api-access'])->group(function () {
         Route::get('/check-token', function () {
             return response()->json(['valid' => true]);
         })->name('auth.check.token');
         Route::delete('/token', [AuthController::class, 'destroy'])->name('auth.token.destroy');
-        Route::patch('/credentials', [CredentialController::class, 'update'])->name('credentials.update');
         Route::prefix('/password')->group(function () {
             Route::put('', [PasswordResetController::class, 'changePassword'])->name('password.update');
             Route::get('/status', [PasswordResetController::class, 'checkPasswordStatus'])->name('password.status');
         });
     });
+    Route::patch('/credentials', [CredentialController::class, 'update'])
+        ->middleware('auth:sanctum')
+        ->middleware('abilities:credentials-restore')
+        ->name('credentials.update');
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
 

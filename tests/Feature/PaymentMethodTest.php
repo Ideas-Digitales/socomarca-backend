@@ -1,24 +1,31 @@
 <?php
+
+use App\Models\PaymentMethod;
 use App\Models\User;
+use Laravel\Sanctum\Sanctum;
+
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\putJson;
 
 describe('Payment Methods API', function () {
     it('should require authentication for index', function () {
-        $response = $this->getJson(route('payment-methods.index'));
+        $response = getJson(route('payment-methods.index'));
         $response->assertStatus(401);
     });
 
     it('should require permission for index', function () {
         $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
-        $response = $this->getJson(route('payment-methods.index'));
+        Sanctum::actingAs($user, ['api-access']);
+
+        $response = getJson(route('payment-methods.index'));
         $response->assertStatus(403);
     });
 
     it('should allow access to index with permission and return correct fields', function () {
-        $user = User::factory()->create();
-        $user->givePermissionTo('read-all-payment-methods');
-        $this->actingAs($user, 'sanctum');
-        $response = $this->getJson(route('payment-methods.index'));
+        $user = createUserWithPermissions(['read-all-payment-methods']);
+        Sanctum::actingAs($user, ['api-access']);
+
+        $response = getJson(route('payment-methods.index'));
         $response->assertStatus(200);
         $response->assertJsonStructure([
             'data' => [
@@ -32,36 +39,32 @@ describe('Payment Methods API', function () {
                 ]
             ]
         ]);
-        // Also ensure we get active payment methods
-        $paymentMethods = \App\Models\PaymentMethod::where('active', true)->get();
+
+        $paymentMethods = PaymentMethod::where('active', true)->get();
         expect(count($response->json('data')))->toBe($paymentMethods->count());
     });
 
     it('should require authentication for update', function () {
-        $response = $this->putJson(route('payment-methods.update', ['id' => 1]), [
-            // ...data...
-        ]);
+        $response = putJson(route('payment-methods.update', ['id' => 1]), []);
         $response->assertStatus(401);
     });
 
     it('should require permission for update', function () {
         $user = User::factory()->create();
-        $this->actingAs($user, 'sanctum');
-        $response = $this->putJson(route('payment-methods.update', ['id' => 1]), [
-            // ...data...
-        ]);
+        Sanctum::actingAs($user, ['api-access']);
+
+        $response = putJson(route('payment-methods.update', ['id' => 1]), []);
         $response->assertStatus(403);
     });
 
     it('should allow update with permission', function () {
-        $user = User::factory()->create();
-        $user->givePermissionTo('update-payment-methods');
-        $this->actingAs($user, 'sanctum');
+        $user = createUserWithPermissions(['update-payment-methods']);
+        Sanctum::actingAs($user, ['api-access']);
 
-        $paymentMethod = \App\Models\PaymentMethod::first();
+        $paymentMethod = PaymentMethod::first();
 
-        $response = $this->putJson(route('payment-methods.update', ['id' => $paymentMethod->id]), [
-            'active' => true, // agrega todos los campos requeridos por tu validador
+        $response = putJson(route('payment-methods.update', ['id' => $paymentMethod->id]), [
+            'active' => true,
         ]);
         $response->assertStatus(200);
     });
