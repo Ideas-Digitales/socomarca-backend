@@ -39,7 +39,7 @@ Route::prefix('auth')->group(function () {
     Route::middleware('throttle:6,1')->group(function () {
         Route::post('/restore', [PasswordResetController::class, 'forgotPassword'])->name('auth.password.restore');
     });
-    Route::middleware('auth:sanctum')->middleware('abilities:api-access')->group(function () {
+    Route::middleware(['auth:sanctum','abilities:api-access'])->group(function () {
         Route::get('/check-token', function () {
             return response()->json(['valid' => true]);
         })->name('auth.check.token');
@@ -55,7 +55,7 @@ Route::prefix('auth')->group(function () {
         ->name('credentials.update');
 });
 
-Route::middleware('auth:sanctum')->middleware('abilities:api-access')->group(function () {
+Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
 

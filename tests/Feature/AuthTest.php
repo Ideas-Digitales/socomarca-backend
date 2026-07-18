@@ -1,11 +1,13 @@
 <?php
 
+use App\DTOs\Password;
 use App\Mail\TemporaryPasswordMail;
 use App\Models\User;
 use App\Services\Security\PasswordGeneratorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -35,7 +37,6 @@ test('User can perform a successful login using valid credentials', function () 
 
     // Assert
     $response->assertStatus(200);
-
 });
 
 
@@ -131,7 +132,7 @@ test('Authenticated user can get its own information', function () {
     $response->assertStatus(200);
 });
 
-test('allow user to change its credentials when it doesn\'t have an associated email', function($dbRandomRut, $loginRut) {
+test('allow user to change its credentials when it doesn\'t have an associated email', function ($dbRandomRut, $loginRut) {
     /** @var TestCase $this */
 
     Mail::fake();
@@ -151,14 +152,16 @@ test('allow user to change its credentials when it doesn\'t have an associated e
     $provisionalToken = "Bearer {$provisionalToken}";
     $newUserEmail = fake()->email();
     $newPassword = fake()->password();
+    $newPasswordHash = Hash::make($newPassword);
+    $passwordDto = new Password($newPassword, $newPasswordHash);
     $this->instance(
         PasswordGeneratorService::class,
-        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($newPassword) {
-            $mock->expects('generate')->andReturn($newPassword);
+        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
+            $mock->expects('generate')->andReturn($passwordDto);
         })
     );
     // Provisional token must not work for api access, it's just for credentials update
-    getJson(route('products.index'), ['Authorization' => $provisionalToken])->assertUnauthorized();
+    getJson(route('products.index'), ['Authorization' => $provisionalToken])->assertForbidden();
     // Updates credentials using provisional token
     $response = patchJson(route('credentials.update'), [
         'email' => $newUserEmail,
@@ -188,4 +191,53 @@ test('allow user to change its credentials when it doesn\'t have an associated e
     )->assertOk();
 
     expect($user->email == $newUserEmail)->toBeTrue();
+})->with('ValidForLoginRuts');
+
+test('allow user to change its credentials when it has an associated email', function ($dbRandomRut, $loginRut) {
+    /** @var TestCase $this */
+
+    Mail::fake();
+
+    $user = User::factory()->create([
+        'password' => null,
+        'rut' => $dbRandomRut,
+        'is_active' => true,
+    ]);
+    $user->assignRole('customer');
+    $user->save();
+    $newPassword = fake()->password();
+    $newPasswordHash = Hash::make($newPassword);
+    $passwordDto = new Password($newPassword, $newPasswordHash);
+    $this->instance(
+        PasswordGeneratorService::class,
+        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
+            $mock->expects('generate')->andReturn($passwordDto);
+        })
+    );
+    postJson(route('auth.password.restore'), [
+        'rut' => $loginRut,
+    ])
+        ->assertJsonFragment(['message' => __('auth.password_reset', ['email' => Str::maskEmail($user->email)])]);
+
+    // Tests temporary email sent
+    Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($user) {
+        return $mail->hasTo($user->email);
+    });
+
+    auth()->forgetUser(); // IMPORTANT! Reset auth state
+    $user->refresh();
+
+    // Login with new credentials
+    $response = postJson(route('auth.token.store'), [
+        'rut' => $user->rut,
+        'password' => $newPassword,
+    ]);
+    $response->assertOk();
+    $token = $response->json('token');
+    $token = "Bearer {$token}";
+    // Access token must work for api access
+    getJson(
+        route('products.index'),
+        ['Authorization' => $token],
+    )->assertOk();
 })->with('ValidForLoginRuts');

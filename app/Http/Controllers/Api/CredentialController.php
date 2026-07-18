@@ -12,9 +12,7 @@ use Illuminate\Support\Str;
 
 class CredentialController extends Controller
 {
-    public function __construct(private PasswordGeneratorService $passwordService)
-    {
-    }
+    public function __construct(private PasswordGeneratorService $passwordService) {}
 
     /**
      * Update current user credentials.
@@ -27,16 +25,21 @@ class CredentialController extends Controller
     {
         $user = $request->user();
         $user->tokens()->where('id', '!=', $request->user()->currentAccessToken()->id)->delete();
-        $temporaryPassword = $this->passwordService->generate();
-        $user->email = $request->email;
-        $user->password = Hash::make($temporaryPassword);
+        $passwordDto = $this->passwordService->generate();
+        $temporaryPassword = $passwordDto->password;
+
+        if ($request->has('email')) {
+            $user->email = $request->email;
+        }
+
+        $user->password = $passwordDto->passwordHash;
         $user->password_changed_at = null; // Force password change ?
         $user->save();
 
         Mail::to($user->email)->send(new TemporaryPasswordMail($user, $temporaryPassword));
 
         return response()->json([
-            'message' => __('auth.password_reset'),
+            'message' => __('auth.password_reset', ['email' => Str::maskEmail($user->email)]),
         ]);
     }
 }

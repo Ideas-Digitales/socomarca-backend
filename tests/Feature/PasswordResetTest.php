@@ -1,12 +1,16 @@
 <?php
 
+use App\DTOs\Password;
 use App\Mail\TemporaryPasswordMail;
 use App\Models\User;
+use App\Services\Security\PasswordGeneratorService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
+use Mockery\MockInterface;
 
 use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\getJson;
@@ -14,6 +18,7 @@ use function Pest\Laravel\postJson;
 use function Pest\Laravel\putJson;
 
 it('allows requesting a password reset with a valid RUT', function () {
+    /** @var \Tests\TestCase $this */
     Mail::fake();
     Event::fake();
 
@@ -22,22 +27,31 @@ it('allows requesting a password reset with a valid RUT', function () {
         'email' => 'test@example.com',
     ]);
 
+    $newPassword = fake()->password();
+    $newPasswordHash = Hash::make($newPassword);
+    $passwordDto = new Password($newPassword, $newPasswordHash);
+    $this->instance(
+        PasswordGeneratorService::class,
+        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
+            $mock->expects('generate')->andReturn($passwordDto);
+        })
+    );
     $response = postJson(route('auth.password.restore'), [
         'rut' => '11111111-1',
     ]);
 
+    $maskedEmail =Str::maskEmail($user->email);
     $response->assertStatus(200)
         ->assertJson([
-            'message' => 'A new provisional password has been sent.',
+            'message' => __('auth.password_reset', ['email' => $maskedEmail]),
             'data' => [
-                'email' => $user->email,
+                'email' => $maskedEmail,
             ]
         ])
         ->assertJsonStructure([
             'message',
             'data' => [
                 'email',
-                'temporary_password',
             ]
         ]);
 
@@ -47,7 +61,7 @@ it('allows requesting a password reset with a valid RUT', function () {
     ]);
 
     $updatedUser = User::where('rut', $user->rut)->first();
-    expect(Hash::check($response->json('data.temporary_password'), $updatedUser->password))->toBeTrue();
+    expect(Hash::check($passwordDto->password, $updatedUser->password))->toBeTrue();
 
     Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($user) {
         return $mail->hasTo($user->email);

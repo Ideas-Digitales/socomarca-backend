@@ -4,6 +4,7 @@ use App\Mail\TemporaryPasswordMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Tests\Scenarios\CredentialScenario;
 
 use function Pest\Laravel\patchJson;
@@ -14,19 +15,20 @@ describe('successful updates', function () {
         Mail::fake();
 
         $scenario = CredentialScenario::make();
-
+        $email = fake()->email();
+        $maskedEmail = Str::maskEmail($email);
         $response = withHeaders($scenario->authHeaders())
             ->patchJson(route('credentials.update'), [
-                'email' => 'new@example.com',
+                'email' => $email,
             ]);
 
         $response->assertStatus(200)
             ->assertJson([
-                'message' => 'A new provisional password has been sent.',
+                'message' => __('auth.password_reset', ['email' => $maskedEmail]),
             ]);
 
         $scenario->user->refresh();
-        expect($scenario->user->email)->toBe('new@example.com');
+        expect($scenario->user->email)->toBe($email);
     });
 
     it('generates a new temporary password and sends it by mail', function () {
