@@ -217,6 +217,26 @@
             margin-top: 4px;
             opacity: 0.95;
         }
+        a:link {
+            color: green;
+            background-color: transparent;
+            text-decoration: none;
+        }
+        a:visited {
+            color: pink;
+            background-color: transparent;
+            text-decoration: none;
+        }
+        a:hover {
+            color: red;
+            background-color: transparent;
+            text-decoration: underline;
+        }
+        a:active {
+            color: yellow;
+            background-color: transparent;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -234,12 +254,13 @@
         $refund = 0;
         $total = (int) $order->amount;
         $orderDate = optional($order->created_at)->format('d/m/Y H:i');
-        $iconBase = rtrim(config('random.email_icons_base_url'), '/');
+        $logoUrl = \Illuminate\Support\Facades\Storage::disk('s3')->url('assets/logo.png');
+        $iconBase = \Illuminate\Support\Facades\Storage::disk('s3')->url('assets/icons');
     @endphp
 
     <div class="container">
         <div class="header">
-            <img src="{{ config('random.site_logo_url') }}" alt="Socomarca Compra Rápida" />
+            <img src="{{ $logoUrl }}" alt="Socomarca Compra Rápida" />
         </div>
         <div class="divider"></div>
 
@@ -358,20 +379,6 @@
                 </td>
             </tr>
         </table>
-        <!--
-        <div class="footer">
-            <div class="tagline">Socomarca Compra Rápida</div>
-            <div class="social">
-                <a href="#" aria-label="Facebook"><img src="{{ $iconBase }}/facebook.png" width="36" height="36" alt="Facebook" /></a>
-                <a href="#" aria-label="Twitter"><img src="{{ $iconBase }}/twitter.png" width="36" height="36" alt="Twitter" /></a>
-                <a href="#" aria-label="Instagram"><img src="{{ $iconBase }}/instagram.png" width="36" height="36" alt="Instagram" /></a>
-                <a href="#" aria-label="YouTube"><img src="{{ $iconBase }}/youtube.png" width="36" height="36" alt="YouTube" /></a>
-                <a href="#" aria-label="Pinterest"><img src="{{ $iconBase }}/pinterest.png" width="36" height="36" alt="Pinterest" /></a>
-            </div>
-            <div class="sent-by">Este correo fue enviado por: contacto@socomarca.cl</div>
-            <div class="contact">Por cualquier duda comunicarse a contacto@socomarca.cl</div>
-        </div>
-        -->
     </div>
 </body>
 </html>
