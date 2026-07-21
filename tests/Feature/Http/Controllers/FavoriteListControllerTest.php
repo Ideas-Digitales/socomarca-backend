@@ -2,16 +2,19 @@
 
 use App\Models\FavoriteList;
 use App\Models\User;
+use Laravel\Sanctum\Sanctum;
 
-describe('FavoriteList Endpoints', function() {
-    beforeEach(function () {
-        $this->user = User::factory()->create();
-    });
+use function Pest\Laravel\assertDatabaseMissing;
+use function Pest\Laravel\deleteJson;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
+describe('FavoriteList Endpoints', function () {
     describe('GET /api/favorites-list', function () {
         it('should require authentication', function () {
             $route = route('favorites-list.index');
-            $this->getJson($route)->assertStatus(401);
+            getJson($route)->assertStatus(401);
         });
 
         it('should successfully return user favorites lists', function () {
@@ -21,8 +24,8 @@ describe('FavoriteList Endpoints', function() {
             $route = route('favorites-list.index');
             $favoriteList = $user->favoritesList()->first();
 
-            $response = $this->actingAs($user, 'sanctum')
-                ->getJson($route);
+            Sanctum::actingAs($user, ['api-access']);
+            $response = getJson($route);
 
             $response
                 ->assertStatus(200)
@@ -44,9 +47,10 @@ describe('FavoriteList Endpoints', function() {
 
     describe('GET /api/favorites-list/{id}', function () {
         it('should return 404 when favorite list not found', function () {
+            $user = User::factory()->create();
             $route = route('favorites-list.show', ['favoriteList' => 4304993]);
-            $this->actingAs($this->user, 'sanctum')
-                ->getJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            getJson($route)
                 ->assertNotFound();
         });
     });
@@ -57,8 +61,8 @@ describe('FavoriteList Endpoints', function() {
             $user->givePermissionTo('create-favorites-list');
             $route = route('favorites-list.store');
 
-            $this->actingAs($user, 'sanctum')
-                ->postJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            postJson($route)
                 ->assertInvalid(['name']);
         });
 
@@ -67,8 +71,8 @@ describe('FavoriteList Endpoints', function() {
             $user->givePermissionTo(['create-favorites-list', 'read-own-favorites-list']);
             $route = route('favorites-list.store');
 
-            $this->actingAs($user, 'sanctum')
-                ->postJson($route, ['name' => 'Nueva lista favorita'])
+            Sanctum::actingAs($user, ['api-access']);
+            postJson($route, ['name' => 'Nueva lista favorita'])
                 ->assertJsonStructure([
                     "name",
                     "favorites" => [],
@@ -77,8 +81,8 @@ describe('FavoriteList Endpoints', function() {
                 ->assertCreated();
 
             $route = route('favorites-list.index');
-            $newList = $this->actingAs($user, 'sanctum')
-                ->getJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            $newList = getJson($route)
                 ->json('data.0');
 
             $user = User::find($user->id);
@@ -97,8 +101,8 @@ describe('FavoriteList Endpoints', function() {
             ]);
             $newListName = 'Nueva lista de favoritos actualizada';
 
-            $this->actingAs($user, 'sanctum')
-                ->putJson($route, ['name' => $newListName])
+            Sanctum::actingAs($user, ['api-access']);
+            putJson($route, ['name' => $newListName])
                 ->assertOk();
 
             $list = FavoriteList::find($user->favoritesList()->first()->id);
@@ -111,7 +115,7 @@ describe('FavoriteList Endpoints', function() {
             $favoriteList = FavoriteList::factory()->create();
             $route = route('favorites-list.destroy', ['favoriteList' => $favoriteList->id]);
 
-            $this->deleteJson($route)->assertUnauthorized();
+            deleteJson($route)->assertUnauthorized();
         });
 
         it('should require proper permissions', function () {
@@ -119,8 +123,8 @@ describe('FavoriteList Endpoints', function() {
             $favoriteList = FavoriteList::factory()->create(['user_id' => $user->id]);
             $route = route('favorites-list.destroy', ['favoriteList' => $favoriteList->id]);
 
-            $this->actingAs($user, 'sanctum')
-                ->deleteJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            deleteJson($route)
                 ->assertForbidden();
         });
 
@@ -134,8 +138,8 @@ describe('FavoriteList Endpoints', function() {
 
             $route = route('favorites-list.destroy', ['favoriteList' => $otherUserList->id]);
 
-            $this->actingAs($user, 'sanctum')
-                ->deleteJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            deleteJson($route)
                 ->assertForbidden();
         });
 
@@ -145,8 +149,8 @@ describe('FavoriteList Endpoints', function() {
 
             $route = route('favorites-list.destroy', ['favoriteList' => 99999]);
 
-            $this->actingAs($user, 'sanctum')
-                ->deleteJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            deleteJson($route)
                 ->assertNotFound();
         });
 
@@ -157,11 +161,11 @@ describe('FavoriteList Endpoints', function() {
             $favoriteList = FavoriteList::factory()->create(['user_id' => $user->id]);
             $route = route('favorites-list.destroy', ['favoriteList' => $favoriteList->id]);
 
-            $this->actingAs($user, 'sanctum')
-                ->deleteJson($route)
+            Sanctum::actingAs($user, ['api-access']);
+            deleteJson($route)
                 ->assertOk();
 
-            $this->assertDatabaseMissing('favorites_list', [
+            assertDatabaseMissing('favorites_list', [
                 'id' => $favoriteList->id
             ]);
         });

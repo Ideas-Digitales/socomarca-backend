@@ -18,6 +18,7 @@ use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\FavoriteListController;
 use App\Http\Controllers\Api\CartItemController;
+use App\Http\Controllers\Api\CredentialController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ReportController;
@@ -38,7 +39,7 @@ Route::prefix('auth')->group(function () {
     Route::middleware('throttle:6,1')->group(function () {
         Route::post('/restore', [PasswordResetController::class, 'forgotPassword'])->name('auth.password.restore');
     });
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum','abilities:api-access'])->group(function () {
         Route::get('/check-token', function () {
             return response()->json(['valid' => true]);
         })->name('auth.check.token');
@@ -48,9 +49,13 @@ Route::prefix('auth')->group(function () {
             Route::get('/status', [PasswordResetController::class, 'checkPasswordStatus'])->name('password.status');
         });
     });
+    Route::patch('/credentials', [CredentialController::class, 'update'])
+        ->middleware('auth:sanctum')
+        ->middleware('abilities:credentials-restore')
+        ->name('credentials.update');
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
 
 

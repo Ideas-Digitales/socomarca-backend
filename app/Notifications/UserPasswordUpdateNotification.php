@@ -11,16 +11,14 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class UserPasswordUpdateNotification extends Notification
+class UserPasswordUpdateNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
     /**
      * Create a new notification instance.
      */
-    public function __construct(public string $temporaryPassword)
-    {
-    }
+    public function __construct(public string $temporaryPassword) {}
 
     /**
      * Get the notification's delivery channels.
@@ -30,6 +28,18 @@ class UserPasswordUpdateNotification extends Notification
     public function via(object $notifiable): array
     {
         return ['mail'];
+    }
+
+    /**
+     * Determine which queues should be used for each notification channel.
+     *
+     * @return array<string, string>
+     */
+    public function viaQueues(): array
+    {
+        return [
+            'mail' => 'email',
+        ];
     }
 
     /**

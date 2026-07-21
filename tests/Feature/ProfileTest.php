@@ -2,12 +2,15 @@
 
 use App\Models\Address;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\Fluent\AssertableJson;
+use Laravel\Sanctum\Sanctum;
+use Tests\Scenarios\ProfileScenario;
 
-uses(RefreshDatabase::class);
+use function Pest\Laravel\getJson;
 
-test('usuario puede ver la información de su propio perfil', function () {
+it('allows a user to view their own profile information', function () {
+    $scenario = ProfileScenario::make();
+
     $user = User::factory()
         ->has(
             Address::factory([
@@ -26,35 +29,11 @@ test('usuario puede ver la información de su propio perfil', function () {
             ])->count(2)
         )->create();
 
-    $addressStructure = [
-            'id',
-            'address_line1',
-            'address_line2',
-            'postal_code',
-            'is_default',
-            'type',
-            'phone',
-            'contact_name',
-            'municipality_name',
-            'region_name',
-            'alias',
-        ];
+    Sanctum::actingAs($user, ['api-access']);
 
-    $structure = [
-        "rut",
-        "name",
-        "business_name",
-        "email",
-        "phone",
-        "is_active",
-        "billing_address" => $addressStructure,
-        "default_shipping_address" => $addressStructure,
-    ];
-
-    $this->actingAs($user, 'sanctum')
-        ->getJson('/api/profile')
+    getJson('/api/profile')
         ->assertStatus(200)
-        ->assertJsonStructure($structure)
+        ->assertJsonStructure($scenario->profileStructure)
         ->assertJsonFragment(['rut' => $user->rut])
         ->assertJson(fn (AssertableJson $json) =>
             $json->where('rut', $user->rut)
@@ -62,15 +41,16 @@ test('usuario puede ver la información de su propio perfil', function () {
                 ->where('billing_address.id', $user->billing_address->id)
                 ->where('default_shipping_address.id', $user->default_shipping_address->id)
                 ->etc()
-        );;
+        );
 });
 
-test('usuario puede ver su propio perfil aunque no tenga direcciones asociadas', function () {
+it('allows a user to view their own profile even without associated addresses', function () {
     $user = User::factory()->create();
     Address::where('user_id', $user->id)->delete();
 
-    $this->actingAs($user, 'sanctum')
-        ->getJson('/api/profile')
+    Sanctum::actingAs($user, ['api-access']);
+
+    getJson('/api/profile')
         ->assertStatus(200)
         ->assertJson(fn (AssertableJson $json) =>
             $json->where('rut', $user->rut)

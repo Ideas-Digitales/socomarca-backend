@@ -76,7 +76,7 @@ class SyncRandomUsers implements ShouldQueue
                                     'phone'            => $entidad['FOEN'] ?? null,
                                     'branch_code'      => $entidad['SUEN'] ?? '',
                                     'random_user_type' => $entidad['TIEN'],
-                                    'password'         => bcrypt('password'),
+                                    'password'         => null, // default password
                                     'prices_lists' => $jsonPricesLists,
                                 ],
                             ],

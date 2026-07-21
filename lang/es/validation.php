@@ -214,6 +214,7 @@ return [
         'order_id' => 'id pedido',
         'order_meta' => 'meta pedido',
         'paid_at' => 'pagado en',
+        'current_password' => 'contraseña actual',
         'password' => 'contraseña',
         'password_changed_at' => 'contraseña cambiada en',
         'payment_method_id' => 'id método pago',

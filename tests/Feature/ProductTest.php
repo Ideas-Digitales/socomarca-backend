@@ -8,38 +8,12 @@ use App\Models\Favorite;
 use App\Models\FavoriteList;
 use App\Models\Price;
 use App\Models\Product;
+use Laravel\Sanctum\Sanctum;
+use Tests\Scenarios\ProductScenario;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
-
-/**
- * Gets the products search response structure
- * @return array
- */
-function getSearchResponseStructure()
-{
-    return [
-        "data" => [
-            "*" => [
-                "id",
-                "name",
-                "unit",
-                "price",
-                "stock",
-                "image",
-                "sku",
-                "is_favorite",
-                "category" => ["id", "name"],
-                "subcategory" => ["id", "name"],
-                "brand" => ["id", "name"],
-            ],
-        ],
-        "extra" => ["supercategories", "categories", "subcategories"],
-        "meta",
-        "filters" => ["min_price", "max_price"],
-    ];
-}
 
 describe("Product list endpoint", function (): void {
     it("should return 401 without authentication", function (): void {
@@ -50,8 +24,8 @@ describe("Product list endpoint", function (): void {
         "should return 403 when not having the 'read-all-products' permission",
         function (): void {
             $user = App\Models\User::factory()->create();
-            actingAs($user, "sanctum")
-                ->getJson(route("products.index"))
+            Sanctum::actingAs($user, ['api-access']);
+            getJson(route("products.index"))
                 ->assertForbidden();
         },
     );
@@ -64,6 +38,7 @@ describe("Product list endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
             $minSearch = 60000;
             $maxSearch = 90000;
@@ -87,7 +62,7 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create(["status" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -101,7 +76,7 @@ describe("Product list endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure(getSearchResponseStructure());
+                ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
             expect($response->json("data"))->not->toBeEmpty();
             foreach ($response->json("data") as $product) {
@@ -119,6 +94,7 @@ describe("Product list endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
             $superCategory = Category::factory()->create(["level" => 1]);
             $category = Category::factory()->create([
@@ -158,7 +134,7 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create(["name" => "Otro Producto", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -173,7 +149,7 @@ describe("Product list endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure(getSearchResponseStructure());
+                ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
             expect($response->json("data"))->toHaveCount(1);
             $foundProduct = $response->json("data.0");
@@ -190,6 +166,7 @@ describe("Product list endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         $superCategory = Category::factory()->create(["level" => 1]);
@@ -251,7 +228,7 @@ describe("Product list endpoint", function (): void {
                 "status" => true,
             ]);
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -263,7 +240,7 @@ describe("Product list endpoint", function (): void {
 
         $response
             ->assertStatus(200)
-            ->assertJsonStructure(getSearchResponseStructure());
+            ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
         expect($response->json("data"))->toHaveCount(2);
         $ids = array_column($response->json("data"), "category");
@@ -278,6 +255,7 @@ describe("Product list endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         $superCategory = Category::factory()->create(["level" => 1]);
@@ -343,7 +321,7 @@ describe("Product list endpoint", function (): void {
                 "status" => true,
             ]);
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -355,7 +333,7 @@ describe("Product list endpoint", function (): void {
 
         $response
             ->assertStatus(200)
-            ->assertJsonStructure(getSearchResponseStructure());
+            ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
         expect($response->json("data"))->toHaveCount(2);
         $ids = array_column($response->json("data"), "subcategory");
@@ -370,6 +348,7 @@ describe("Product list endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         $super1 = Category::factory()->create([
@@ -427,7 +406,7 @@ describe("Product list endpoint", function (): void {
                 "status" => true,
             ]);
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -439,7 +418,7 @@ describe("Product list endpoint", function (): void {
 
         $response
             ->assertStatus(200)
-            ->assertJsonStructure(getSearchResponseStructure());
+            ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
         expect($response->json("data"))->toHaveCount(2);
         $ids = array_column($response->json("data"), "id");
@@ -455,6 +434,7 @@ describe("Product list endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         $targetProduct = Product::factory()
@@ -477,8 +457,7 @@ describe("Product list endpoint", function (): void {
             )
             ->create(["sku" => "SKU-67890", "status" => true]);
 
-        $response = actingAs($user, "sanctum")
-            ->getJson(route("products.index", ["sku" => "SKU-12345"]))
+        $response = getJson(route("products.index", ["sku" => "SKU-12345"]))
             ->assertStatus(200);
 
         expect($response->json("data"))->toHaveCount(1);
@@ -492,6 +471,7 @@ describe("Product list endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         Product::factory()
@@ -504,8 +484,7 @@ describe("Product list endpoint", function (): void {
             )
             ->create(["sku" => "SKU-12345", "status" => true]);
 
-        $response = actingAs($user, "sanctum")
-            ->getJson(route("products.index", ["sku" => "SKU-NONEXISTENT"]))
+        $response = getJson(route("products.index", ["sku" => "SKU-NONEXISTENT"]))
             ->assertStatus(200);
 
         expect($response->json("data"))->toBeEmpty();
@@ -519,6 +498,7 @@ describe("Product list endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             $catA = Category::factory()->create(["name" => "Alimentos"]);
@@ -561,30 +541,28 @@ describe("Product list endpoint", function (): void {
                 )
                 ->create(["name" => "Producto 3", "status" => true]);
 
-            $response = actingAs($user, "sanctum")
-                ->getJson(
-                    route("products.index", [
-                        "sort" => "price",
-                        "sort_direction" => "asc",
-                    ]),
-                )
+            $response = getJson(
+                route("products.index", [
+                    "sort" => "price",
+                    "sort_direction" => "asc",
+                ]),
+            )
                 ->assertStatus(200);
 
             $prices = array_column($response->json("data"), "price");
             expect($prices)->toBe([1000, 1500, 2000]);
 
-            $response = actingAs($user, "sanctum")
-                ->getJson(
-                    route("products.index", [
-                        "sort" => "stock",
-                        "sort_direction" => "desc",
-                    ]),
-                )
+            $response = getJson(
+                route("products.index", [
+                    "sort" => "stock",
+                    "sort_direction" => "desc",
+                ]),
+            )
                 ->assertStatus(200);
             $stocks = array_column($response->json("data"), "stock");
             expect($stocks)->toBe([10, 7, 5]);
 
-            $response = actingAs($user, "sanctum")->getJson(
+            $response = getJson(
                 "/api/products?sort=category_name&sort_direction=asc",
             );
             $response->assertStatus(200);
@@ -592,13 +570,12 @@ describe("Product list endpoint", function (): void {
             $categoryNames = array_column($categories, "name");
             expect($categoryNames)->toBe(["Alimentos", "Alimentos", "Bebidas"]);
 
-            $response = actingAs($user, "sanctum")
-                ->getJson(
-                    route("products.index", [
-                        "sort" => "id",
-                        "sort_direction" => "desc",
-                    ]),
-                )
+            $response = getJson(
+                route("products.index", [
+                    "sort" => "id",
+                    "sort_direction" => "desc",
+                ]),
+            )
                 ->assertStatus(200);
             $ids = array_column($response->json("data"), "id");
             rsort($ids);
@@ -612,6 +589,7 @@ describe("Product list endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         $favoriteList = FavoriteList::factory()->create([
             "user_id" => $user->id,
         ]);
@@ -639,7 +617,7 @@ describe("Product list endpoint", function (): void {
             )
             ->create(["status" => true]);
 
-        $responseFavorite = actingAs($user, "sanctum")->postJson(
+        $responseFavorite = postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -657,7 +635,7 @@ describe("Product list endpoint", function (): void {
         );
         expect($responseFavorite->json("data.0.is_favorite"))->toBeTrue();
 
-        $responseNonFavorite = actingAs($user, "sanctum")->postJson(
+        $responseNonFavorite = postJson(
             "/api/products/search",
             [
                 "filters" => [
@@ -681,7 +659,8 @@ describe("Product search endpoint", function (): void {
     it("should fail if price range is missing", function (): void {
         $user = App\Models\User::factory()->create();
         $user->givePermissionTo("read-all-products");
-        $response = actingAs($user, "sanctum")->postJson(
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -698,9 +677,10 @@ describe("Product search endpoint", function (): void {
     it("should fail validation if brand_id is not an array", function (): void {
         $user = App\Models\User::factory()->create();
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         $brand = Brand::factory()->create();
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => [
@@ -722,6 +702,7 @@ describe("Product search endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             $targetProduct = Product::factory()
@@ -744,7 +725,7 @@ describe("Product search endpoint", function (): void {
                 )
                 ->create(["sku" => "SKU-456", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -756,7 +737,7 @@ describe("Product search endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure(getSearchResponseStructure());
+                ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
             expect($response->json("data"))->toHaveCount(1);
             expect($response->json("data.0.id"))->toBe($targetProduct->id);
@@ -780,14 +761,14 @@ describe("Product search endpoint", function (): void {
         "should return 403 when searching by SKU without read-all-products permission",
         function (): void {
             $user = App\Models\User::factory()->create();
+            Sanctum::actingAs($user, ['api-access']);
 
-            actingAs($user, "sanctum")
-                ->postJson(route("products.search"), [
-                    "filters" => [
-                        "price" => ["min" => 0, "max" => 10000],
-                        "sku" => "SKU",
-                    ],
-                ])
+            postJson(route("products.search"), [
+                "filters" => [
+                    "price" => ["min" => 0, "max" => 10000],
+                    "sku" => "SKU",
+                ],
+            ])
                 ->assertForbidden();
         },
     );
@@ -800,6 +781,7 @@ describe("Product search endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             $superCategory = Category::factory()->create(["level" => 1]);
@@ -841,7 +823,7 @@ describe("Product search endpoint", function (): void {
                     "status" => true,
                 ]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 1000, "max" => 10000]],
@@ -850,7 +832,7 @@ describe("Product search endpoint", function (): void {
 
             $response
                 ->assertStatus(200)
-                ->assertJsonStructure(getSearchResponseStructure());
+                ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
 
             expect($response->json("extra.supercategories"))->toHaveCount(1);
             expect($response->json("extra.supercategories.0.id"))->toBe(
@@ -872,9 +854,10 @@ describe("Product search endpoint", function (): void {
         function (): void {
             $user = App\Models\User::factory()->create();
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -897,6 +880,7 @@ describe("Product search endpoint", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         $productZeroPrice = Product::factory()
@@ -919,7 +903,7 @@ describe("Product search endpoint", function (): void {
             )
             ->create(["name" => "Normal Product", "status" => true]);
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -940,6 +924,7 @@ describe("Product search endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             $productZeroPrice = Product::factory()
@@ -964,7 +949,7 @@ describe("Product search endpoint", function (): void {
 
             config(["random.show_product_zero_price" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -990,6 +975,7 @@ describe("Product search endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             Product::factory()
@@ -1014,7 +1000,7 @@ describe("Product search endpoint", function (): void {
                 )
                 ->create(["name" => "Fideos Guiso", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => [
@@ -1040,6 +1026,7 @@ describe("Product search endpoint", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             $productInactiveZero = Product::factory()
@@ -1064,7 +1051,7 @@ describe("Product search endpoint", function (): void {
 
             config(["random.show_product_zero_price" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1087,6 +1074,7 @@ describe("Product stock filter", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             Product::factory()
@@ -1111,7 +1099,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->getJson(
+            $response = getJson(
                 route("products.index"),
             );
 
@@ -1130,6 +1118,7 @@ describe("Product stock filter", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             Product::factory()
@@ -1157,7 +1146,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->getJson(
+            $response = getJson(
                 route("products.index"),
             );
 
@@ -1176,6 +1165,7 @@ describe("Product stock filter", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             Product::factory()
@@ -1200,7 +1190,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1222,6 +1212,7 @@ describe("Product stock filter", function (): void {
                 "prices_lists" => [$priceListCode],
             ]);
             $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
             Product::factory()
@@ -1249,7 +1240,7 @@ describe("Product stock filter", function (): void {
                 )
                 ->create(["name" => "In Stock Product", "status" => true]);
 
-            $response = actingAs($user, "sanctum")->postJson(
+            $response = postJson(
                 route("products.search"),
                 [
                     "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1269,6 +1260,7 @@ describe("Product stock filter", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         $product = Product::factory()
@@ -1282,7 +1274,7 @@ describe("Product stock filter", function (): void {
             )
             ->create(["name" => "Stocked Product", "status" => true]);
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1303,6 +1295,7 @@ describe("Product active filter", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         Product::factory()
@@ -1327,7 +1320,7 @@ describe("Product active filter", function (): void {
             )
             ->create(["name" => "Active Product", "status" => true]);
 
-        $response = actingAs($user, "sanctum")->getJson(
+        $response = getJson(
             route("products.index"),
         );
 
@@ -1343,6 +1336,7 @@ describe("Product active filter", function (): void {
             "prices_lists" => [$priceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
         Product::factory()
@@ -1367,7 +1361,7 @@ describe("Product active filter", function (): void {
             )
             ->create(["name" => "Active Product", "status" => true]);
 
-        $response = actingAs($user, "sanctum")->postJson(
+        $response = postJson(
             route("products.search"),
             [
                 "filters" => ["price" => ["min" => 0, "max" => 10000]],
@@ -1390,6 +1384,7 @@ describe('"byUserPrices" scope tests', function (): void {
             "prices_lists" => [$allowedPriceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
 
         Product::truncate();
 
@@ -1463,6 +1458,7 @@ describe('"byUserPrices" scope tests', function (): void {
             "prices_lists" => [$allowedPriceListCode],
         ]);
         $user->givePermissionTo("read-all-products");
+        Sanctum::actingAs($user, ['api-access']);
 
         $superCategory = Category::factory()->create(["level" => 1]);
         $category = Category::factory()->create([

@@ -1,22 +1,24 @@
 <?php
 
-use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Auth\Events\PasswordReset;
-use Illuminate\Support\Facades\Mail;
+use App\DTOs\Password;
 use App\Mail\TemporaryPasswordMail;
+use App\Models\User;
+use App\Services\Security\PasswordGeneratorService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
+use Mockery\MockInterface;
 
-uses(RefreshDatabase::class);
+use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
-
-
-test('el usuario puede solicitar restablecimiento de contraseña con RUT válido', function () {
+it('allows requesting a password reset with a valid RUT', function () {
+    /** @var \Tests\TestCase $this */
     Mail::fake();
     Event::fake();
 
@@ -25,51 +27,58 @@ test('el usuario puede solicitar restablecimiento de contraseña con RUT válido
         'email' => 'test@example.com',
     ]);
 
-    $response = $this->postJson(route('auth.password.restore'), [
+    $newPassword = fake()->password();
+    $newPasswordHash = Hash::make($newPassword);
+    $passwordDto = new Password($newPassword, $newPasswordHash);
+    $this->instance(
+        PasswordGeneratorService::class,
+        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
+            $mock->expects('generate')->andReturn($passwordDto);
+        })
+    );
+    $response = postJson(route('auth.password.restore'), [
         'rut' => '11111111-1',
     ]);
 
+    $maskedEmail =Str::maskEmail($user->email);
     $response->assertStatus(200)
         ->assertJson([
-            'message' => 'A new provisional password has been sent',
+            'message' => __('auth.password_reset', ['email' => $maskedEmail]),
             'data' => [
-                'email' => $user->email,
+                'email' => $maskedEmail,
             ]
         ])
         ->assertJsonStructure([
             'message',
             'data' => [
                 'email',
-                'temporary_password',
             ]
         ]);
 
-    $this->assertDatabaseHas('users', [
+    assertDatabaseHas('users', [
         'rut' => $user->rut,
         'password_changed_at' => null,
     ]);
-    
-    
+
     $updatedUser = User::where('rut', $user->rut)->first();
-    $this->assertTrue(Hash::check($response->json('data.temporary_password'), $updatedUser->password));
+    expect(Hash::check($passwordDto->password, $updatedUser->password))->toBeTrue();
 
-
-    Mail::assertSent(TemporaryPasswordMail::class, function ($mail) use ($user) {
+    Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($user) {
         return $mail->hasTo($user->email);
     });
 });
 
-test('solicitud de restablecimiento falla si el RUT no existe', function () {
+it('rejects a password reset request when the RUT does not exist', function () {
     Mail::fake();
 
-    $response = $this->postJson(route('auth.password.restore'), [
+    $response = postJson(route('auth.password.restore'), [
         'rut' => '00000000-0',
     ]);
 
-    $response->assertStatus(401);
+    $response->assertStatus(403);
 });
 
-test('usuario autenticado puede cambiar su contraseña', function () {
+it('allows an authenticated user to change their password', function () {
     Event::fake();
     $user = User::factory()->create([
         'rut' => '11111111-1',
@@ -77,16 +86,15 @@ test('usuario autenticado puede cambiar su contraseña', function () {
         'password_changed_at' => null,
     ]);
 
-    $this->actingAs($user);
+    Sanctum::actingAs($user, ['api-access']);
 
     $newPassword = 'newStrongPassword123';
 
-    $response = $this->putJson(route('password.update'), [
+    $response = putJson(route('password.update'), [
         'current_password' => 'currentpassword',
         'password' => $newPassword,
         'password_confirmation' => $newPassword,
     ]);
-
 
     $response->assertStatus(200)
         ->assertJson([
@@ -95,19 +103,19 @@ test('usuario autenticado puede cambiar su contraseña', function () {
         ]);
 
     $user->refresh();
-    $this->assertTrue(Hash::check($newPassword, $user->password));
-    $this->assertNotNull($user->password_changed_at);
+    expect(Hash::check($newPassword, $user->password))->toBeTrue();
+    expect($user->password_changed_at)->not->toBeNull();
 });
 
-test('cambio de contraseña falla con contraseña actual incorrecta', function () {
+it('rejects a password change with an incorrect current password', function () {
     $user = User::factory()->create([
         'rut' => '11111111-1',
         'password' => Hash::make('currentpassword'),
     ]);
 
-    $this->actingAs($user);
+    Sanctum::actingAs($user, ['api-access']);
 
-    $response = $this->putJson(route('password.update'), [
+    $response = putJson(route('password.update'), [
         'current_password' => 'wrongcurrentpassword',
         'password' => 'newpassword123',
         'password_confirmation' => 'newpassword123',
@@ -116,32 +124,30 @@ test('cambio de contraseña falla con contraseña actual incorrecta', function (
     $response->assertStatus(400);
 });
 
-test('cambio de contraseña falla si la nueva contraseña es igual a la actual', function () {
+it('rejects a new password equal to the current one', function () {
     $user = User::factory()->create([
         'rut' => '11111111-1',
         'password' => Hash::make('currentpassword'),
     ]);
 
-    $this->actingAs($user);
+    Sanctum::actingAs($user, ['api-access']);
 
-    $response = $this->putJson(route('password.update'), [
+    $response = putJson(route('password.update'), [
         'current_password' => 'currentpassword',
         'password' => 'currentpassword',
         'password_confirmation' => 'currentpassword',
     ]);
-    
+
     $response->assertStatus(422);
 });
 
-
-test('cambio de contraseña falla con validaciones incorrectas', function () {
+it('validates the new password format and confirmation match', function () {
     $user = User::factory()->create([
         'rut' => '11111111-1',
     ]);
-    $this->actingAs($user);
+    Sanctum::actingAs($user, ['api-access']);
 
-    
-    $response = $this->putJson(route('password.update'), [
+    $response = putJson(route('password.update'), [
         'current_password' => 'currentpassword',
         'password' => 'short',
         'password_confirmation' => 'short',
@@ -149,8 +155,7 @@ test('cambio de contraseña falla con validaciones incorrectas', function () {
     $response->assertStatus(422)
         ->assertJsonValidationErrorFor('password');
 
-    
-    $response = $this->putJson(route('password.update'), [
+    $response = putJson(route('password.update'), [
         'current_password' => 'currentpassword',
         'password' => 'newpassword123',
         'password_confirmation' => 'anotherpassword123',
@@ -158,15 +163,14 @@ test('cambio de contraseña falla con validaciones incorrectas', function () {
     $response->assertStatus(422)->assertJsonValidationErrorFor('password');
 });
 
-
-test('usuario puede verificar el estado de su contraseña', function () {
+it('allows checking the user\'s password status', function () {
     $user = User::factory()->create([
         'rut' => '11111111-1',
         'password_changed_at' => null,
     ]);
-    $this->actingAs($user);
+    Sanctum::actingAs($user, ['api-access']);
 
-    $response = $this->getJson(route('password.status'));
+    $response = getJson(route('password.status'));
     $response->assertStatus(200)
         ->assertJson([
             'status' => true,
@@ -178,7 +182,7 @@ test('usuario puede verificar el estado de su contraseña', function () {
     $user->password_changed_at = Carbon::now();
     $user->save();
 
-    $response = $this->getJson(route('password.status'));
+    $response = getJson(route('password.status'));
     $response->assertStatus(200)
         ->assertJson([
             'status' => true,

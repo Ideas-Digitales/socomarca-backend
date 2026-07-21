@@ -4,17 +4,21 @@ use App\Models\Address;
 use App\Models\Municipality;
 use App\Models\Region;
 use App\Models\User;
+use Laravel\Sanctum\Sanctum;
 
+use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\patchJson;
+use function Pest\Laravel\postJson;
+use function Pest\Laravel\putJson;
 
-describe('Addresses list endpoint', function() {
-    it('should verify authentication to show addresses list', function ()
-    {
-        $response = $this->getJson(route('addresses.index'));;
+describe('Addresses list endpoint', function () {
+    it('should verify authentication to show addresses list', function () {
+        $response = getJson(route('addresses.index'));;
         $response->assertUnauthorized();
     });
 
-    it('should read its own addresses when having "read-own-addresses" permission', function ()
-    {
+    it('should read its own addresses when having "read-own-addresses" permission', function () {
         $addressCount = random_int(1, 5);
         Address::truncate();
         $user = User::factory()
@@ -22,20 +26,19 @@ describe('Addresses list endpoint', function() {
                 Address::factory()
                     ->count($addressCount)
             )
-                ->create();
+            ->create();
 
         $user->givePermissionTo(['read-own-addresses']);
 
         $route = route('addresses.index');
-        $this->actingAs($user, 'sanctum')
-            ->getJson($route)
+        Sanctum::actingAs($user, ['api-access']);
+        getJson($route)
             ->assertStatus(200)
             //->assertJsonStructure($this->addressListJsonStructure)
             ->assertJsonCount($addressCount, 'data');
     });
 
-    it('shouldn\'t read other users addresses when having "read-own-addresses" only', function ()
-    {
+    it('shouldn\'t read other users addresses when having "read-own-addresses" only', function () {
         $addressCount = random_int(1, 5);
         Address::truncate();
         $user = User::factory()
@@ -43,7 +46,7 @@ describe('Addresses list endpoint', function() {
                 Address::factory()
                     ->count($addressCount)
             )
-                ->create();
+            ->create();
         $address = $user->addresses()->first();
 
         $user->givePermissionTo(['read-own-addresses']);
@@ -51,17 +54,17 @@ describe('Addresses list endpoint', function() {
         $user2 = User::factory()->create();
 
         $route = route('addresses.show', ['address' => $address->id]);
-        $this->actingAs($user, 'sanctum')
-            ->getJson($route)
+        Sanctum::actingAs($user, ['api-access']);
+        getJson($route)
             ->assertStatus(200);
 
-        $this->actingAs($user2, 'sanctum')
-            ->getJson($route)
+        Sanctum::actingAs($user2, ['api-access']);
+        getJson($route)
             ->assertStatus(403);
     });
 });
 
-describe('Store addresses endpoint', function() {
+describe('Store addresses endpoint', function () {
 
     it('should store a new address when having "create-addresses" permission', function () {
         Address::truncate();
@@ -83,8 +86,8 @@ describe('Store addresses endpoint', function() {
 
         $route = route('addresses.store');
 
-        $response = $this->actingAs($user, 'sanctum')
-            ->postJson($route, $payload);
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson($route, $payload);
 
         $response
             ->assertCreated()
@@ -114,7 +117,7 @@ describe('Store addresses endpoint', function() {
             ->assertJsonPath('is_default', true)
             ->assertJsonPath('type', 'shipping');
 
-        $this->assertDatabaseHas('addresses', [
+        assertDatabaseHas('addresses', [
             'address_line1' => 'Calle Falsa 123',
             'user_id' => $user->id,
             'municipality_id' => $municipality->id,
@@ -129,8 +132,8 @@ describe('Store addresses endpoint', function() {
         // Payload vacío para forzar errores de validación
         $payload = [];
 
-        $response = $this->actingAs($user, 'sanctum')
-            ->postJson($route, $payload);
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson($route, $payload);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors([
@@ -161,8 +164,8 @@ describe('Store addresses endpoint', function() {
             'alias' => str_repeat('a', 100), // excede max:50
         ];
 
-        $response = $this->actingAs($user, 'sanctum')
-            ->postJson($route, $payload);
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson($route, $payload);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors([
@@ -179,7 +182,7 @@ describe('Store addresses endpoint', function() {
     });
 });
 
-describe('Update addresses endpoint', function() {
+describe('Update addresses endpoint', function () {
 
     it('should allow customer updating an address when having "update-addresses" and "read-own-addresses" permissions', function () {
         Address::truncate();
@@ -206,13 +209,13 @@ describe('Update addresses endpoint', function() {
 
         $route = route('addresses.update', ['address' => $address->id]);
 
-        $response = $this->actingAs($user, 'sanctum')
-            ->putJson($route, $payload);
+        Sanctum::actingAs($user, ['api-access']);
+        $response = putJson($route, $payload);
 
         $response->assertStatus(200)
             ->assertJsonFragment(['message' => 'The selected address has been updated']);
 
-        $this->assertDatabaseHas('addresses', [
+        assertDatabaseHas('addresses', [
             'id' => $address->id,
             'address_line1' => 'Nueva Calle 456',
             'contact_name' => 'Ana Gómez',
@@ -237,13 +240,13 @@ describe('Update addresses endpoint', function() {
         ];
 
         $route = route('addresses.update', ['address' => $address->id]);
-        $response = $this->actingAs($user, 'sanctum')
-            ->patchJson($route, $payload);
+        Sanctum::actingAs($user, ['api-access']);
+        $response = patchJson($route, $payload);
 
         $response->assertStatus(200)
             ->assertJsonFragment(['message' => 'The selected address has been updated']);
 
-        $this->assertDatabaseHas('addresses', [
+        assertDatabaseHas('addresses', [
             'id' => $address->id,
             'address_line1' => 'Solo Cambio Calle',
             'contact_name' => 'Nombre Original', // No cambia
@@ -263,8 +266,8 @@ test('can update multiple municipalities status when having "update-municipaliti
         'status' => true
     ];
 
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson('/api/municipalities/status', $payload);
+    Sanctum::actingAs($user, ['api-access']);
+    $response = patchJson('/api/municipalities/status', $payload);
 
     $response->assertStatus(200)
         ->assertJsonStructure([
@@ -285,8 +288,8 @@ test('can update region and all its municipalities status when having "update-re
 
     $payload = ['status' => true];
 
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson("/api/regions/{$region->id}/municipalities/status", $payload);
+    Sanctum::actingAs($user, ['api-access']);
+    $response = patchJson("/api/regions/{$region->id}/municipalities/status", $payload);
 
     $response->assertStatus(200)
         ->assertJsonStructure([
@@ -301,8 +304,8 @@ test('municipalities bulk update requires valid data when having "update-municip
     $user = User::factory()->create();
     $user->givePermissionTo('update-municipalities');
 
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson('/api/municipalities/status', []);
+    Sanctum::actingAs($user, ['api-access']);
+    $response = patchJson('/api/municipalities/status', []);
 
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['municipality_ids', 'status']);
@@ -313,8 +316,8 @@ test('only users with "update-municipalities" permission can update municipaliti
 
     $municipalities = Municipality::factory()->count(2)->create();
 
-    $response = $this->actingAs($userWithoutPermission, 'sanctum')
-        ->patchJson('/api/municipalities/status', [
+    Sanctum::actingAs($userWithoutPermission, ['api-access']);
+    $response = patchJson('/api/municipalities/status', [
             'municipality_ids' => $municipalities->pluck('id')->toArray(),
             'status' => true
         ]);
@@ -326,8 +329,8 @@ test('bulk update fails with non-existent municipality ids when having "update-m
     $user = User::factory()->create();
     $user->givePermissionTo('update-municipalities');
 
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson('/api/municipalities/status', [
+    Sanctum::actingAs($user, ['api-access']);
+    $response = patchJson('/api/municipalities/status', [
             'municipality_ids' => [999, 1000],
             'status' => true
         ]);
@@ -339,8 +342,8 @@ test('region municipalities update fails with non-existent region when having "u
     $user = User::factory()->create();
     $user->givePermissionTo('update-regions');
 
-    $response = $this->actingAs($user, 'sanctum')
-        ->patchJson('/api/regions/999/municipalities/status', [
+    Sanctum::actingAs($user, ['api-access']);
+    $response = patchJson('/api/regions/999/municipalities/status', [
             'status' => true
         ]);
 

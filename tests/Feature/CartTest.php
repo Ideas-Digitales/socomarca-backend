@@ -1,71 +1,29 @@
 <?php
 
-use App\Models\Brand;
 use App\Models\CartItem;
-use App\Models\Category;
 use App\Models\Price;
 use App\Models\Product;
 use App\Models\User;
+use Laravel\Sanctum\Sanctum;
+use Tests\Scenarios\CartScenario;
 
-use function Pest\Laravel\actingAs;
 use function Pest\Laravel\getJson;
 
-beforeEach(function () {
-    /**
-     * @var \Tests\TestCase $this
-     * @var \App\Models\User $this->user
-     */
+it('returns the authenticated user\'s cart', function () {
+    $scenario = CartScenario::make();
+    Sanctum::actingAs($scenario->user, ['api-access']);
 
-    $this->user = User::factory()->create();
-    $this->user->givePermissionTo('read-own-cart');
-    actingAs($this->user, 'sanctum');
-
-    $supercategory = Category::factory()->create(['level' => 1]);
-    $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
-    $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
-    $brand = Brand::factory()->create();
-
-    $this->product = Product::factory()->create([
-        'supercategory_id' => $supercategory->id,
-        'category_id' => $category->id,
-        'subcategory_id' => $subcategory->id,
-        'brand_id' => $brand->id
-    ]);
-
-    // Crear precio activo para el producto
-    $this->price = Price::factory()->create([
-        'product_id' => $this->product->id,
-        'unit' => 'kg',
-        'price' => 100,
-        'stock' => 10,
-        'is_active' => true,
-        'valid_from' => now()->subDays(1),
-        'valid_to' => null
-    ]);
-});
-
-test('can view their own cart', function () {
-    /**
-     * @var \Tests\TestCase $this
-     * @var \App\Models\User $this->user
-     * @var \App\Models\Product $this->product
-     */
-
-    // Arrange
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $scenario->user->id,
+        'product_id' => $scenario->product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
-    // Act
     $response = getJson(route('cart.index'));
 
-    // Assert
     $response->assertOk();
 
-    // Should have cart structure
     $data = $response->json();
     expect($data)->toHaveKey('data');
     expect($data['data'])->toHaveKey('items');
@@ -74,55 +32,37 @@ test('can view their own cart', function () {
     expect($data['data']['items'][0]['quantity'])->toBe(2);
 });
 
-test('requires authentication to view cart', function () {
-    /**
-     * @var \Tests\TestCase $this
-     * @var \Illuminate\Foundation\Application $this->product
-     */
-
-    // Arrange
-    $this->app['auth']->forgetUser();
-
-    // Act
+it('requires authentication to view the cart', function () {
     $response = getJson(route('cart.index'));
 
-    // Assert
     $response->assertUnauthorized();
 });
 
-test('requires "read-own-cart" permission to view cart', function () {
-    // Arrange - Usuario sin permisos
+it('requires the "read-own-cart" permission to view the cart', function () {
     $userWithoutPermissions = User::factory()->create();
-    actingAs($userWithoutPermissions, 'sanctum');
+    Sanctum::actingAs($userWithoutPermissions, ['api-access']);
 
-    // Act
     $response = getJson(route('cart.index'));
 
-    // Assert
     $response->assertForbidden();
 });
 
-test('only shows cart items from authenticated user', function () {
-    /**
-     * @var \Tests\TestCase $this
-     * @var \App\Models\User $this->user
-     * @var \App\Models\Product $this->product
-     */
-
+it('only returns cart items belonging to the authenticated user', function () {
     // Arrange
-    $otherUser = User::factory()->create();
-    $otherUser->givePermissionTo('read-own-cart');
+    $scenario = CartScenario::make();
+    Sanctum::actingAs($scenario->user, ['api-access']);
+    $otherUser = createUserWithPermissions(['read-own-cart']);
 
     CartItem::create([
-        'user_id' => $this->user->id,
-        'product_id' => $this->product->id,
+        'user_id' => $scenario->user->id,
+        'product_id' => $scenario->product->id,
         'quantity' => 2,
         'unit' => 'kg'
     ]);
 
     CartItem::create([
         'user_id' => $otherUser->id,
-        'product_id' => $this->product->id,
+        'product_id' => $scenario->product->id,
         'quantity' => 3,
         'unit' => 'kg'
     ]);
@@ -138,7 +78,7 @@ test('only shows cart items from authenticated user', function () {
     expect($data[0]['quantity'])->toBe(2);
 });
 
-test('only shows the price from the price list allowed for the user', function () {
+it('only returns the price from the price list allowed for the user', function () {
     // Arrange
     $allowedPriceListCode = '01P';
     $otherPriceListCode = 'OTHER';
@@ -147,7 +87,7 @@ test('only shows the price from the price list allowed for the user', function (
         'prices_lists' => [$allowedPriceListCode],
     ]);
     $user->givePermissionTo('read-own-cart');
-    actingAs($user, 'sanctum');
+    Sanctum::actingAs($user, ['api-access']);
 
     $product = Product::factory()->create();
 

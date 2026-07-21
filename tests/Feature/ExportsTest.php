@@ -3,20 +3,16 @@
 use App\Exports\OrdersExport;
 use App\Exports\TopMunicipalitiesExport;
 use App\Exports\TopProductsExport;
-use App\Models\User;
 use App\Models\Category;
 use App\Models\Municipality;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Maatwebsite\Excel\Facades\Excel;
+use Tests\Scenarios\ReportsScenario;
 
-uses(RefreshDatabase::class);
-
-beforeEach(function () {
-    $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
-});
+use function Pest\Laravel\getJson;
+use function Pest\Laravel\postJson;
 
 describe('Reports Export Endpoints', function () {
 
@@ -25,21 +21,16 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar transacciones exitosas a excel', function () {
             Excel::fake();
 
-            // Prepara un usuario admin
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             // Crea 2 órdenes exitosas y 1 fallida
             Order::factory()->count(2)->create(['status' => 'completed']);
             Order::factory()->count(1)->create(['status' => 'failed']);
 
-            // Ejecuta la exportación autenticado como admin
-            $this->actingAs($admin, 'sanctum')
-                ->post(route('reports.transactions.export'), ['filename' => 'export.xlsx']);
+            postJson(route('reports.transactions.export'), ['filename' => 'export.xlsx']);
 
             Excel::assertDownloaded('export.xlsx', function ($export) {
-
                 expect($export)->toBeInstanceOf(OrdersExport::class);
 
                 $collection = $export->collection();
@@ -55,18 +46,16 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar transacciones fallidas a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Order::factory()->count(2)->create(['status' => 'failed']);
             Order::factory()->count(1)->create(['status' => 'completed']);
 
-            $this->actingAs($admin, 'sanctum')
-                ->post(route('reports.transactions.export'), [
-                    'status' => 'failed',
-                    'filename' => 'export.xlsx'
-                ]);
+            postJson(route('reports.transactions.export'), [
+                'status' => 'failed',
+                'filename' => 'export.xlsx'
+            ]);
 
             Excel::assertDownloaded('export.xlsx', function ($export) {
                 expect($export)->toBeInstanceOf(OrdersExport::class);
@@ -87,16 +76,14 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar top de comunas a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Municipality::factory()->count(3)->create();
 
-            $this->actingAs($admin, 'sanctum')
-                ->post(route('reports.municipalities.export'), [
-                    'filename' => 'top_municipalities.xlsx'
-                ]);
+            postJson(route('reports.municipalities.export'), [
+                'filename' => 'top_municipalities.xlsx'
+            ]);
 
             Excel::assertDownloaded('top_municipalities.xlsx', function ($export) {
                 expect($export)->toBeInstanceOf(TopMunicipalitiesExport::class);
@@ -112,16 +99,14 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar top de productos a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Product::factory()->count(3)->create();
 
-            $this->actingAs($admin, 'sanctum')
-                 ->post(route('reports.products.export') . '?aggregate=sales', [
-                    'filename' => 'top_products.xlsx'
-                ]);
+            postJson(route('reports.products.export') . '?aggregate=sales', [
+                'filename' => 'top_products.xlsx'
+            ]);
 
             Excel::assertDownloaded('top_products.xlsx', function ($export) {
                 expect($export)->toBeInstanceOf(TopProductsExport::class);
@@ -137,16 +122,14 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar categorías usando el endpoint de reportes a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Category::factory()->count(3)->create();
 
-            $this->actingAs($admin, 'sanctum')
-                ->post(route('reports.categories.export'), [
-                    'filename' => 'categories.xlsx'
-                ]);
+            postJson(route('reports.categories.export'), [
+                'filename' => 'categories.xlsx'
+            ]);
 
             Excel::assertDownloaded('categories.xlsx');
         });
@@ -158,19 +141,17 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar clientes usando el endpoint de reportes a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
-            $clientes = User::factory()->count(3)->create();
+            $clientes = App\Models\User::factory()->count(3)->create();
             foreach ($clientes as $cliente) {
                 $cliente->assignRole('customer');
             }
 
-            $this->actingAs($admin, 'sanctum')
-                ->post(route('reports.customers.export'), [
-                    'filename' => 'customers.xlsx'
-                ]);
+            postJson(route('reports.customers.export'), [
+                'filename' => 'customers.xlsx'
+            ]);
 
             Excel::assertDownloaded('customers.xlsx');
         });
@@ -182,16 +163,14 @@ describe('Reports Export Endpoints', function () {
         it('puede exportar órdenes a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Order::factory()->count(3)->create();
 
             $expectedFileName = 'Reporte_ordenes_' . now()->format('Ymd') . '.xlsx';
 
-            $this->actingAs($admin, 'sanctum')
-                ->post(route('reports.orders.export'));
+            postJson(route('reports.orders.export'));
 
             Excel::assertDownloaded($expectedFileName);
         });
@@ -205,13 +184,10 @@ describe('Reports Data Endpoints', function () {
     describe('Dashboard', function () {
 
         it('puede obtener datos del dashboard de reportes', function () {
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->withHeaders(['Accept' => 'application/json'])
-                ->post(route('reports.dashboard'));
+            $response = postJson(route('reports.dashboard'));
 
             $response->assertStatus(200);
         });
@@ -221,15 +197,12 @@ describe('Reports Data Endpoints', function () {
     describe('Products Data', function () {
 
         it('puede obtener lista de productos más vendidos', function () {
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Product::factory()->count(3)->create();
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->withHeaders(['Accept' => 'application/json'])
-                ->post(route('reports.products.top-selling'));
+            $response = postJson(route('reports.products.top-selling'));
 
             $response->assertStatus(200);
         });
@@ -239,44 +212,35 @@ describe('Reports Data Endpoints', function () {
     describe('Transactions Data', function () {
 
         it('puede obtener lista de transacciones', function () {
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Order::factory()->count(3)->create();
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->withHeaders(['Accept' => 'application/json'])
-                ->post(route('reports.transactions'));
+            $response = postJson(route('reports.transactions'));
 
             $response->assertStatus(200);
         });
 
         it('puede obtener lista de transacciones fallidas', function () {
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Order::factory()->count(2)->create(['status' => 'failed']);
             Order::factory()->count(1)->create(['status' => 'completed']);
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->withHeaders(['Accept' => 'application/json'])
-                ->post(route('reports.transactions.failed'));
+            $response = postJson(route('reports.transactions.failed'));
 
             $response->assertStatus(200);
         });
 
         it('puede obtener una transacción específica por ID', function () {
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             $order = Order::factory()->create();
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->withHeaders(['Accept' => 'application/json'])
-                ->get(route('reports.transactions.show', $order->id));
+            $response = getJson(route('reports.transactions.show', $order->id));
 
             $response->assertStatus(200);
         });
@@ -286,18 +250,15 @@ describe('Reports Data Endpoints', function () {
     describe('Customers Data', function () {
 
         it('puede obtener lista de clientes en reportes', function () {
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
-            $clientes = User::factory()->count(3)->create();
+            $clientes = App\Models\User::factory()->count(3)->create();
             foreach ($clientes as $cliente) {
                 $cliente->assignRole('customer');
             }
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->withHeaders(['Accept' => 'application/json'])
-                ->post(route('reports.customers'));
+            $response = postJson(route('reports.customers'));
 
             $response->assertStatus(200);
         });
@@ -313,10 +274,10 @@ describe('Legacy Export Endpoints', function () {
         it('no puede exportar categorías si no tiene rol permitido', function () {
             Excel::fake();
 
-            $user = User::factory()->create(); // Sin rol admin/superadmin/supervisor
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->userWithoutPermission, ['api-access']);
 
-            $response = $this->actingAs($user, 'sanctum')
-                ->get('/api/categories/exports');
+            $response = getJson('/api/categories/exports');
 
             $response->assertStatus(403);
         });
@@ -328,14 +289,12 @@ describe('Legacy Export Endpoints', function () {
         it('puede exportar categorías a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
             Category::factory()->count(3)->create();
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->get('/api/categories/exports');
+            $response = getJson('/api/categories/exports');
 
             $response->assertStatus(200);
         });
@@ -347,17 +306,15 @@ describe('Legacy Export Endpoints', function () {
         it('puede exportar clientes a excel', function () {
             Excel::fake();
 
-            $admin = User::factory()->create();
-            $admin->assignRole('admin');
-            $admin->givePermissionTo('read-all-reports');
+            $scenario = ReportsScenario::make();
+            Sanctum::actingAs($scenario->admin, ['api-access']);
 
-            $clientes = User::factory()->count(3)->create();
+            $clientes = App\Models\User::factory()->count(3)->create();
             foreach ($clientes as $cliente) {
                 $cliente->assignRole('customer');
             }
 
-            $response = $this->actingAs($admin, 'sanctum')
-                ->get('/api/users/exports');
+            $response = getJson('/api/users/exports');
 
             $response->assertStatus(200);
         });
