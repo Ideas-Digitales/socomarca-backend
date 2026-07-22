@@ -20,10 +20,13 @@ class Payment extends Model
         'paid_at',
         'status',
         'generate_random_doc_type',
+        'status_check_attempts',
+        'last_status_checked_at',
     ];
 
     protected $casts = [
-        'response_message' => 'json'
+        'response_message' => 'json',
+        'last_status_checked_at' => 'datetime',
     ];
 
     public function order()

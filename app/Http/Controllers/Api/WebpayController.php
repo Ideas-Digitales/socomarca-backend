@@ -2,12 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Events\OrderCompleted;
-use App\Events\WebpayPaymentAuthorized;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\CartItem;
 use App\Services\PaymentService;
 use App\Services\WebpayService;
 use Illuminate\Http\Request;
@@ -54,7 +51,7 @@ class WebpayController extends Controller
                         "status" => $result["status"],
                     ]);
 
-                    $this->paymentService->recordWebpayResult(
+                    $this->paymentService->finalizeWebpayResult(
                         $payment,
                         $order,
                         $result,
@@ -65,17 +62,6 @@ class WebpayController extends Controller
                         "order_status" => $order->status,
                         "payment_status" => $payment->response_status,
                     ]);
-
-                    if ($order->status === "completed") {
-                        CartItem::where("user_id", $order->user_id)->delete();
-                        Log::info(
-                            "Webpay return: Carrito borrado exitosamente",
-                            ["user_id" => $order->user_id],
-                        );
-
-                        OrderCompleted::dispatch($order);
-                        WebpayPaymentAuthorized::dispatch($order, $payment);
-                    }
                 } else {
                     Log::warning("Webpay return: Orden no encontrada", [
                         "order_id" => $payment->order_id,

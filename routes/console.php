@@ -8,6 +8,7 @@ Artisan::command("inspire", function () {
 })->purpose("Display an inspiring quote");
 
 use App\Jobs\CheckBlockedCreditLinesJob;
+use App\Jobs\ReconcileWebpayPendingPaymentsJob;
 use App\Jobs\SyncRandomBranches;
 use App\Jobs\SyncRandomBrands;
 use App\Jobs\SyncRandomCategories;
@@ -17,42 +18,50 @@ use App\Jobs\SyncRandomStock;
 use App\Jobs\SyncRandomUsers;
 use Illuminate\Support\Facades\Schedule;
 
-if (config("random.credit_sync.enabled", true)) {
-    $frequency = max(
-        1,
-        (int) config("random.credit_sync.frequency_minutes", 5),
-    );
-    Schedule::job(
-        new CheckBlockedCreditLinesJob(),
-        queue: "random-sync-credit",
-    )->cron("*/{$frequency} * * * *");
-}
+// if (config("random.credit_sync.enabled", true)) {
+//     $frequency = max(
+//         1,
+//         (int) config("random.credit_sync.frequency_minutes", 5),
+//     );
+//     Schedule::job(
+//         new CheckBlockedCreditLinesJob(),
+//         queue: "random-sync-credit",
+//     )->cron("*/{$frequency} * * * *");
+// }
+
+// Schedule::job(
+//     job: new SyncRandomCategories(),
+//     queue: "random-sync-products",
+// )->everyTwoHours();
+// Schedule::job(
+//     job: new SyncRandomBrands(),
+//     queue: "random-sync-products",
+// )->everyTwoHours();
+// Schedule::job(
+//     job: new SyncRandomProducts(),
+//     queue: "random-sync-products",
+// )->everyTwoHours();
+// Schedule::job(
+//     job: new SyncRandomPrices(),
+//     queue: "random-sync-products",
+// )->everyTwoHours();
+// Schedule::job(
+//     job: new SyncRandomStock(),
+//     queue: "random-sync-products",
+// )->everyTwoHours();
+// Schedule::job(
+//     job: new SyncRandomUsers(),
+//     queue: "random-sync-users",
+// )->everyTwoHours();
+// Schedule::job(
+//     job: new SyncRandomBranches(),
+//     queue: "random-sync-users",
+// )->everyTwoHours();
 
 Schedule::job(
-    job: new SyncRandomCategories(),
-    queue: "random-sync-products",
-)->everyTwoHours();
-Schedule::job(
-    job: new SyncRandomBrands(),
-    queue: "random-sync-products",
-)->everyTwoHours();
-Schedule::job(
-    job: new SyncRandomProducts(),
-    queue: "random-sync-products",
-)->everyTwoHours();
-Schedule::job(
-    job: new SyncRandomPrices(),
-    queue: "random-sync-products",
-)->everyTwoHours();
-Schedule::job(
-    job: new SyncRandomStock(),
-    queue: "random-sync-products",
-)->everyTwoHours();
-Schedule::job(
-    job: new SyncRandomUsers(),
-    queue: "random-sync-users",
-)->everyTwoHours();
-Schedule::job(
-    job: new SyncRandomBranches(),
-    queue: "random-sync-users",
-)->everyTwoHours();
+    job: new ReconcileWebpayPendingPaymentsJob(),
+    queue: "webpay-reconciliation",
+)
+    ->everyMinute()
+    // ->everyFiveMinutes()
+    ->withoutOverlapping();

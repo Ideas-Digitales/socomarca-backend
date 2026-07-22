@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Events\OrderCompleted;
+use App\Events\WebpayPaymentAuthorized;
+use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
@@ -50,6 +53,27 @@ class PaymentService
         $payment->paid_at =
             $transbankResult["status"] === "AUTHORIZED" ? now() : null;
         $payment->save();
+    }
+
+    /**
+     * Apply a Transbank result to the order/payment and, when it completes the
+     * order, run the same side effects the return callback triggers (clear the
+     * cart, dispatch OrderCompleted/WebpayPaymentAuthorized). Shared by
+     * WebpayController::return and the pending-payment reconciliation job so
+     * both entry points behave identically.
+     */
+    public function finalizeWebpayResult(
+        Payment $payment,
+        Order $order,
+        array $transbankResult,
+    ): void {
+        $this->recordWebpayResult($payment, $order, $transbankResult);
+
+        if ($order->status === "completed") {
+            CartItem::where("user_id", $order->user_id)->delete();
+            OrderCompleted::dispatch($order);
+            WebpayPaymentAuthorized::dispatch($order, $payment);
+        }
     }
 
     /**
