@@ -209,7 +209,7 @@ return [
         'read-all-subcategories',
         'read-all-faqs',
         'read-all-prices',
-        'read-all-products',
+        'read-price-list-products',
         'read-all-regions',
 
         "store-address",

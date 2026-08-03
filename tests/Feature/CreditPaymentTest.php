@@ -13,6 +13,7 @@ use App\Services\Random\RandomDocumentService;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -199,7 +200,7 @@ test(
                 ],
                 200,
             ),
-            "{$baseUrl}/web32/documento" => Http::response(
+            "{$baseUrl}/web32/documento*" => Http::response(
                 [
                     "numero" => "0000000001",
                     "tido" => "NVV",
@@ -236,6 +237,7 @@ test(
 
 test("it can process a credit line payment successfully", function () {
     /** @var TestCase $this */
+    Storage::fake('s3');
 
     [$user, $branch] = createCustomerWithBranch();
 
@@ -273,7 +275,7 @@ test("it can process a credit line payment successfully", function () {
             ],
             200,
         ),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             [
                 "numero" => "0000000001",
                 "tido" => "NVV",
@@ -415,6 +417,7 @@ test(
     function () {
         /** @var TestCase $this */
 
+        Storage::fake('s3');
         [$user] = createCustomerWithBranch();
         $branch = Branch::factory()->create([
             "user_id" => $user->id,
@@ -458,7 +461,7 @@ test(
                 ],
                 200,
             ),
-            "{$baseUrl}/web32/documento" => Http::response(
+            "{$baseUrl}/web32/documento*" => Http::response(
                 [
                     "numero" => "0000000001",
                     "tido" => "NVV",
@@ -648,7 +651,7 @@ test("it handles credit line payment failure correctly", function () {
             ],
             200,
         ),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             [
                 "message" =>
                 "5B8F5331-D5AF-4C80-A1E8-E7C9E096150A| El funcionario del documento no es válido",
@@ -878,7 +881,7 @@ test(
                 ],
                 200,
             ),
-            "{$baseUrl}/web32/documento" => Http::response(
+            "{$baseUrl}/web32/documento*" => Http::response(
                 [
                     "numero" => "0000000001",
                     "tido" => "NVV",

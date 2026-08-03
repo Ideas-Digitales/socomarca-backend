@@ -17,7 +17,7 @@ it('creates the random document and attaches it to the order on success', functi
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/login" => Http::response(['token' => 'fake-test-token'], 200),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             [
                 'numero' => '0000000099',
                 'idmaeedo' => 321,
@@ -41,7 +41,7 @@ it('logs and leaves the order untouched on a Random ERP business error', functio
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/login" => Http::response(['token' => 'fake-test-token'], 200),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             [
                 'message' => 'invalid data',
                 'errorId' => 'aBcD1234',
@@ -66,7 +66,7 @@ it('logs and swallows a thrown exception without failing the order', function ()
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/login" => Http::response(['token' => 'fake-test-token'], 200),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             ['message' => 'boom'],
             500,
         ),

@@ -93,7 +93,8 @@ return [
     'read-all-prices', // [superadmin, admin, supervisor, editor, customer]
 
     // Products permissions
-    'read-all-products', // [superadmin, admin, supervisor, editor, customer]
+    'read-all-products', // [superadmin, admin, supervisor, editor, developer]
+    'read-price-list-products', // [customer]
     'sync-product-images', // [superadmin, admin]
 
     // Content edition permissions
