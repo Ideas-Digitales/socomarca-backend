@@ -7,11 +7,33 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Categories\SuperCategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CategoryController extends Controller
 {
+    /**
+     * Build the constraint keeping only categories that hold at least one product with a
+     * price visible to the current user.
+     *
+     * Reused at every level of the category tree (supercategory, category, subcategory).
+     *
+     * @see \App\Models\Price::visibleTo()
+     * @return \Closure A closure receiving the products query builder and constraining it
+     */
+    private function hasVisiblePrices(): \Closure
+    {
+        return fn ($query) => $query->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
+    }
+
+    /**
+     * List the enabled supercategories that have products visible to the current user.
+     *
+     * Each supercategory is returned with its enabled children and subcategories, all
+     * filtered the same way, plus their product counts.
+     *
+     * @param Request $request Accepts optional 'sort' and 'sort_direction' inputs
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function index(Request $request)
     {
         $sort = $request->input('sort');
@@ -19,37 +41,16 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->whereHas('productsBySupercategory', function ($q) {
-                $q->whereHas('prices', function ($pq) {
-                    $user = Auth::user();
-                    $pq->where('is_active', true)
-                        ->where('stock', '>', 0)
-                        ->whereIn('price_list_id', $user->prices_lists);
-                });
-            })
+            ->whereHas('productsBySupercategory', $this->hasVisiblePrices())
             ->withCount('productsBySupercategory')
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
-                    ->whereHas('products', function ($q) {
-                        $q->whereHas('prices', function ($pq) {
-                            $user = Auth::user();
-                            $pq->where('is_active', true)
-                                ->where('stock', '>', 0)
-                                ->whereIn('price_list_id', $user->prices_lists);
-                        });
-                    })
+                    ->whereHas('products', $this->hasVisiblePrices())
                     ->withCount('products')
                     ->with(['children' => function ($query) {
                         $query
                             ->where('enabled', true)
-                            ->whereHas('productsBySubcategory', function ($q) {
-                                $q->whereHas('prices', function ($pq) {
-                                    $user = Auth::user();
-                                    $pq->where('is_active', true)
-                                        ->where('stock', '>', 0)
-                                        ->whereIn('price_list_id', $user->prices_lists);
-                                });
-                            })
+                            ->whereHas('productsBySubcategory', $this->hasVisiblePrices())
                             ->withCount('productsBySubcategory');
                     }]);
             }])
@@ -61,6 +62,12 @@ class CategoryController extends Controller
         );
     }
 
+    /**
+     * Show a single category.
+     *
+     * @param int|string $id The category identifier
+     * @return \Illuminate\Http\JsonResponse 404 when the category does not exist
+     */
     public function show($id)
     {
         if (!Category::find($id)) {
@@ -80,9 +87,12 @@ class CategoryController extends Controller
     }
 
     /**
-     * Search categories by filters
+     * Search categories by filters.
      *
-     * @param Request $request
+     * Same visibility rules as index(): only enabled categories holding products with a
+     * price visible to the current user are returned.
+     *
+     * @param Request $request Accepts optional 'filters', 'sort' and 'sort_direction' inputs
      *
      * @return \Illuminate\Http\JsonResponse
      */
@@ -101,33 +111,13 @@ class CategoryController extends Controller
 
         $categories = Category::where('level', 1)
             ->where('enabled', true)
-            ->whereHas('productsBySupercategory', function ($q) {
-                $q->whereHas('prices', function ($pq) {
-                    $user = Auth::user();
-                    $pq->where('is_active', true)
-                        ->where('stock', '>', 0)
-                        ->whereIn('price_list_id', $user->prices_lists);
-                });
-            })
+            ->whereHas('productsBySupercategory', $this->hasVisiblePrices())
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
-                    ->whereHas('products', function ($q) {
-                        $q->whereHas('prices', function ($pq) {
-                            $user = Auth::user();
-                            $pq->where('is_active', true)
-                                ->where('stock', '>', 0)
-                                ->whereIn('price_list_id', $user->prices_lists);
-                        });
-                    })
+                    ->whereHas('products', $this->hasVisiblePrices())
                     ->with(['children' => function ($query) {
-                        $query->where('enabled', true)->whereHas('productsBySubcategory', function ($q) {
-                            $q->whereHas('prices', function ($pq) {
-                                $user = Auth::user();
-                                $pq->where('is_active', true)
-                                    ->where('stock', '>', 0)
-                                    ->whereIn('price_list_id', $user->prices_lists);
-                            });
-                        });
+                        $query->where('enabled', true)
+                            ->whereHas('productsBySubcategory', $this->hasVisiblePrices());
                     }]);
             }])
             ->filter($filters, $sort, $sortDirection)

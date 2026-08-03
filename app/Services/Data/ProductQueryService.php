@@ -88,23 +88,30 @@ class ProductQueryService
     /**
      * Join the prices table with conditions for user's allowed price lists.
      *
-     * Applies constraints: active prices, stock > 0, user's price lists, optional price range/unit filters.
+     * Applies constraints: active prices, stock > 0, optional price range/unit filters.
+     * Prices are limited to the user's own price lists unless the user holds
+     * 'read-all-products', in which case every price list is visible.
      * Excludes zero-price products unless config('random.show_product_zero_price') is true.
      *
+     * @see \App\Models\User::restrictedToOwnPriceLists()
      * @param Builder $query The query builder to modify
+     * @return void
      */
     private function joinAllowedPrices(Builder $query): void
     {
         $user = Auth::user();
-        // $priceLists = json_decode($user->prices_lists);
-        $priceLists = $user->prices_lists;
+        $restrictToOwnPriceLists = $user->restrictedToOwnPriceLists();
+        $priceLists = $user->prices_lists ?? [];
         $priceFilter = $this->filters['price'] ?? null;
 
-        $query->join('prices', function ($join) use ($priceLists, $priceFilter) {
+        $query->join('prices', function ($join) use ($restrictToOwnPriceLists, $priceLists, $priceFilter) {
             $join->on('products.id', '=', 'prices.product_id')
                 ->where('prices.is_active', true)
-                ->where('prices.stock', '>', 0)
-                ->whereIn('prices.price_list_id', $priceLists);
+                ->where('prices.stock', '>', 0);
+
+            if ($restrictToOwnPriceLists) {
+                $join->whereIn('prices.price_list_id', $priceLists);
+            }
 
             if (! config('random.show_product_zero_price')) {
                 $join->where('prices.price', '>', 0);

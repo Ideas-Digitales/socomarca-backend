@@ -21,7 +21,7 @@ describe("Product list endpoint", function (): void {
     });
 
     it(
-        "should return 403 when not having the 'read-all-products' permission",
+        "should return 403 when having neither product read permission",
         function (): void {
             $user = App\Models\User::factory()->create();
             Sanctum::actingAs($user, ['api-access']);
@@ -37,7 +37,7 @@ describe("Product list endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
             $minSearch = 60000;
@@ -93,7 +93,7 @@ describe("Product list endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
             $superCategory = Category::factory()->create(["level" => 1]);
@@ -165,7 +165,7 @@ describe("Product list endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -254,7 +254,7 @@ describe("Product list endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -347,7 +347,7 @@ describe("Product list endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -433,7 +433,7 @@ describe("Product list endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -470,7 +470,7 @@ describe("Product list endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -497,7 +497,7 @@ describe("Product list endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -588,7 +588,7 @@ describe("Product list endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         $favoriteList = FavoriteList::factory()->create([
             "user_id" => $user->id,
@@ -658,7 +658,7 @@ describe("Product list endpoint", function (): void {
 describe("Product search endpoint", function (): void {
     it("should fail if price range is missing", function (): void {
         $user = App\Models\User::factory()->create();
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         $response = postJson(
             route("products.search"),
@@ -676,7 +676,7 @@ describe("Product search endpoint", function (): void {
 
     it("should fail validation if brand_id is not an array", function (): void {
         $user = App\Models\User::factory()->create();
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         $brand = Brand::factory()->create();
 
@@ -701,7 +701,7 @@ describe("Product search endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -758,7 +758,7 @@ describe("Product search endpoint", function (): void {
     );
 
     it(
-        "should return 403 when searching by SKU without read-all-products permission",
+        "should return 403 when searching by SKU without any product read permission",
         function (): void {
             $user = App\Models\User::factory()->create();
             Sanctum::actingAs($user, ['api-access']);
@@ -780,7 +780,7 @@ describe("Product search endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -853,7 +853,7 @@ describe("Product search endpoint", function (): void {
         "should return empty categories and subcategories when no products match",
         function (): void {
             $user = App\Models\User::factory()->create();
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -879,7 +879,7 @@ describe("Product search endpoint", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -923,7 +923,7 @@ describe("Product search endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -974,7 +974,7 @@ describe("Product search endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -1025,7 +1025,7 @@ describe("Product search endpoint", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -1073,7 +1073,7 @@ describe("Product stock filter", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -1117,7 +1117,7 @@ describe("Product stock filter", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -1164,7 +1164,7 @@ describe("Product stock filter", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -1211,7 +1211,7 @@ describe("Product stock filter", function (): void {
             $user = App\Models\User::factory()->create([
                 "prices_lists" => [$priceListCode],
             ]);
-            $user->givePermissionTo("read-all-products");
+            $user->givePermissionTo("read-price-list-products");
             Sanctum::actingAs($user, ['api-access']);
             Product::truncate();
 
@@ -1259,7 +1259,7 @@ describe("Product stock filter", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -1294,7 +1294,7 @@ describe("Product active filter", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -1335,7 +1335,7 @@ describe("Product active filter", function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$priceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
         Product::truncate();
 
@@ -1383,7 +1383,7 @@ describe('"byUserPrices" scope tests', function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$allowedPriceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
 
         Product::truncate();
@@ -1457,7 +1457,7 @@ describe('"byUserPrices" scope tests', function (): void {
         $user = App\Models\User::factory()->create([
             "prices_lists" => [$allowedPriceListCode],
         ]);
-        $user->givePermissionTo("read-all-products");
+        $user->givePermissionTo("read-price-list-products");
         Sanctum::actingAs($user, ['api-access']);
 
         $superCategory = Category::factory()->create(["level" => 1]);
@@ -1518,5 +1518,130 @@ describe('"byUserPrices" scope tests', function (): void {
         expect(
             array_intersect($excludedVariants, $productsResponse),
         )->toBeEmpty();
+    });
+});
+
+describe("'read-all-products' permission", function (): void {
+    /**
+     * Creates one product priced only in $priceListCode.
+     */
+    $createProductInList = function (string $priceListCode, string $name): Product {
+        return Product::factory()
+            ->has(
+                Price::factory([
+                    "price" => 5000,
+                    "is_active" => true,
+                    "stock" => 50,
+                    "price_list_id" => $priceListCode,
+                ]),
+            )
+            ->create(["name" => $name, "status" => true]);
+    };
+
+    it(
+        "should return products from every price list for a user without price lists",
+        function () use ($createProductInList): void {
+            // A superadmin has 'read-all-products' but no price lists assigned.
+            $user = App\Models\User::factory()->create(["prices_lists" => []]);
+            $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $productA = $createProductInList("LIST_A", "Product A");
+            $productB = $createProductInList("LIST_B", "Product B");
+
+            $response = getJson(route("products.index"))->assertStatus(200);
+
+            $ids = array_column($response->json("data"), "id");
+            expect($ids)->toContain($productA->id, $productB->id);
+        },
+    );
+
+    it(
+        "should return products from every price list when searching",
+        function () use ($createProductInList): void {
+            $user = App\Models\User::factory()->create(["prices_lists" => []]);
+            $user->givePermissionTo("read-all-products");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $superCategory = Category::factory()->create(["level" => 1]);
+            $product = $createProductInList("LIST_A", "Product A");
+            $product->update(["supercategory_id" => $superCategory->id]);
+
+            $response = postJson(
+                route("products.search"),
+                [
+                    "filters" => ["price" => ["min" => 0, "max" => 10000]],
+                ],
+            );
+
+            $response
+                ->assertStatus(200)
+                ->assertJsonStructure(ProductScenario::make()->getResponseStructure);
+
+            expect($response->json("data"))->toHaveCount(1);
+            expect($response->json("data.0.id"))->toBe($product->id);
+            expect($response->json("extra.supercategories"))->toHaveCount(1);
+        },
+    );
+
+    it(
+        "should keep a 'read-price-list-products' user restricted to its own lists",
+        function () use ($createProductInList): void {
+            $user = App\Models\User::factory()->create([
+                "prices_lists" => ["ALLOWED"],
+            ]);
+            $user->givePermissionTo("read-price-list-products");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $allowedProduct = $createProductInList("ALLOWED", "Allowed Product");
+            $otherProduct = $createProductInList("OTHER", "Other Product");
+
+            $response = getJson(route("products.index"))->assertStatus(200);
+
+            $ids = array_column($response->json("data"), "id");
+            expect($ids)->toContain($allowedProduct->id);
+            expect($ids)->not->toContain($otherProduct->id);
+        },
+    );
+});
+
+describe("ProductPolicy", function (): void {
+    it("should allow reading with 'read-all-products'", function (): void {
+        $user = App\Models\User::factory()->create();
+        $user->givePermissionTo("read-all-products");
+        $product = Product::factory()->create();
+
+        expect($user->can("viewAny", Product::class))->toBeTrue();
+        expect($user->can("view", $product))->toBeTrue();
+    });
+
+    it("should allow reading with 'read-price-list-products'", function (): void {
+        $user = App\Models\User::factory()->create();
+        $user->givePermissionTo("read-price-list-products");
+        $product = Product::factory()->create();
+
+        expect($user->can("viewAny", Product::class))->toBeTrue();
+        expect($user->can("view", $product))->toBeTrue();
+    });
+
+    it("should deny reading without any product permission", function (): void {
+        $user = App\Models\User::factory()->create();
+        $product = Product::factory()->create();
+
+        expect($user->can("viewAny", Product::class))->toBeFalse();
+        expect($user->can("view", $product))->toBeFalse();
+    });
+
+    it("should deny writing regardless of permissions", function (): void {
+        $user = App\Models\User::factory()->create();
+        $user->givePermissionTo("read-all-products");
+        $product = Product::factory()->create();
+
+        expect($user->can("create", Product::class))->toBeFalse();
+        expect($user->can("update", $product))->toBeFalse();
+        expect($user->can("delete", $product))->toBeFalse();
     });
 });

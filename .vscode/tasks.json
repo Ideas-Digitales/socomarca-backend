@@ -2,6 +2,70 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Deploy: Development",
+      "detail": "Start containers, run migrations and seeders (no image build, no cache warm-up)",
+      "type": "shell",
+      "command": "./scripts/deploy-dev.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy: Development (fresh database)",
+      "detail": "Same as 'Deploy: Development' but drops every table first — DESTROYS local data",
+      "type": "shell",
+      "command": "./scripts/deploy-dev.sh --fresh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy: Development (custom options)",
+      "detail": "Run the development deploy script with the options you type (e.g. --no-seed)",
+      "type": "shell",
+      "command": "./scripts/deploy-dev.sh ${input:deployOptions}",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Deploy: Run seeder",
+      "detail": "Run a single seeder class inside the app container",
+      "type": "shell",
+      "command": "./scripts/deploy-dev.sh --skip-health --seeder=${input:seederClass}",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Docker: Start compose",
       "type": "shell",
       "command": "docker compose up -d",
@@ -130,6 +194,26 @@
       "type": "promptString",
       "description": "Service to run the command in (e.g. app)",
       "default": "app"
+    },
+    {
+      "id": "deployOptions",
+      "type": "pickString",
+      "description": "Options for scripts/deploy-dev.sh",
+      "options": [
+        "",
+        "--fresh",
+        "--no-seed",
+        "--clear-cache",
+        "--dry-run",
+        "--skip-health"
+      ],
+      "default": ""
+    },
+    {
+      "id": "seederClass",
+      "type": "promptString",
+      "description": "Seeder class to run (e.g. RolesAndPermissionsSeeder)",
+      "default": "RolesAndPermissionsSeeder"
     }
   ]
 }

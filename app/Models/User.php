@@ -285,4 +285,18 @@ class User extends Authenticatable
     {
         return $this->hasMany(CreditLine::class);
     }
+
+    /**
+     * Determine whether product and price visibility must be limited to the user's own price lists.
+     *
+     * Users holding 'read-all-products' (superadmin, admin, supervisor, editor) see every
+     * product regardless of price list; users holding only 'read-price-list-products'
+     * (customer) are restricted to the lists assigned to them.
+     *
+     * @return bool True when the user may only see prices from its own price lists.
+     */
+    public function restrictedToOwnPriceLists(): bool
+    {
+        return ! $this->can('read-all-products');
+    }
 }

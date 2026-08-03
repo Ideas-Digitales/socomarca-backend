@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Category;
+use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 use Tests\Scenarios\CategoryScenario;
 use function Pest\Laravel\getJson;
@@ -948,6 +949,95 @@ describe("Category stock filter", function () {
             $data = $response->json();
             expect($data)->toHaveCount(1);
             expect($data[0]["name"])->toBe("TEST SUPER");
+        },
+    );
+});
+
+describe("Category price list visibility", function () {
+    it(
+        "should return the category tree to a 'read-all-products' user without price lists",
+        function () {
+            // A superadmin holds 'read-all-products' but has no price lists assigned,
+            // so category products must not be filtered by price list.
+            $user = User::factory()->create(["prices_lists" => []]);
+            $user->givePermissionTo(["read-all-categories", "read-all-products"]);
+            Sanctum::actingAs($user, ['api-access']);
+
+            $super = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+            ]);
+            $category = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $super->id,
+                "enabled" => true,
+            ]);
+
+            createProductWithPrice([
+                "name" => "Product Super",
+                "supercategory_id" => $super->id,
+                "sku" => "SKU-ALL-SUPER",
+                "status" => true,
+                "price_list_id" => "SOME_OTHER_LIST",
+            ]);
+            createProductWithPrice([
+                "name" => "Product Category",
+                "category_id" => $category->id,
+                "sku" => "SKU-ALL-CAT",
+                "status" => true,
+                "price_list_id" => "YET_ANOTHER_LIST",
+            ]);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $data = $response->json();
+            expect($data)->toHaveCount(1);
+            expect($data[0]["id"])->toBe($super->id);
+            expect($data[0]["products_count"])->toBe(1);
+            expect($data[0]["categories"])->toHaveCount(1);
+            expect($data[0]["categories"][0]["products_count"])->toBe(1);
+        },
+    );
+
+    it(
+        "should hide categories priced outside the lists of a restricted user",
+        function () {
+            $user = User::factory()->create([
+                "prices_lists" => [getPriceListCode()],
+            ]);
+            $user->givePermissionTo([
+                "read-all-categories",
+                "read-price-list-products",
+            ]);
+            Sanctum::actingAs($user, ['api-access']);
+
+            $allowedSuper = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+            ]);
+            $otherSuper = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+            ]);
+
+            createProductWithPrice([
+                "name" => "Allowed Product",
+                "supercategory_id" => $allowedSuper->id,
+                "sku" => "SKU-ALLOWED",
+                "status" => true,
+            ]);
+            createProductWithPrice([
+                "name" => "Other Product",
+                "supercategory_id" => $otherSuper->id,
+                "sku" => "SKU-OTHER",
+                "status" => true,
+                "price_list_id" => "SOME_OTHER_LIST",
+            ]);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $ids = array_column($response->json(), "id");
+            expect($ids)->toBe([$allowedSuper->id]);
         },
     );
 });
