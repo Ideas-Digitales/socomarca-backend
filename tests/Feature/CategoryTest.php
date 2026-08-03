@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Category;
+use App\Models\Price;
+use App\Models\Product;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 use Tests\Scenarios\CategoryScenario;
@@ -973,12 +975,20 @@ describe("Category price list visibility", function () {
                 "enabled" => true,
             ]);
 
+            // Two products per level, each in a different price list: both must be counted.
             createProductWithPrice([
-                "name" => "Product Super",
+                "name" => "Product Super A",
                 "supercategory_id" => $super->id,
-                "sku" => "SKU-ALL-SUPER",
+                "sku" => "SKU-ALL-SUPER-A",
                 "status" => true,
                 "price_list_id" => "SOME_OTHER_LIST",
+            ]);
+            createProductWithPrice([
+                "name" => "Product Super B",
+                "supercategory_id" => $super->id,
+                "sku" => "SKU-ALL-SUPER-B",
+                "status" => true,
+                "price_list_id" => "YET_ANOTHER_LIST",
             ]);
             createProductWithPrice([
                 "name" => "Product Category",
@@ -993,7 +1003,7 @@ describe("Category price list visibility", function () {
             $data = $response->json();
             expect($data)->toHaveCount(1);
             expect($data[0]["id"])->toBe($super->id);
-            expect($data[0]["products_count"])->toBe(1);
+            expect($data[0]["products_count"])->toBe(2);
             expect($data[0]["categories"])->toHaveCount(1);
             expect($data[0]["categories"][0]["products_count"])->toBe(1);
         },
@@ -1026,6 +1036,14 @@ describe("Category price list visibility", function () {
                 "sku" => "SKU-ALLOWED",
                 "status" => true,
             ]);
+            // Same category, price list the user cannot see: must not be counted either.
+            createProductWithPrice([
+                "name" => "Hidden Product",
+                "supercategory_id" => $allowedSuper->id,
+                "sku" => "SKU-HIDDEN",
+                "status" => true,
+                "price_list_id" => "SOME_OTHER_LIST",
+            ]);
             createProductWithPrice([
                 "name" => "Other Product",
                 "supercategory_id" => $otherSuper->id,
@@ -1036,8 +1054,64 @@ describe("Category price list visibility", function () {
 
             $response = getJson(route("categories.index"))->assertStatus(200);
 
-            $ids = array_column($response->json(), "id");
+            $data = $response->json();
+            $ids = array_column($data, "id");
             expect($ids)->toBe([$allowedSuper->id]);
+            expect($data[0]["products_count"])->toBe(1);
+        },
+    );
+
+    it(
+        "should not count products hidden by the zero price rule",
+        function () {
+            // The product listing hides zero-price products, so the category tree must
+            // hide them too: both endpoints share Price::applyVisibility().
+            $user = User::factory()->create([
+                "prices_lists" => [getPriceListCode()],
+            ]);
+            $user->givePermissionTo([
+                "read-all-categories",
+                "read-price-list-products",
+            ]);
+            Sanctum::actingAs($user, ['api-access']);
+
+            $zeroPriceSuper = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+            ]);
+            $normalSuper = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+            ]);
+
+            $zeroPriceProduct = Product::create([
+                "name" => "Free Product",
+                "supercategory_id" => $zeroPriceSuper->id,
+                "sku" => "SKU-FREE",
+                "status" => true,
+            ]);
+            Price::create([
+                "product_id" => $zeroPriceProduct->id,
+                "price_list_id" => getPriceListCode(),
+                "unit" => "un",
+                "price" => 0,
+                "stock" => 50,
+                "is_active" => true,
+                "valid_from" => now()->subDays(10),
+            ]);
+
+            createProductWithPrice([
+                "name" => "Normal Product",
+                "supercategory_id" => $normalSuper->id,
+                "sku" => "SKU-NORMAL",
+                "status" => true,
+            ]);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $ids = array_column($response->json(), "id");
+            expect($ids)->toBe([$normalSuper->id]);
+            expect($ids)->not->toContain($zeroPriceSuper->id);
         },
     );
 });

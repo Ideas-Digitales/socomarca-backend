@@ -1608,6 +1608,126 @@ describe("'read-all-products' permission", function (): void {
     );
 });
 
+describe("Product visibility by role", function (): void {
+    /**
+     * Creates one product priced only in $priceListCode.
+     */
+    $createProductInList = function (string $priceListCode, string $name): Product {
+        return Product::factory()
+            ->has(
+                Price::factory([
+                    "price" => 5000,
+                    "is_active" => true,
+                    "stock" => 50,
+                    "price_list_id" => $priceListCode,
+                ]),
+            )
+            ->create(["name" => $name, "status" => true]);
+    };
+
+    // These tests assign the roles as configured in config/authorization/roles.php
+    // (seeded by RolesAndPermissionsSeeder) instead of granting permissions by hand,
+    // so they validate the real role configuration — the actual source of the bug.
+
+    it(
+        "should let a superadmin without price lists see every product",
+        function () use ($createProductInList): void {
+            $user = App\Models\User::factory()->create(["prices_lists" => []]);
+            $user->assignRole("superadmin");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $productA = $createProductInList("LIST_A", "Product A");
+            $productB = $createProductInList("LIST_B", "Product B");
+
+            $response = getJson(route("products.index"))->assertStatus(200);
+
+            $ids = array_column($response->json("data"), "id");
+            expect($ids)->toContain($productA->id, $productB->id);
+        },
+    );
+
+    it(
+        "should limit a customer to the products of its own price lists",
+        function () use ($createProductInList): void {
+            $user = App\Models\User::factory()->create([
+                "prices_lists" => ["ALLOWED"],
+            ]);
+            $user->assignRole("customer");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $allowedProduct = $createProductInList("ALLOWED", "Allowed Product");
+            $otherProduct = $createProductInList("OTHER", "Other Product");
+
+            $response = getJson(route("products.index"))->assertStatus(200);
+
+            $ids = array_column($response->json("data"), "id");
+            expect($ids)->toBe([$allowedProduct->id]);
+            expect($ids)->not->toContain($otherProduct->id);
+        },
+    );
+});
+
+describe("Price 'visibleTo' scope", function (): void {
+    it("should match no price for a guest", function (): void {
+        // No authenticated user: the scope must not fall back to "everything".
+        Product::factory()
+            ->has(
+                Price::factory([
+                    "price" => 5000,
+                    "is_active" => true,
+                    "stock" => 50,
+                    "price_list_id" => "ANY_LIST",
+                ]),
+            )
+            ->create(["status" => true]);
+
+        expect(Price::query()->visibleTo()->count())->toBe(0);
+    });
+
+    it("should match every price list for a 'read-all-products' user", function (): void {
+        $user = App\Models\User::factory()->create(["prices_lists" => []]);
+        $user->givePermissionTo("read-all-products");
+        Price::truncate();
+
+        Product::factory()
+            ->has(
+                Price::factory([
+                    "price" => 5000,
+                    "is_active" => true,
+                    "stock" => 50,
+                    "price_list_id" => "ANY_LIST",
+                ]),
+            )
+            ->create(["status" => true]);
+
+        expect(Price::query()->visibleTo($user)->count())->toBe(1);
+    });
+
+    it("should exclude zero prices like the product listing does", function (): void {
+        $user = App\Models\User::factory()->create(["prices_lists" => ["LIST"]]);
+        $user->givePermissionTo("read-price-list-products");
+        Price::truncate();
+
+        Product::factory()
+            ->has(
+                Price::factory([
+                    "price" => 0,
+                    "is_active" => true,
+                    "stock" => 50,
+                    "price_list_id" => "LIST",
+                ]),
+            )
+            ->create(["status" => true]);
+
+        expect(Price::query()->visibleTo($user)->count())->toBe(0);
+
+        config(["random.show_product_zero_price" => true]);
+        expect(Price::query()->visibleTo($user)->count())->toBe(1);
+    });
+});
+
 describe("ProductPolicy", function (): void {
     it("should allow reading with 'read-all-products'", function (): void {
         $user = App\Models\User::factory()->create();

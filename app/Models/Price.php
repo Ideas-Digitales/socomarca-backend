@@ -40,12 +40,43 @@ class Price extends Model
     }
 
     /**
+     * Apply the price visibility rules to a query builder or a join clause.
+     *
+     * Single definition of "which prices may this user see", shared by the relation-based
+     * scope below and by the join in ProductQueryService, so the category tree and the
+     * product listing can never disagree:
+     *
+     *  - the price must be active and in stock;
+     *  - zero-price rows are excluded unless config('random.show_product_zero_price');
+     *  - the price list must belong to the user, unless the user holds 'read-all-products'.
+     *
+     * A guest is always restricted and therefore matches no price list.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder|\Illuminate\Database\Query\Builder|\Illuminate\Database\Query\JoinClause $query The query or join clause to constrain
+     * @param User|null $user The user to scope for; null (guest) matches no price list
+     * @param string $table Column prefix, e.g. 'prices' when constraining a join
+     * @return void
+     */
+    public static function applyVisibility($query, ?User $user, string $table = ''): void
+    {
+        $column = $table === '' ? '' : "{$table}.";
+
+        $query->where("{$column}is_active", true)
+            ->where("{$column}stock", '>', 0);
+
+        if (! config('random.show_product_zero_price')) {
+            $query->where("{$column}price", '>', 0);
+        }
+
+        if ($user === null || $user->restrictedToOwnPriceLists()) {
+            $query->whereIn("{$column}price_list_id", $user?->prices_lists ?? []);
+        }
+    }
+
+    /**
      * Scope the query to the prices a user is allowed to see.
      *
-     * Always requires active prices with stock. Prices are further limited to the user's
-     * own price lists unless the user holds 'read-all-products', in which case every
-     * price list is visible. A guest is always restricted (matching no price list).
-     *
+     * @see self::applyVisibility()
      * @param Builder $query The query builder to modify
      * @param User|null $user The user to scope for, defaults to the authenticated user
      * @return void
@@ -58,11 +89,6 @@ class Price extends Model
          */
         $user ??= Auth::user();
 
-        $query->where('is_active', true)
-            ->where('stock', '>', 0);
-
-        if ($user === null || $user->restrictedToOwnPriceLists()) {
-            $query->whereIn('price_list_id', $user?->prices_lists ?? []);
-        }
+        self::applyVisibility($query, $user);
     }
 }

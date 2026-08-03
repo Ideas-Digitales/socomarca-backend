@@ -42,16 +42,16 @@ class CategoryController extends Controller
         $categories = Category::where('level', 1)
             ->where('enabled', true)
             ->whereHas('productsBySupercategory', $this->hasVisiblePrices())
-            ->withCount('productsBySupercategory')
+            ->withCount(['productsBySupercategory' => $this->hasVisiblePrices()])
             ->with(['children' => function ($query) {
                 $query->where('enabled', true)
                     ->whereHas('products', $this->hasVisiblePrices())
-                    ->withCount('products')
+                    ->withCount(['products' => $this->hasVisiblePrices()])
                     ->with(['children' => function ($query) {
                         $query
                             ->where('enabled', true)
                             ->whereHas('productsBySubcategory', $this->hasVisiblePrices())
-                            ->withCount('productsBySubcategory');
+                            ->withCount(['productsBySubcategory' => $this->hasVisiblePrices()]);
                     }]);
             }])
             ->filter([], $sort, $sortDirection)

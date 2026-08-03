@@ -3,6 +3,7 @@
 namespace App\Services\Data;
 
 use App\Models\Category;
+use App\Models\Price;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -86,36 +87,26 @@ class ProductQueryService
     }
 
     /**
-     * Join the prices table with conditions for user's allowed price lists.
+     * Join the prices table, restricted to the prices the current user may see.
      *
-     * Applies constraints: active prices, stock > 0, optional price range/unit filters.
-     * Prices are limited to the user's own price lists unless the user holds
-     * 'read-all-products', in which case every price list is visible.
-     * Excludes zero-price products unless config('random.show_product_zero_price') is true.
+     * Visibility (active, in stock, zero-price exclusion and price lists) comes from
+     * Price::applyVisibility() so this join and the category tree share one definition.
+     * The optional price range and unit conditions are search filters, not visibility,
+     * and stay here.
      *
-     * @see \App\Models\User::restrictedToOwnPriceLists()
+     * @see \App\Models\Price::applyVisibility()
      * @param Builder $query The query builder to modify
      * @return void
      */
     private function joinAllowedPrices(Builder $query): void
     {
         $user = Auth::user();
-        $restrictToOwnPriceLists = $user->restrictedToOwnPriceLists();
-        $priceLists = $user->prices_lists ?? [];
         $priceFilter = $this->filters['price'] ?? null;
 
-        $query->join('prices', function ($join) use ($restrictToOwnPriceLists, $priceLists, $priceFilter) {
-            $join->on('products.id', '=', 'prices.product_id')
-                ->where('prices.is_active', true)
-                ->where('prices.stock', '>', 0);
+        $query->join('prices', function ($join) use ($user, $priceFilter) {
+            $join->on('products.id', '=', 'prices.product_id');
 
-            if ($restrictToOwnPriceLists) {
-                $join->whereIn('prices.price_list_id', $priceLists);
-            }
-
-            if (! config('random.show_product_zero_price')) {
-                $join->where('prices.price', '>', 0);
-            }
+            Price::applyVisibility($join, $user, 'prices');
 
             if ($priceFilter) {
                 if (isset($priceFilter['min'])) {
