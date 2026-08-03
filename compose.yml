@@ -54,11 +54,12 @@ services:
     container_name: mailpit
     restart: unless-stopped
     ports:
-        - 8025:8025
-        - 1025:1025
+      - 8025:8025
+      - 1025:1025
     image: axllent/mailpit
     networks:
       - socomarca
+
 volumes:
   socomarca_data:
     name: socomarca_data
