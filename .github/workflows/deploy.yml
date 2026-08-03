@@ -137,7 +137,7 @@ jobs:
         cd ${{ vars.BASE_DIR }}
 
         echo "🔐 Login GHCR..."
-        echo "${{ secrets.GH_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
         echo "📥 Pull image..."
         docker pull ghcr.io/${{ env.repo_name }}:${{ env.IMAGE_TAG }}
