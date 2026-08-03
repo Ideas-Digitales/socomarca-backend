@@ -13,12 +13,15 @@ use App\Services\WebpayService;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\Scenarios\WebpayReturnScenario;
 
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\instance;
 
 it('handles a successful payment, updates the order status and creates the random document', function () {
+    Storage::fake('s3');
+
     $scenario = WebpayReturnScenario::make();
 
     $webpayServiceMock = Mockery::mock(WebpayService::class);
@@ -38,7 +41,7 @@ it('handles a successful payment, updates the order status and creates the rando
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/login" => Http::response(['token' => 'fake-test-token'], 200),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             [
                 'numero' => '0000000088',
                 'tido' => 'NVV',
@@ -94,6 +97,8 @@ it('handles a successful payment, updates the order status and creates the rando
 });
 
 it('handles a successful payment when choosing the primary branch', function () {
+    Storage::fake('s3');
+
     $scenario = WebpayReturnScenario::make(['branch_type' => BranchType::PRIMARY]);
 
     $webpayServiceMock = Mockery::mock(WebpayService::class);
@@ -112,7 +117,7 @@ it('handles a successful payment when choosing the primary branch', function () 
     $baseUrl = config('random.url');
     Http::fake([
         "{$baseUrl}/login" => Http::response(['token' => 'fake-test-token'], 200),
-        "{$baseUrl}/web32/documento" => Http::response(
+        "{$baseUrl}/web32/documento*" => Http::response(
             [
                 'numero' => '0000000088',
                 'tido' => 'NVV',

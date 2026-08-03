@@ -13,6 +13,7 @@ use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Create a fully populated completed-order scenario with all related entities.
@@ -96,6 +97,7 @@ test('email subject contains customer name and order number', function () {
 
 test('email body renders the order summary view', function () {
     Mail::fake();
+    Storage::fake('s3');
 
     ['user' => $user, 'order' => $order, 'product' => $product] = makeCompletedOrderScenario();
 
@@ -103,7 +105,7 @@ test('email body renders the order summary view', function () {
 
     Mail::assertSent(OrderCompletedMail::class, function (OrderCompletedMail $mail) use ($user, $order, $product) {
         $rendered = $mail->render();
-        $logoUrl = config('random.site_logo_url');
+        $logoUrl = Storage::disk('s3')->url('assets/logo.png');
 
         return str_contains($rendered, 'Pedido')
             && str_contains($rendered, (string) $order->id)
@@ -113,15 +115,16 @@ test('email body renders the order summary view', function () {
     });
 });
 
-test('logo URL is read from config random site_logo_url', function () {
+test('logo URL is read from the s3 disk', function () {
     Mail::fake();
+    Storage::fake('s3');
 
     ['order' => $order] = makeCompletedOrderScenario();
 
     (new SendOrderCompletedEmail)->handle(new OrderCompleted($order));
 
     Mail::assertSent(OrderCompletedMail::class, function (OrderCompletedMail $mail) {
-        return str_contains($mail->render(), 'src="'.config('random.site_logo_url').'"');
+        return str_contains($mail->render(), 'src="'.Storage::disk('s3')->url('assets/logo.png').'"');
     });
 });
 

@@ -176,11 +176,12 @@ describe('Product Sync Monitoring', function () {
     });
 
     test('verifica tiempo de respuesta de la API', function () {
+        $baseUrl = config('random.url');
         Http::fake([
-            'http://seguimiento.random.cl:3003/login' => Http::response([
+            "{$baseUrl}/login" => Http::response([
                 'token' => 'fake-token'
             ], 200),
-            'http://seguimiento.random.cl:3003/productos*' => function () {
+            "{$baseUrl}/productos*" => function () {
                 // Simular respuesta lenta
                 sleep(1);
                 return Http::response(['data' => []], 200);

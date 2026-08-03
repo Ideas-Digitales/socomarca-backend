@@ -50,7 +50,7 @@ it('can create a document in Random API', function () {
 
     Http::fake([
         '*/login' => Http::response(['token' => 'fake_token'], 200),
-        '*/web32/documento' => Http::response(['message' => 'Document created successfully'], 200)
+        '*/web32/documento*' => Http::response(['message' => 'Document created successfully'], 200)
     ]);
 
     $service = new RandomApiService();
@@ -65,7 +65,7 @@ it('throws an error when document creation fails', function () {
 
     Http::fake([
         '*/login' => Http::response(['token' => 'fake_token'], 200),
-        '*/web32/documento' => Http::response(['message' => 'Bad Request'], 400)
+        '*/web32/documento*' => Http::response(['message' => 'Bad Request'], 400)
     ]);
 
     $service = new RandomApiService();

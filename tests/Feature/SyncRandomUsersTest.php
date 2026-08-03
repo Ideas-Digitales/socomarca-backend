@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
 
-test('sync users creates new user with generated email when email is empty', function () {
+test('sync users creates new user with null email when email is empty', function () {
     $mock = Mockery::mock(RandomApiService::class);
     $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
         [
@@ -42,11 +42,11 @@ test('sync users creates new user with generated email when email is empty', fun
         'user_code' => '12345678-9',
         'rut' => '11111111-1',
         'name' => 'John Doe',
-        'email' => 'temp_11111111-1@socomarca.temp',
         'business_name' => 'John Doe Business',
     ]);
 
     $user = User::where('user_code', '12345678-9')->first();
+    expect($user->email)->toBeNull();
     expect($user->hasRole('customer'))->toBeTrue();
 });
 

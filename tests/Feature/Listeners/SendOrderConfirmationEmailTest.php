@@ -6,6 +6,7 @@ use App\Mail\OrderCompletedMail;
 use App\Mail\OrderConfirmationMail;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 test("sends the order confirmation email to the customer", function () {
     Mail::fake();
@@ -106,6 +107,7 @@ test(
 
 test("confirmation email body renders the order summary view", function () {
     Mail::fake();
+    Storage::fake('s3');
 
     [
         "user" => $user,
@@ -119,7 +121,7 @@ test("confirmation email body renders the order summary view", function () {
         OrderConfirmationMail $mail,
     ) use ($user, $order, $product) {
         $rendered = $mail->render();
-        $logoUrl = config("random.site_logo_url");
+        $logoUrl = Storage::disk('s3')->url('assets/logo.png');
 
         return str_contains($rendered, "Pedido") &&
             str_contains($rendered, (string) $order->id) &&

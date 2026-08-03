@@ -54,10 +54,7 @@ class SyncRandomUsers implements ShouldQueue
                         Log::info("Processing Random Entidad. KOEN: {$entidad['KOEN']}, RTEN: {$entidad['RTEN']}");
 
                         $email = trim($entidad['EMAILCOMER'] ?? '') ?: null;
-                        if (!$email) {
-                            $rut = $entidad['RTEN'] ?? 'user';
-                            $email = "temp_{$rut}@socomarca.temp";
-                        }
+                        $rut = $entidad['RTEN'] ?? '';
 
                         $pricesLists = $entidad['KOLTVEN'] ?? [];
                         // Note: upsert() bypasses model casts, so we need to manually JSON encode
