@@ -49,6 +49,9 @@ class ProductCollection extends ResourceCollection
                 'unit' => $product->joined_unit,
                 'price' => (float) $product->joined_price,
                 'stock' => (int) $product->joined_stock,
+                // Lista de precios a la que corresponde esta fila. El valor es el nombre
+                // legible que entrega Random; un producto se repite una vez por lista.
+                'price_list_id' => $product->joined_price_list_id,
                 'image' => $imageUrl ?? null,
                 'sku' => $product->sku ?? null,
                 'is_favorite' => $isFavorite,

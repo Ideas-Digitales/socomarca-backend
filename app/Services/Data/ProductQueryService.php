@@ -26,7 +26,10 @@ class ProductQueryService
      * Get paginated products with prices joined from user's allowed price lists.
      *
      * Returns one row per product-price combination (variant). Each variant includes
-     * joined_price, joined_stock, and joined_unit from the prices table.
+     * joined_price, joined_stock, joined_unit and joined_price_list_id from the prices table.
+     *
+     * A product repeats once per allowed price list (and per unit within a list), so
+     * joined_price_list_id is what tells apart which list each row comes from.
      *
      * @param int $perPage Number of items per page
      * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator
@@ -41,6 +44,7 @@ class ProductQueryService
             'prices.price as joined_price',
             'prices.stock as joined_stock',
             'prices.unit as joined_unit',
+            'prices.price_list_id as joined_price_list_id',
         );
 
         return $query->paginate($perPage);

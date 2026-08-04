@@ -18,6 +18,7 @@ class ProductScenario
                     "unit",
                     "price",
                     "stock",
+                    "price_list_id",
                     "image",
                     "sku",
                     "is_favorite",
