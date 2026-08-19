@@ -10,6 +10,6 @@ class BrandController extends Controller
 {
     public function index()
     {
-        return Brand::all();
+        return Brand::orderBy('name')->get();
     }
 }
