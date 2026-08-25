@@ -1115,3 +1115,157 @@ describe("Category price list visibility", function () {
         },
     );
 });
+
+describe("Category product status filter", function () {
+    it(
+        "should hide categories whose products are all disabled, along with their subcategories",
+        function () {
+            /**
+             * @var \Tests\TestCase $this
+             * @var \App\Models\User $this->user
+             */
+
+            // Árbol del caso: A > (B > (D, E), C > F). Cada producto se cuelga de un
+            // único nivel para que la visibilidad de un nodo dependa sólo de sus propios
+            // productos y no de los de sus hijos.
+            $scenario = CategoryScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            $superA = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+                "name" => "Super A",
+            ]);
+            $catB = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $superA->id,
+                "enabled" => true,
+                "name" => "Cat B",
+            ]);
+            $catC = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $superA->id,
+                "enabled" => true,
+                "name" => "Cat C",
+            ]);
+            $subD = Category::factory()->create([
+                "level" => 3,
+                "parent_category_id" => $catB->id,
+                "enabled" => true,
+                "name" => "Sub D",
+            ]);
+            $subE = Category::factory()->create([
+                "level" => 3,
+                "parent_category_id" => $catB->id,
+                "enabled" => true,
+                "name" => "Sub E",
+            ]);
+            $subF = Category::factory()->create([
+                "level" => 3,
+                "parent_category_id" => $catC->id,
+                "enabled" => true,
+                "name" => "Sub F",
+            ]);
+
+            // A: un producto activo y uno deshabilitado.
+            createProductWithPrice([
+                "name" => "Product A On",
+                "supercategory_id" => $superA->id,
+                "sku" => "SKU-A-ON",
+                "status" => true,
+            ]);
+            createProductWithPrice([
+                "name" => "Product A Off",
+                "supercategory_id" => $superA->id,
+                "sku" => "SKU-A-OFF",
+                "status" => false,
+            ]);
+
+            // B: un producto activo y uno deshabilitado.
+            createProductWithPrice([
+                "name" => "Product B On",
+                "category_id" => $catB->id,
+                "sku" => "SKU-B-ON",
+                "status" => true,
+            ]);
+            createProductWithPrice([
+                "name" => "Product B Off",
+                "category_id" => $catB->id,
+                "sku" => "SKU-B-OFF",
+                "status" => false,
+            ]);
+
+            // C: sólo productos deshabilitados.
+            createProductWithPrice([
+                "name" => "Product C Off 1",
+                "category_id" => $catC->id,
+                "sku" => "SKU-C-OFF-1",
+                "status" => false,
+            ]);
+            createProductWithPrice([
+                "name" => "Product C Off 2",
+                "category_id" => $catC->id,
+                "sku" => "SKU-C-OFF-2",
+                "status" => false,
+            ]);
+
+            // D: un producto activo y uno deshabilitado.
+            createProductWithPrice([
+                "name" => "Product D On",
+                "subcategory_id" => $subD->id,
+                "sku" => "SKU-D-ON",
+                "status" => true,
+            ]);
+            createProductWithPrice([
+                "name" => "Product D Off",
+                "subcategory_id" => $subD->id,
+                "sku" => "SKU-D-OFF",
+                "status" => false,
+            ]);
+
+            // E: sólo productos deshabilitados.
+            createProductWithPrice([
+                "name" => "Product E Off 1",
+                "subcategory_id" => $subE->id,
+                "sku" => "SKU-E-OFF-1",
+                "status" => false,
+            ]);
+            createProductWithPrice([
+                "name" => "Product E Off 2",
+                "subcategory_id" => $subE->id,
+                "sku" => "SKU-E-OFF-2",
+                "status" => false,
+            ]);
+
+            // F: un producto activo, pero cuelga de C, que queda fuera del listado.
+            createProductWithPrice([
+                "name" => "Product F On",
+                "subcategory_id" => $subF->id,
+                "sku" => "SKU-F-ON",
+                "status" => true,
+            ]);
+
+            $response = getJson(route("categories.index"));
+
+            $response->assertStatus(200);
+            $data = $response->json();
+
+            // A se muestra: tiene un producto activo con precio visible.
+            expect(array_column($data, "name"))->toBe(["Super A"]);
+
+            // B se muestra, C se oculta porque todos sus productos están deshabilitados.
+            $categories = $data[0]["categories"];
+            expect(array_column($categories, "name"))->toBe(["Cat B"]);
+
+            // D se muestra y E se oculta bajo B.
+            $renderedB = collect($categories)->firstWhere("name", "Cat B");
+            expect(array_column($renderedB["subcategories"], "name"))->toBe(["Sub D"]);
+
+            // F no aparece en ninguna parte: al ocultarse C, su rama entera desaparece.
+            $allSubcategoryNames = collect($categories)
+                ->flatMap(fn ($category) => array_column($category["subcategories"], "name"))
+                ->all();
+            expect($allSubcategoryNames)->not->toContain("Sub F");
+        },
+    );
+});
