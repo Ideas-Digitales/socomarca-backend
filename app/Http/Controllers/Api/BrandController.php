@@ -22,7 +22,8 @@ class BrandController extends Controller
     public function index()
     {
         return Brand::whereHas('products', function ($query) {
-            $query->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
+            $query->where('status', true)
+                ->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
         })
             ->orderBy('name')
             ->get();

@@ -24,17 +24,18 @@ function brandUser(): User
  * Create a brand with one product priced on the test price list.
  *
  * @param array $priceAttributes Overrides for the price row, e.g. stock or price
+ * @param array $productAttributes Overrides for the product row, e.g. status
  */
-function brandWithProduct(string $name, array $priceAttributes = []): Brand
+function brandWithProduct(string $name, array $priceAttributes = [], array $productAttributes = []): Brand
 {
     $brand = Brand::factory()->create(['name' => $name]);
 
-    $product = Product::create([
+    $product = Product::create(array_merge([
         'name' => "Producto {$name}",
         'sku' => 'SKU-' . uniqid(),
         'brand_id' => $brand->id,
         'status' => true,
-    ]);
+    ], $productAttributes));
 
     Price::create(array_merge([
         'product_id' => $product->id,
@@ -114,6 +115,18 @@ describe('Brand availability', function () {
 
         $response->assertStatus(200);
         expect(array_column($response->json(), 'name'))->toBe(['CON PRODUCTO']);
+    });
+
+    it('should hide brands whose products are inactive', function () {
+        Sanctum::actingAs(brandUser(), ['api-access']);
+
+        brandWithProduct('PRODUCTO ACTIVO');
+        brandWithProduct('PRODUCTO INACTIVO', [], ['status' => false]);
+
+        $response = getJson(route('brands.index'));
+
+        $response->assertStatus(200);
+        expect(array_column($response->json(), 'name'))->toBe(['PRODUCTO ACTIVO']);
     });
 
     it('should hide brands whose products are out of stock', function () {
