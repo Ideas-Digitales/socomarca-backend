@@ -1,54 +1,10 @@
 <?php
 
 use App\Models\Brand;
-use App\Models\Price;
-use App\Models\Product;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\getJson;
-
-/**
- * Create a user allowed to read brands and to see the test price list.
- */
-function brandUser(): User
-{
-    $user = User::factory()->create();
-    $user->givePermissionTo('read-all-brands');
-    $user->update(['prices_lists' => [getPriceListCode()]]);
-
-    return $user;
-}
-
-/**
- * Create a brand with one product priced on the test price list.
- *
- * @param array $priceAttributes Overrides for the price row, e.g. stock or price
- * @param array $productAttributes Overrides for the product row, e.g. status
- */
-function brandWithProduct(string $name, array $priceAttributes = [], array $productAttributes = []): Brand
-{
-    $brand = Brand::factory()->create(['name' => $name]);
-
-    $product = Product::create(array_merge([
-        'name' => "Producto {$name}",
-        'sku' => 'SKU-' . uniqid(),
-        'brand_id' => $brand->id,
-        'status' => true,
-    ], $productAttributes));
-
-    Price::create(array_merge([
-        'product_id' => $product->id,
-        'price_list_id' => getPriceListCode(),
-        'unit' => 'un',
-        'price' => 5000,
-        'stock' => 50,
-        'is_active' => true,
-        'valid_from' => now()->subDays(10),
-    ], $priceAttributes));
-
-    return $brand;
-}
 
 describe('Brand authorization', function () {
     it('should require authentication for index', function () {
@@ -158,7 +114,7 @@ describe('Brand availability', function () {
         Sanctum::actingAs(brandUser(), ['api-access']);
 
         brandWithProduct('PRECIO ACTIVO');
-        brandWithProduct('PRECIO INACTIVO', ['is_active' => false]);
+        brandWithProduct('PRECIO INACTIVO', ['price_is_active' => false]);
 
         $response = getJson(route('brands.index'));
 
