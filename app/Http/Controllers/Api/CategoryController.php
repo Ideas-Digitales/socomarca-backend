@@ -12,17 +12,21 @@ use Maatwebsite\Excel\Facades\Excel;
 class CategoryController extends Controller
 {
     /**
-     * Build the constraint keeping only categories that hold at least one product with a
-     * price visible to the current user.
+     * Build the constraint keeping only categories that hold at least one active product
+     * with a price visible to the current user.
      *
      * Reused at every level of the category tree (supercategory, category, subcategory).
+     * A disabled product is not on offer, so it must not keep its branch of the tree
+     * alive either; the brand listing applies the same rule.
      *
      * @see \App\Models\Price::visibleTo()
+     * @see \App\Http\Controllers\Api\BrandController::index()
      * @return \Closure A closure receiving the products query builder and constraining it
      */
     private function hasVisiblePrices(): \Closure
     {
-        return fn ($query) => $query->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
+        return fn ($query) => $query->where('status', true)
+            ->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
     }
 
     /**

@@ -154,6 +154,12 @@ function createCustomerWithBranch(): array
     return [$user, $branch];
 }
 
+/**
+ * Crea un producto con su precio en la lista de pruebas.
+ *
+ * Ademas de los campos del producto (incluido brand_id), acepta
+ * price_list_id, price, stock y price_is_active para el precio.
+ */
 function createProductWithPrice(array $attributes = []): Product
 {
     $product = Product::create($attributes);
@@ -161,10 +167,41 @@ function createProductWithPrice(array $attributes = []): Product
         "product_id" => $product->id,
         "price_list_id" => $attributes["price_list_id"] ?? getPriceListCode(),
         "unit" => "un",
-        "price" => 5000,
+        "price" => $attributes["price"] ?? 5000,
         "stock" => $attributes["stock"] ?? 50,
         "is_active" => $attributes["price_is_active"] ?? true,
         "valid_from" => now()->subDays(10),
     ]);
     return $product;
+}
+
+/**
+ * Create a user allowed to read brands and to see the test price list.
+ */
+function brandUser(): User
+{
+    $user = createUserWithPermissions(['read-all-brands']);
+    $user->update(['prices_lists' => [getPriceListCode()]]);
+
+    return $user;
+}
+
+/**
+ * Create a brand with one product priced on the test price list.
+ *
+ * @param array $priceAttributes Overrides for the price row, e.g. stock or price
+ * @param array $productAttributes Overrides for the product row, e.g. status
+ */
+function brandWithProduct(string $name, array $priceAttributes = [], array $productAttributes = []): Brand
+{
+    $brand = Brand::factory()->create(['name' => $name]);
+
+    createProductWithPrice(array_merge([
+        'name' => "Producto {$name}",
+        'sku' => 'SKU-' . uniqid(),
+        'brand_id' => $brand->id,
+        'status' => true,
+    ], $productAttributes, $priceAttributes));
+
+    return $brand;
 }
