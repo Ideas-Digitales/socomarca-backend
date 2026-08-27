@@ -31,16 +31,29 @@ class CategoryController extends Controller
     }
 
     /**
-     * List the enabled supercategories that have products visible to the current user.
+     * List categories, nested by default or flat when asked for.
      *
-     * Each supercategory is returned with its enabled children and subcategories, all
-     * filtered the same way, plus their product counts.
+     * 'structure=nested' (the default) returns the enabled supercategories that have
+     * products visible to the current user, each with its enabled children and
+     * subcategories filtered the same way, plus their product counts. It is what the
+     * storefront sidebar consumes.
      *
-     * @param Request $request Accepts optional 'sort' and 'sort_direction' inputs
+     * 'structure=flat' returns every category as its own row, one per level. See
+     * flatIndex() for why the admin table needs it.
+     *
+     * @param Request $request Accepts optional 'structure', 'sort' and 'sort_direction' inputs
      * @return \Illuminate\Http\JsonResponse
      */
     public function index(Request $request)
     {
+        $request->validate([
+            'structure' => 'sometimes|string|in:nested,flat',
+        ]);
+
+        if ($request->input('structure') === 'flat') {
+            return $this->flatIndex($request);
+        }
+
         $sort = $request->input('sort');
         $sortDirection = $request->input('sort_direction', 'asc');
 
@@ -70,18 +83,25 @@ class CategoryController extends Controller
     /**
      * List every category as a flat collection, one row per level.
      *
-     * Es el listado que consume la tabla del panel de administración, y espeja
-     * exactamente el universo del Excel (CategoriesExport usa Category::all()):
-     * incluye los tres niveles, las categorías deshabilitadas y las que no tienen
-     * productos. index() no sirve para eso porque devuelve un árbol recortado a lo
-     * que el cliente puede comprar.
+     * Backs the admin table, and mirrors exactly what the Excel export covers
+     * (CategoriesExport uses Category::all()): the three levels, the disabled
+     * categories and the ones holding no product. The nested structure cannot serve
+     * that table, since it is trimmed down to what the current user may buy.
+     *
+     * Because it exposes the same rows as the export, it requires the export's
+     * permission: 'read-all-categories' guards the route, but customers hold it too,
+     * and they have no business seeing disabled or empty categories.
      *
      * @see \App\Exports\CategoriesExport
      * @param Request $request Accepts optional 'sort' and 'sort_direction' inputs
-     * @return \Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\JsonResponse 403 when the user may not read reports
      */
-    public function all(Request $request)
+    private function flatIndex(Request $request)
     {
+        if (! $request->user()?->can('read-all-reports')) {
+            abort(403, 'This action is unauthorized.');
+        }
+
         $sort = $request->input('sort', 'id');
         $sortDirection = $request->input('sort_direction', 'asc');
 

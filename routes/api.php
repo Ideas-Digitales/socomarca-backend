@@ -129,9 +129,6 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
 
     Route::get('/categories/exports', [CategoryController::class, 'export'])
         ->middleware('permission:read-all-reports')->name('categories.export');
-    // Listado plano para el panel: mismo universo que el Excel, por eso comparte su permiso.
-    Route::get('/categories/all', [CategoryController::class, 'all'])
-        ->middleware('permission:read-all-reports')->name('categories.all');
     Route::resource('categories', CategoryController::class)
         ->only(['index', 'show'])
         ->middleware('permission:read-all-categories');
