@@ -27,7 +27,7 @@ class ProductScenario
                     "brand" => ["id", "name"],
                 ],
             ],
-            "extra" => ["supercategories", "categories", "subcategories"],
+            "extra" => ["supercategories", "categories", "subcategories", "brands"],
             "meta",
             "filters" => ["min_price", "max_price"],
         ];

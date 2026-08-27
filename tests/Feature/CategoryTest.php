@@ -10,6 +10,50 @@ use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
 describe("Category API", function () {
+    it("should list every category of every level, flat", function () {
+        /**
+         * @var \Tests\TestCase $this
+         */
+        Category::query()->delete();
+
+        $user = User::factory()->create();
+        $user->givePermissionTo("read-all-reports");
+        Sanctum::actingAs($user, ['api-access']);
+
+        $supercategory = Category::factory()->create(["level" => 1]);
+        $category = Category::factory()->create([
+            "level" => 2,
+            "parent_category_id" => $supercategory->id,
+        ]);
+        $subcategory = Category::factory()->create([
+            "level" => 3,
+            "parent_category_id" => $category->id,
+        ]);
+        // Sin productos y deshabilitada: el Excel igual la trae, la tabla también debe.
+        $orphan = Category::factory()->create(["level" => 2, "enabled" => false]);
+
+        $response = getJson(route("categories.all"));
+
+        $response->assertStatus(200);
+
+        $ids = collect($response->json())->pluck("id")->all();
+
+        expect($response->json())->toHaveCount(4);
+        expect($ids)->toContain($supercategory->id, $category->id, $subcategory->id, $orphan->id);
+        expect(collect($response->json())->pluck("level")->sort()->values()->all())
+            ->toBe([1, 2, 2, 3]);
+    });
+
+    it("should deny the flat category listing without the reports permission", function () {
+        /**
+         * @var \Tests\TestCase $this
+         */
+        $user = User::factory()->create();
+        Sanctum::actingAs($user, ['api-access']);
+
+        getJson(route("categories.all"))->assertForbidden();
+    });
+
     it("should require authentication for index", function () {
         /**
          * @var \Tests\TestCase $this

@@ -2,6 +2,7 @@
 
 namespace App\Services\Data;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Price;
 use App\Models\Product;
@@ -51,6 +52,32 @@ class ProductQueryService
     }
 
     /**
+     * Build the query backing a filter sidebar facet.
+     *
+     * Sorting never changes which products match, and dropping it keeps the facet from
+     * paying for an ORDER BY it does not use. A facet may also ignore its own filter
+     * ($ignoredFilters): the brand list has to keep offering every brand of the search,
+     * otherwise picking one brand would erase the rest and leave no way back.
+     *
+     * @param array<int, string> $ignoredFilters Filter keys to drop besides sorting
+     * @return Builder
+     */
+    private function buildFacetQuery(array $ignoredFilters = []): Builder
+    {
+        $facetFilters = array_diff_key(
+            $this->filters,
+            array_flip(array_merge(['sort', 'sort_direction'], $ignoredFilters))
+        );
+
+        $service = new self($facetFilters);
+
+        $query = $service->buildQuery();
+        $service->joinAllowedPrices($query);
+
+        return $query;
+    }
+
+    /**
      * Get unique categories (supercategories, categories, subcategories) from products matching current filters.
      *
      * Useful for building faceted navigation/filter sidebar. Excludes sort filters to ensure
@@ -60,14 +87,7 @@ class ProductQueryService
      */
     public function getMatchingCategories(): array
     {
-        $filtersWithoutSort = array_diff_key($this->filters, array_flip(['sort', 'sort_direction']));
-
-        $service = new self($filtersWithoutSort);
-
-        $query = $service->buildQuery();
-        $service->joinAllowedPrices($query);
-
-        $matchingProducts = $query
+        $matchingProducts = $this->buildFacetQuery()
             ->select('supercategory_id', 'category_id', 'subcategory_id')
             ->get();
 
@@ -88,6 +108,37 @@ class ProductQueryService
             'categories' => $this->fetchCategories($categoryIds, 2),
             'subcategories' => $this->fetchCategories($subcategoryIds, 3),
         ];
+    }
+
+    /**
+     * Get the brands present in the products matching the current filters, sorted by name.
+     *
+     * Feeds the brand section of the filter sidebar so that, while a search is active,
+     * only the brands that actually own a matching product are offered. The brand filter
+     * itself is ignored here (see buildFacetQuery) so a selected brand never hides the
+     * other brands of the same search.
+     *
+     * @return array<int, array{id: int, name: string}>
+     */
+    public function getMatchingBrands(): array
+    {
+        $brandIds = $this->buildFacetQuery(['brand_id'])
+            ->select('brand_id')
+            ->get()
+            ->pluck('brand_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($brandIds->isEmpty()) {
+            return [];
+        }
+
+        return Brand::whereIn('id', $brandIds)
+            ->orderBy('name')
+            ->select('id', 'name')
+            ->get()
+            ->toArray();
     }
 
     /**

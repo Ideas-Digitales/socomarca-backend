@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Exports\CategoriesExport;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Categories\CategoryListResource;
 use App\Http\Resources\Categories\SuperCategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
@@ -63,6 +64,37 @@ class CategoryController extends Controller
 
         return response()->json(
             SuperCategoryResource::collection($categories)
+        );
+    }
+
+    /**
+     * List every category as a flat collection, one row per level.
+     *
+     * Es el listado que consume la tabla del panel de administración, y espeja
+     * exactamente el universo del Excel (CategoriesExport usa Category::all()):
+     * incluye los tres niveles, las categorías deshabilitadas y las que no tienen
+     * productos. index() no sirve para eso porque devuelve un árbol recortado a lo
+     * que el cliente puede comprar.
+     *
+     * @see \App\Exports\CategoriesExport
+     * @param Request $request Accepts optional 'sort' and 'sort_direction' inputs
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function all(Request $request)
+    {
+        $sort = $request->input('sort', 'id');
+        $sortDirection = $request->input('sort_direction', 'asc');
+
+        $categories = Category::withCount([
+            'products',
+            'productsBySupercategory',
+            'productsBySubcategory',
+        ])
+            ->filter([], $sort, $sortDirection)
+            ->get();
+
+        return response()->json(
+            CategoryListResource::collection($categories)
         );
     }
 
