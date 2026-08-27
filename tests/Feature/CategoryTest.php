@@ -17,6 +17,7 @@ describe("Category API", function () {
         Category::query()->delete();
 
         $user = User::factory()->create();
+        $user->givePermissionTo("read-all-categories");
         $user->givePermissionTo("read-all-reports");
         Sanctum::actingAs($user, ['api-access']);
 
@@ -29,10 +30,10 @@ describe("Category API", function () {
             "level" => 3,
             "parent_category_id" => $category->id,
         ]);
-        // Sin productos y deshabilitada: el Excel igual la trae, la tabla también debe.
+        // No products and disabled: the Excel export still lists it, so must the table.
         $orphan = Category::factory()->create(["level" => 2, "enabled" => false]);
 
-        $response = getJson(route("categories.all"));
+        $response = getJson(route("categories.index", ["structure" => "flat"]));
 
         $response->assertStatus(200);
 
@@ -44,14 +45,29 @@ describe("Category API", function () {
             ->toBe([1, 2, 2, 3]);
     });
 
-    it("should deny the flat category listing without the reports permission", function () {
+    it("should reject an unknown structure", function () {
         /**
          * @var \Tests\TestCase $this
          */
         $user = User::factory()->create();
+        $user->givePermissionTo("read-all-categories");
         Sanctum::actingAs($user, ['api-access']);
 
-        getJson(route("categories.all"))->assertForbidden();
+        getJson(route("categories.index", ["structure" => "tree"]))
+            ->assertStatus(422);
+    });
+
+    it("should deny the flat category listing without the reports permission", function () {
+        /**
+         * @var \Tests\TestCase $this
+         */
+        // Holds the route's permission but not the export's: the nested listing is
+        // fine for them, the flat one is not.
+        $user = User::factory()->create();
+        $user->givePermissionTo("read-all-categories");
+        Sanctum::actingAs($user, ['api-access']);
+
+        getJson(route("categories.index", ["structure" => "flat"]))->assertForbidden();
     });
 
     it("should require authentication for index", function () {

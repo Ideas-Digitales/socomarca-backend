@@ -6,14 +6,14 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Una categoría dentro del listado plano del panel de administración.
+ * A single category inside the admin's flat listing.
  *
- * A diferencia de SuperCategoryResource, no anida hijos: cada nivel es una fila
- * propia. El conteo de productos sale de la relación que corresponde al nivel,
- * porque un producto apunta a su supercategoría, categoría y subcategoría con
- * tres columnas distintas.
+ * Unlike SuperCategoryResource it nests nothing: every level is a row of its own.
+ * The product count comes from whichever relation matches the level, because a
+ * product points at its supercategory, category and subcategory through three
+ * separate columns.
  *
- * @see \App\Http\Controllers\Api\CategoryController::all()
+ * @see \App\Http\Controllers\Api\CategoryController::index()
  */
 class CategoryListResource extends JsonResource
 {
@@ -37,7 +37,7 @@ class CategoryListResource extends JsonResource
     }
 
     /**
-     * El conteo de la relación que aplica al nivel de esta categoría.
+     * The count coming from the relation that applies to this category's level.
      */
     private function productsCountForLevel(): int
     {
