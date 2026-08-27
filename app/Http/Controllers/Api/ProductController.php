@@ -67,9 +67,10 @@ class ProductController extends Controller
         $service = new ProductQueryService($validatedFilters);
         $result = $service->getPaginatedProductsWithAllowedPrices($perPage);
         $categories = $service->getMatchingCategories();
+        $brands = $service->getMatchingBrands();
 
         return (new ProductCollection($result))->additional([
-            'extra' => $categories,
+            'extra' => $categories + ['brands' => $brands],
             'filters' => [
                 'min_price' => $validatedFilters['price']['min'],
                 'max_price' => $validatedFilters['price']['max'],
