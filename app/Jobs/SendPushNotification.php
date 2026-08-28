@@ -30,7 +30,7 @@ class SendPushNotification implements ShouldQueue
     {
         $users = User::whereNotNull('fcm_token')->where('is_active', true)->get();
 
-        FcmNotificationHistory::create([
+        $history = FcmNotificationHistory::create([
             'user_id' => $this->sender_id,
             'title' => $this->title,
             'message' => $this->message,
@@ -38,7 +38,7 @@ class SendPushNotification implements ShouldQueue
         ]);
 
         foreach ($users as $user) {
-            $user->notify(new PushNotification($this->title, $this->message));
+            $user->notify(new PushNotification($this->title, $this->message, $history->id));
         }
     }
 }

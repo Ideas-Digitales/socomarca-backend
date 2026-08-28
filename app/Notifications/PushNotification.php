@@ -10,11 +10,13 @@ class PushNotification extends Notification
 {
     public $title;
     public $body;
+    public $notificationId;
 
-    public function __construct($title, $body)
+    public function __construct($title, $body, $notificationId = null)
     {
         $this->title = $title;
         $this->body = $body;
+        $this->notificationId = $notificationId;
     }
 
     public function via($notifiable)
@@ -22,13 +24,23 @@ class PushNotification extends Notification
         return [FcmChannel::class];
     }
 
+    /**
+     * Build the push message.
+     *
+     * 'notification_id' carries the fcm_notification_histories row this push comes
+     * from. The client receives the same notification twice — once live through FCM
+     * and once when it polls the history — and without this id it has no way to tell
+     * that both are the same one, so it lists it twice.
+     */
     public function toFcm($notifiable)
     {
         return FcmMessage::create()
-            ->data([
+            ->data(array_filter([
                 'title' => $this->title,
                 'body' => $this->body,
-            ])
+                // FCM only carries strings in the data payload.
+                'notification_id' => $this->notificationId === null ? null : (string) $this->notificationId,
+            ], fn ($value) => $value !== null))
             ->notification(
                 FcmNotification::create($this->title)
                     ->body($this->body)
