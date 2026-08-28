@@ -194,6 +194,94 @@ describe('Notification API', function () {
             ]);
         });
 
+        it('carries the history id in the push payload so the client can deduplicate it', function () {
+            $history = FcmNotificationHistory::create([
+                'user_id' => $this->admin->id,
+                'title' => 'Con id',
+                'message' => 'Cuerpo',
+                'sent_at' => now(),
+            ]);
+
+            $payload = (new PushNotification('Con id', 'Cuerpo', $history->id))
+                ->toFcm($this->customer1)
+                ->toArray()['data'];
+
+            // El cliente recibe la misma notificación por el push y por el historial;
+            // sin este id no puede saber que son la misma y la lista dos veces.
+            expect($payload)->toHaveKey('notification_id');
+            expect($payload['notification_id'])->toBe((string) $history->id);
+            expect($payload['title'])->toBe('Con id');
+            expect($payload['body'])->toBe('Cuerpo');
+        });
+
+        it('omits the id from the push payload when it was not given', function () {
+            $payload = (new PushNotification('Sin id', 'Cuerpo'))
+                ->toFcm($this->customer1)
+                ->toArray()['data'];
+
+            // El parámetro es opcional: sin él el push sigue saliendo, solo que el
+            // cliente no podrá deduplicarlo.
+            expect($payload)->not->toHaveKey('notification_id');
+            expect($payload['title'])->toBe('Sin id');
+        });
+
+        it('sends the push with the id of the history row it just created', function () {
+            Notification::fake();
+
+            SendPushNotification::dispatchSync('Con historial', 'Cuerpo', $this->admin->id);
+
+            $history = FcmNotificationHistory::where('title', 'Con historial')->firstOrFail();
+
+            Notification::assertSentTo(
+                $this->customer1,
+                PushNotification::class,
+                fn ($notification) => $notification->notificationId === $history->id
+            );
+        });
+
+        it('honours the per_page asked for by the client', function () {
+            $admin = User::factory()->create();
+            $admin->givePermissionTo('read-all-notifications');
+
+            foreach (range(1, 8) as $i) {
+                FcmNotificationHistory::create([
+                    'user_id' => $admin->id,
+                    'title' => "Notificación {$i}",
+                    'message' => 'Mensaje',
+                    'sent_at' => now()->subMinutes($i),
+                ]);
+            }
+
+            $this->actingAs($admin, 'sanctum');
+
+            // Antes se ignoraba y siempre devolvía 20 filas.
+            $response = $this->getJson(route('notifications.index', ['per_page' => 5]));
+
+            $response->assertStatus(200);
+            expect($response->json('per_page'))->toBe(5);
+            expect($response->json('data'))->toHaveCount(5);
+            expect($response->json('total'))->toBe(8);
+        });
+
+        it('clamps per_page so nobody can ask for the whole table', function () {
+            $admin = User::factory()->create();
+            $admin->givePermissionTo('read-all-notifications');
+            $this->actingAs($admin, 'sanctum');
+
+            expect($this->getJson(route('notifications.index', ['per_page' => 999]))->json('per_page'))
+                ->toBe(100);
+            expect($this->getJson(route('notifications.index', ['per_page' => 0]))->json('per_page'))
+                ->toBe(1);
+        });
+
+        it('defaults to 20 per page when none is asked for', function () {
+            $admin = User::factory()->create();
+            $admin->givePermissionTo('read-all-notifications');
+            $this->actingAs($admin, 'sanctum');
+
+            expect($this->getJson(route('notifications.index'))->json('per_page'))->toBe(20);
+        });
+
         it('returns the notification history', function () {
             $admin = User::factory()->create();
             $admin->givePermissionTo('create-notifications');
