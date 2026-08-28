@@ -7,6 +7,7 @@ use App\Http\Requests\Notifications\StoreNotificationRequest;
 use App\Jobs\SendPushNotification;
 use App\Models\FcmNotificationHistory;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -15,9 +16,18 @@ use Illuminate\Support\Facades\DB;
 class NotificationController extends Controller
 {
 
-    public function index()
+    /**
+     * List the notification history with a 'viewed' flag for the current user.
+     *
+     * @param Request $request Accepts an optional 'per_page' (1-100, defaults to 20)
+     */
+    public function index(Request $request)
     {
         $userId = Auth::user()->id;
+        // The clients ask for a page size; until now it was ignored and they always
+        // got 20 rows back.
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = max(1, min($perPage, 100));
 
         $history = FcmNotificationHistory::select(
             'fcm_notification_histories.*',
@@ -28,7 +38,7 @@ class NotificationController extends Controller
                      ->where('viewed_notifications.user_id', '=', $userId);
             })
             ->orderByDesc('sent_at')
-            ->paginate(20);
+            ->paginate($perPage);
 
         return response()->json($history);
     }
