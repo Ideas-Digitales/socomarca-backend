@@ -70,7 +70,7 @@ jobs:
           -o StrictHostKeyChecking=no \
           ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo OK"
 
-    # 📦 Crear .env dinámicamente
+    # 📦 Build .env dynamically
     - name: Generate .env
       env:
         SECRETS_CONTEXT: ${{ toJson(secrets) }}
@@ -79,17 +79,17 @@ jobs:
         python3 -c '
         import os, json
 
-        # Obtener todos los secretos y variables de entorno de GitHub
+        # Get every GitHub secret and variable
         secrets = json.loads(os.environ.get("SECRETS_CONTEXT", "{}"))
         variables = json.loads(os.environ.get("VARS_CONTEXT", "{}"))
 
-        # Combinar diccionarios (los secretos tienen prioridad si hay choques)
+        # Merge both dicts (secrets win on collisions)
         combined = {**variables, **secrets}
 
-        # Llaves que nunca deben terminar en el .env (se materializan como archivo)
+        # Keys that must never end up in .env (they are materialized as a file)
         excluded = {"FIREBASE_CREDENTIALS_JSON"}
 
-        # Leer archivo .env.example del repositorio
+        # Read the .env.example file from the repository
         try:
             with open(".env.example", "r") as f:
                 lines = f.readlines()
@@ -97,32 +97,32 @@ jobs:
             print("Error: .env.example no encontrado.")
             exit(1)
 
-        # Crear el archivo .env definitivo
+        # Write the final .env file
         with open(".env", "w") as out:
             for line in lines:
                 line_stripped = line.strip()
-                # Mantener lineas vacías o comentarios
+                # Keep blank lines and comments as-is
                 if not line_stripped or line_stripped.startswith("#"):
                     out.write(line)
                     continue
 
-                # Extraer la llave (ej. APP_NAME=...)
+                # Extract the key (e.g. APP_NAME=...)
                 key = line_stripped.split("=")[0].strip()
 
-                # Omitir llaves excluidas del .env
+                # Skip keys excluded from .env
                 if key in excluded:
                     continue
 
-                # Si la llave existe en GitHub (secrets o vars), escribir su valor
+                # If the key exists in GitHub (secrets or vars), write its value
                 if key in combined:
                     val = str(combined[key]).replace("\"", "\\\"")
                     out.write(f"{key}=\"{val}\"\n")
                 else:
-                    # Si no existe, conservamos el valor por defecto que traía el .env.example
+                    # Otherwise keep the default value that came from .env.example
                     out.write(line)
         '
 
-    # 🔥 Generar archivo de credenciales de Firebase
+    # 🔥 Generate the Firebase credentials file
     - name: Generate Firebase credentials file
       env:
         FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
@@ -132,7 +132,7 @@ jobs:
           exit 1
         fi
 
-        # Ruta destino declarada en FIREBASE_CREDENTIALS (relativa a /app dentro del contenedor)
+        # Target path declared in FIREBASE_CREDENTIALS (relative to /app inside the container)
         CRED_PATH=$(grep -m1 -E '^FIREBASE_CREDENTIALS=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
         if [ -z "$CRED_PATH" ]; then
           echo "::error::FIREBASE_CREDENTIALS no está definido en el .env generado."
@@ -140,7 +140,7 @@ jobs:
         fi
         echo "FIREBASE_CREDENTIALS_PATH=${CRED_PATH#/}" >> $GITHUB_ENV
 
-        # Escribir el JSON tal cual (sin comillas envolventes) y validarlo
+        # Write the JSON verbatim (no wrapping quotes) and validate it
         printf '%s' "$FIREBASE_CREDENTIALS_JSON" > firebase-credentials.json
         python3 -c 'import json; json.load(open("firebase-credentials.json"))' || {
           echo "::error::FIREBASE_CREDENTIALS_JSON no contiene un JSON válido."
@@ -149,7 +149,7 @@ jobs:
         chmod 600 firebase-credentials.json
         echo "✅ Credenciales válidas, se instalarán en /app/${CRED_PATH#/}"
 
-    # 📤 Subir archivos
+    # 📤 Upload files
     - name: Upload files
       run: |
         export REPO_NAME=${{ env.repo_name }}
@@ -165,7 +165,7 @@ jobs:
         scp supervisord.conf ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/supervisord.conf
         scp firebase-credentials.json ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/firebase-credentials.json
 
-    # 📥 Pull + deploy sin downtime
+    # 📥 Pull + deploy with no downtime
     - name: Clean and deploy containers
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
@@ -205,7 +205,7 @@ jobs:
         echo "📊 Containers status:"
         docker compose ps
         ENDSSH
-    # ❤️ Health check interno (Docker)
+    # ❤️ Internal health check (Docker)
     - name: Health check
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "
@@ -214,7 +214,7 @@ jobs:
           docker compose exec -T app wget --spider -q http://localhost:80/up || exit 1
         "
 
-    # 📜 Logs finales
+    # 📜 Final logs
     - name: Show logs
       if: always()
       run: |
