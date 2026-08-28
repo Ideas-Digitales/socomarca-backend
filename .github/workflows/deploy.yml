@@ -86,6 +86,9 @@ jobs:
         # Combinar diccionarios (los secretos tienen prioridad si hay choques)
         combined = {**variables, **secrets}
 
+        # Llaves que nunca deben terminar en el .env (se materializan como archivo)
+        excluded = {"FIREBASE_CREDENTIALS_JSON"}
+
         # Leer archivo .env.example del repositorio
         try:
             with open(".env.example", "r") as f:
@@ -106,6 +109,10 @@ jobs:
                 # Extraer la llave (ej. APP_NAME=...)
                 key = line_stripped.split("=")[0].strip()
 
+                # Omitir llaves excluidas del .env
+                if key in excluded:
+                    continue
+
                 # Si la llave existe en GitHub (secrets o vars), escribir su valor
                 if key in combined:
                     val = str(combined[key]).replace("\"", "\\\"")
@@ -114,6 +121,33 @@ jobs:
                     # Si no existe, conservamos el valor por defecto que traía el .env.example
                     out.write(line)
         '
+
+    # 🔥 Generar archivo de credenciales de Firebase
+    - name: Generate Firebase credentials file
+      env:
+        FIREBASE_CREDENTIALS_JSON: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+      run: |
+        if [ -z "$FIREBASE_CREDENTIALS_JSON" ]; then
+          echo "::error::FIREBASE_CREDENTIALS_JSON no está definido en los secretos."
+          exit 1
+        fi
+
+        # Ruta destino declarada en FIREBASE_CREDENTIALS (relativa a /app dentro del contenedor)
+        CRED_PATH=$(grep -m1 -E '^FIREBASE_CREDENTIALS=' .env | cut -d= -f2- | tr -d '"' | tr -d "'")
+        if [ -z "$CRED_PATH" ]; then
+          echo "::error::FIREBASE_CREDENTIALS no está definido en el .env generado."
+          exit 1
+        fi
+        echo "FIREBASE_CREDENTIALS_PATH=${CRED_PATH#/}" >> $GITHUB_ENV
+
+        # Escribir el JSON tal cual (sin comillas envolventes) y validarlo
+        printf '%s' "$FIREBASE_CREDENTIALS_JSON" > firebase-credentials.json
+        python3 -c 'import json; json.load(open("firebase-credentials.json"))' || {
+          echo "::error::FIREBASE_CREDENTIALS_JSON no contiene un JSON válido."
+          exit 1
+        }
+        chmod 600 firebase-credentials.json
+        echo "✅ Credenciales válidas, se instalarán en /app/${CRED_PATH#/}"
 
     # 📤 Subir archivos
     - name: Upload files
@@ -129,6 +163,7 @@ jobs:
         scp compose.tmp.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/compose.yml
         scp .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/.env
         scp supervisord.conf ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/supervisord.conf
+        scp firebase-credentials.json ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ vars.BASE_DIR }}/firebase-credentials.json
 
     # 📥 Pull + deploy sin downtime
     - name: Clean and deploy containers
@@ -148,6 +183,12 @@ jobs:
 
         echo "✨ Starting app container"
         docker compose up app -d --remove-orphans
+
+        echo "🔥 Installing Firebase credentials"
+        docker compose exec -T app mkdir -p "$(dirname /app/${{ env.FIREBASE_CREDENTIALS_PATH }})" < /dev/null
+        docker compose cp firebase-credentials.json app:/app/${{ env.FIREBASE_CREDENTIALS_PATH }}
+        docker compose exec -T app chmod 600 /app/${{ env.FIREBASE_CREDENTIALS_PATH }} < /dev/null
+        rm -f firebase-credentials.json
 
         echo "⚙️ Running migrations"
         docker compose exec -T app php artisan migrate --force --seed < /dev/null
