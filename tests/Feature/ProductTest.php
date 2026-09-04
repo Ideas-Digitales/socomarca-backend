@@ -874,6 +874,131 @@ describe("Product search endpoint", function (): void {
         },
     );
 
+    it(
+        "should only return the brands owning a product that matches the search",
+        function (): void {
+            $priceListCode = "01P";
+            $user = App\Models\User::factory()->create([
+                "prices_lists" => [$priceListCode],
+            ]);
+            $user->givePermissionTo("read-price-list-products");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $matchingBrand = Brand::factory()->create(["name" => "Aguas Andinas"]);
+            $otherBrand = Brand::factory()->create(["name" => "Zeta"]);
+
+            Product::factory()
+                ->has(
+                    Price::factory([
+                        "price" => 5000,
+                        "is_active" => true,
+                        "price_list_id" => $priceListCode,
+                    ]),
+                )
+                ->create([
+                    "name" => "Agua mineral 1.5L",
+                    "brand_id" => $matchingBrand->id,
+                    "status" => true,
+                ]);
+
+            Product::factory()
+                ->has(
+                    Price::factory([
+                        "price" => 5000,
+                        "is_active" => true,
+                        "price_list_id" => $priceListCode,
+                    ]),
+                )
+                ->create([
+                    "name" => "Detergente 3kg",
+                    "brand_id" => $otherBrand->id,
+                    "status" => true,
+                ]);
+
+            $response = postJson(route("products.search"), [
+                "filters" => [
+                    "price" => ["min" => 1000, "max" => 10000],
+                    "name" => "Agua mineral",
+                ],
+            ]);
+
+            $response->assertStatus(200);
+
+            expect($response->json("extra.brands"))->toHaveCount(1);
+            expect($response->json("extra.brands.0.id"))->toBe($matchingBrand->id);
+            expect($response->json("extra.brands.0.name"))->toBe("Aguas Andinas");
+        },
+    );
+
+    it(
+        "should keep offering every brand of the search when one brand is already selected",
+        function (): void {
+            $priceListCode = "01P";
+            $user = App\Models\User::factory()->create([
+                "prices_lists" => [$priceListCode],
+            ]);
+            $user->givePermissionTo("read-price-list-products");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $selectedBrand = Brand::factory()->create(["name" => "Marca A"]);
+            $siblingBrand = Brand::factory()->create(["name" => "Marca B"]);
+
+            foreach ([$selectedBrand, $siblingBrand] as $brand) {
+                Product::factory()
+                    ->has(
+                        Price::factory([
+                            "price" => 5000,
+                            "is_active" => true,
+                            "price_list_id" => $priceListCode,
+                        ]),
+                    )
+                    ->create([
+                        "name" => "Agua mineral 1.5L",
+                        "brand_id" => $brand->id,
+                        "status" => true,
+                    ]);
+            }
+
+            $response = postJson(route("products.search"), [
+                "filters" => [
+                    "price" => ["min" => 1000, "max" => 10000],
+                    "name" => "Agua mineral",
+                    "brand_id" => [$selectedBrand->id],
+                ],
+            ]);
+
+            $response->assertStatus(200);
+
+            expect($response->json("data"))->toHaveCount(1);
+            expect($response->json("extra.brands"))->toHaveCount(2);
+            expect(
+                collect($response->json("extra.brands"))->pluck("name")->all(),
+            )->toBe(["Marca A", "Marca B"]);
+        },
+    );
+
+    it(
+        "should return no brands when no product matches",
+        function (): void {
+            $user = App\Models\User::factory()->create();
+            $user->givePermissionTo("read-price-list-products");
+            Sanctum::actingAs($user, ['api-access']);
+            Product::truncate();
+
+            $response = postJson(route("products.search"), [
+                "filters" => [
+                    "price" => ["min" => 999000, "max" => 1000000],
+                ],
+            ]);
+
+            $response->assertStatus(200);
+
+            expect($response->json("extra.brands"))->toBe([]);
+        },
+    );
+
     it("should hide products with zero price by default", function (): void {
         $priceListCode = "01P";
         $user = App\Models\User::factory()->create([
