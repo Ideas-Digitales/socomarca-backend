@@ -39,7 +39,7 @@ beforeEach(function () {
     $this->customer3->assignRole('customer');
     $this->customer3->save(); 
 
-    // Crear un fichero de credenciales fake en storage para que el provider lo encuentre
+    // Write a fake credentials file to storage so the provider can find it.
     $credsPath = storage_path('app/private/firebase/credentials.json');
     if (!is_dir(dirname($credsPath))) {
         mkdir(dirname($credsPath), 0755, true);
@@ -206,8 +206,9 @@ describe('Notification API', function () {
                 ->toFcm($this->customer1)
                 ->toArray()['data'];
 
-            // El cliente recibe la misma notificación por el push y por el historial;
-            // sin este id no puede saber que son la misma y la lista dos veces.
+            // The client receives the same notification through the push and through
+            // the history; without this id it cannot tell they are the same one and
+            // lists it twice.
             expect($payload)->toHaveKey('notification_id');
             expect($payload['notification_id'])->toBe((string) $history->id);
             expect($payload['title'])->toBe('Con id');
@@ -219,8 +220,8 @@ describe('Notification API', function () {
                 ->toFcm($this->customer1)
                 ->toArray()['data'];
 
-            // El parámetro es opcional: sin él el push sigue saliendo, solo que el
-            // cliente no podrá deduplicarlo.
+            // The parameter is optional: without it the push still goes out, the
+            // client just cannot deduplicate it.
             expect($payload)->not->toHaveKey('notification_id');
             expect($payload['title'])->toBe('Sin id');
         });
@@ -254,7 +255,7 @@ describe('Notification API', function () {
 
             $this->actingAs($admin, 'sanctum');
 
-            // Antes se ignoraba y siempre devolvía 20 filas.
+            // It used to be ignored and always returned 20 rows.
             $response = $this->getJson(route('notifications.index', ['per_page' => 5]));
 
             $response->assertStatus(200);

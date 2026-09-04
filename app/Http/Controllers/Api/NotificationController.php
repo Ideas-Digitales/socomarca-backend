@@ -20,6 +20,7 @@ class NotificationController extends Controller
      * List the notification history with a 'viewed' flag for the current user.
      *
      * @param Request $request Accepts an optional 'per_page' (1-100, defaults to 20)
+     * @return \Illuminate\Http\JsonResponse Paginated history, newest first
      */
     public function index(Request $request)
     {
@@ -43,6 +44,12 @@ class NotificationController extends Controller
         return response()->json($history);
     }
 
+    /**
+     * Queue a push notification for every active user with an FCM token.
+     *
+     * @param StoreNotificationRequest $request Validated title and message
+     * @return \Illuminate\Http\JsonResponse The notification and how many users it targets
+     */
     public function store(StoreNotificationRequest $request)
     {
         $validated = $request->validated();
