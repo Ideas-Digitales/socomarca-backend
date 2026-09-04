@@ -2,10 +2,7 @@
 
 namespace App\Http\Resources\Products;
 
-use App\Models\Brand;
-use App\Models\Category;
-use App\Models\Price;
-use App\Models\Subcategory;
+use App\Services\VatService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +16,7 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Obtiene el precio activo más reciente
+        // Get the most recent active price
         $activePrice = $this->prices()
             ->where('is_active', true)
             ->orderByDesc('valid_from')
@@ -35,8 +32,12 @@ class ProductResource extends JsonResource
             })
             ->exists();
 
-        return
-        [
+        // With "vat=true" the prices are delivered with VAT included.
+        $vat = app(VatService::class);
+        $vatIncluded = $request->boolean('vat');
+        $vatRate = $vatIncluded ? $vat->rate() : 0.0;
+
+        return [
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
@@ -44,10 +45,13 @@ class ProductResource extends JsonResource
             'category' => $this->category,
             'subcategory' => $this->subcategory,
             'brand' => $this->brand,
-            'prices' => $this->prices->map(function($price) {
+            'vat' => $vatRate,
+            'prices' => $this->prices->map(function ($price) use ($vat, $vatIncluded, $vatRate) {
                 return [
                     'unit' => $price->unit,
-                    'price' => $price->price,
+                    'price' => $vatIncluded
+                        ? $vat->applyTo((float) $price->price, $vatRate)
+                        : $price->price,
                 ];
             }),
             'sku' => $this->sku,

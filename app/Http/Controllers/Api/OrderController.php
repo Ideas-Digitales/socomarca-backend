@@ -7,7 +7,6 @@ use App\Events\OrderCompleted;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orders\PayOrderRequest;
 use App\Http\Resources\Orders\OrderCollection;
-use App\Http\Resources\Orders\OrderResource;
 use App\Http\Resources\Orders\PaymentResource;
 use App\Models\Branch;
 use App\Models\CartItem;
@@ -27,6 +26,7 @@ use App\Models\Price;
 use App\Services\Random\RandomDocumentService;
 use App\Services\Random\RandomDocumentPayloadBuilder;
 use App\Services\PaymentService;
+use App\Services\VatService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
@@ -43,16 +43,20 @@ class OrderController extends Controller
 
     protected PaymentService $paymentService;
 
+    protected VatService $vatService;
+
     public function __construct(
         WebpayService $webpayService,
         RandomDocumentService $randomDocumentService,
         RandomDocumentPayloadBuilder $payloadBuilder,
         PaymentService $paymentService,
+        VatService $vatService,
     ) {
         $this->webpayService = $webpayService;
         $this->documentService = $randomDocumentService;
         $this->payloadBuilder = $payloadBuilder;
         $this->paymentService = $paymentService;
+        $this->vatService = $vatService;
     }
 
     public function index(Request $request)
@@ -82,6 +86,20 @@ class OrderController extends Controller
         return new OrderCollection($orders);
     }
 
+    /**
+     * Build a pending order out of the authenticated user's cart.
+     *
+     * The cart only holds product, unit and quantity, so prices, VAT rate and
+     * shipping cost are resolved here and frozen on the order: what the customer
+     * is charged is what was in force at checkout time, no matter what the price
+     * list or the VAT setting do afterwards.
+     *
+     * @param int $addressId Address stored in the order metadata
+     * @param int $branchId Branch the order belongs to; falls back to the user's primary branch when 0
+     * @param string|null $notes Free text notes, forwarded to the ERP document
+     *
+     * @return \App\Models\Order|\Illuminate\Http\JsonResponse The created order, or a 400 response when the cart is empty
+     */
     public function createFromCart(
         int $addressId,
         int $branchId,
@@ -100,7 +118,7 @@ class OrderController extends Controller
         try {
             DB::beginTransaction();
 
-            // Calcular totales
+            // Calculate totals
             $subtotal = $carts->sum(function ($cart) {
                 $price = $cart->product->prices
                     ->where("unit", $cart->unit)
@@ -109,11 +127,15 @@ class OrderController extends Controller
             });
 
             $subtotal = (int) round($subtotal);
+            $vatRate = $this->vatService->rate();
+            // VAT is calculated on the net subtotal of the order; the office is
+            // sum later, just as it was charged before integrating VAT.
+            $total = (int) $this->vatService->applyTo($subtotal, $vatRate, 0);
             $shippingCost =
                 $subtotal >= 70000
-                    ? 0
-                    : (int) config("random.fixed_shipping_cost");
-            $total = $subtotal + $shippingCost;
+                ? 0
+                : (int) config("random.fixed_shipping_cost");
+            $amount = $total + $shippingCost;
 
             $user = User::find(Auth::user()->id);
             $address = $user->addresses()->where("id", $addressId)->first();
@@ -135,36 +157,44 @@ class OrderController extends Controller
             $data = [
                 "user_id" => $user->id,
                 "subtotal" => $subtotal,
+                "vat" => $vatRate,
+                "total" => $total,
                 "shipping_cost" => $shippingCost,
-                "amount" => $total,
+                "amount" => $amount,
                 "status" => "pending",
                 "order_meta" => $order_meta,
                 "branch_id" => $branchId,
                 "notes" => $notes ?? "",
             ];
 
-            // Crear la orden
+            // Create the order
             $order = Order::create($data);
 
-            // Crear los items de la orden
+            // Create the order items
             foreach ($carts as $cart) {
                 $price = $cart->product->prices
                     ->where("unit", $cart->unit)
                     ->first();
+                $lineSubtotal = (float) ($price->price ?? 0) * $cart->quantity;
+
                 OrderItem::create([
                     "order_id" => $order->id,
                     "product_id" => $cart->product_id,
                     "unit" => $price->unit,
                     "quantity" => $cart->quantity,
                     "price" => $price->price ?? 0,
+                    "subtotal" => $lineSubtotal,
+                    "vat" => $vatRate,
+                    "total" => $this->vatService->applyTo(
+                        $lineSubtotal,
+                        $vatRate,
+                    ),
                 ]);
             }
 
             DB::commit();
 
             return $order;
-
-            return new OrderResource($order);
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -212,7 +242,7 @@ class OrderController extends Controller
                 return response()->json(
                     [
                         "message" =>
-                            "Error al procesar el pago: " . $e->getMessage(),
+                        "Error al procesar el pago: " . $e->getMessage(),
                         "order" => $order,
                     ],
                     500,

@@ -2,12 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Product;
-use App\Models\Price;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class OrderSeeder extends Seeder
@@ -20,17 +15,17 @@ class OrderSeeder extends Seeder
         $users = \App\Models\User::pluck('id')->toArray();
         $products = \App\Models\Product::pluck('id')->toArray();
 
-        // Meses de 2025 a poblar
+        // Months of 2025 to populate
         $months = [
             '2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06'
         ];
 
         foreach ($months as $month) {
-            // Crea 10 órdenes por mes (ajusta la cantidad si lo deseas)
+            // Create 10 orders per month (adjust the quantity if you wish)
             for ($i = 0; $i < 100; $i++) {
                 $userId = fake()->randomElement($users);
 
-                // Fecha aleatoria dentro del mes
+                // Random date within the month
                 $date = fake()->dateTimeBetween("$month-01", "$month-28");
 
                 $subtotal = 0;
@@ -44,9 +39,13 @@ class OrderSeeder extends Seeder
                 ];
 
 
+                $vatRate = app(\App\Services\VatService::class)->rate();
+
                 $order = \App\Models\Order::create([
                     'user_id' => $userId,
                     'subtotal' => 0,
+                    'vat' => $vatRate,
+                    'total' => 0,
                     'amount' => 0,
                     'status' => fake()->randomElement([
                         'pending', 'processing', 'on_hold', 'completed', 'canceled', 'refunded', 'failed'
@@ -77,13 +76,18 @@ class OrderSeeder extends Seeder
                         'unit' => $priceObj->unit,
                         'quantity' => $quantity,
                         'price' => $priceObj->price,
+                        'subtotal' => $itemTotal,
+                        'vat' => $vatRate,
+                        'total' => round($itemTotal * (1 + $vatRate / 100), 2),
                     ]);
                 }
 
-                $amount = $subtotal; // Puedes ajustar si tienes lógica de descuentos/impuestos
+                $total = round($subtotal * (1 + $vatRate / 100));
+                $amount = $total; // You can adjust if you have discount/tax logic
 
                 $order->update([
                     'subtotal' => $subtotal,
+                    'total' => $total,
                     'amount' => $amount,
                 ]);
             }

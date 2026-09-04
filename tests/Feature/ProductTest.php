@@ -621,14 +621,14 @@ describe("Product list endpoint", function (): void {
             route("products.search"),
             [
                 "filters" => [
-                    "price" => ["min" => 1000, "max" => 10000], // Rango obligatorio
+                    "price" => ["min" => 1000, "max" => 10000], // Mandatory range
                     "is_favorite" => true,
                 ],
             ],
         );
 
         $responseFavorite->assertStatus(200);
-        // Debería encontrar solo el producto favorito
+        // It should only find the favorite product
         expect($responseFavorite->json("data"))->toHaveCount(1);
         expect($responseFavorite->json("data.0.id"))->toBe(
             $favoriteProduct->id,
@@ -639,14 +639,14 @@ describe("Product list endpoint", function (): void {
             "/api/products/search",
             [
                 "filters" => [
-                    "price" => ["min" => 1000, "max" => 10000], // Rango obligatorio
+                    "price" => ["min" => 1000, "max" => 10000], // Mandatory range
                     "is_favorite" => false,
                 ],
             ],
         );
 
         $responseNonFavorite->assertStatus(200);
-        // Debería encontrar solo el producto que NO es favorito
+        // It should only find the product that is NOT favorite
         expect($responseNonFavorite->json("data"))->toHaveCount(1);
         expect($responseNonFavorite->json("data.0.id"))->toBe(
             $nonFavoriteProduct->id,
@@ -1888,5 +1888,139 @@ describe("ProductPolicy", function (): void {
         expect($user->can("create", Product::class))->toBeFalse();
         expect($user->can("update", $product))->toBeFalse();
         expect($user->can("delete", $product))->toBeFalse();
+    });
+});
+
+describe("Product prices with VAT", function (): void {
+    /**
+     * Product with a single active price on the list that the user is allowed to see.
+     */
+    $makeUserAndProduct = function (float $price): array {
+        $priceListCode = "01P";
+        $user = App\Models\User::factory()->create([
+            "prices_lists" => [$priceListCode],
+        ]);
+        $user->givePermissionTo("read-price-list-products");
+        Sanctum::actingAs($user, ['api-access']);
+        Product::truncate();
+
+        $product = Product::factory()
+            ->has(
+                Price::factory([
+                    "price" => $price,
+                    "is_active" => true,
+                    "price_list_id" => $priceListCode,
+                ]),
+            )
+            ->create(["status" => true]);
+
+        return [$user, $product];
+    };
+
+    it("returns net prices when the vat flag is absent", function () use ($makeUserAndProduct): void {
+        $makeUserAndProduct(10000);
+
+        $response = getJson(route("products.index"))->assertOk();
+
+        expect($response->json("data.0.price"))->toEqual(10000.0);
+        expect($response->json("data.0.vat"))->toEqual(0.0);
+        expect($response->json("vat"))->toEqual(['included' => false, 'rate' => 0.0]);
+    });
+
+    it("returns prices with VAT included when vat=true", function () use ($makeUserAndProduct): void {
+        $makeUserAndProduct(10000);
+
+        $response = getJson(route("products.index", ["vat" => "true"]))->assertOk();
+
+        expect($response->json("data.0.price"))->toEqual(11900.0);
+        expect($response->json("data.0.vat"))->toEqual(19.0);
+        expect($response->json("vat"))->toEqual(['included' => true, 'rate' => 19.0]);
+    });
+
+    it("applies the VAT rate configured in siteinfo", function () use ($makeUserAndProduct): void {
+        App\Models\Siteinfo::updateOrCreate(
+            ['key' => App\Services\VatService::SETTINGS_KEY],
+            ['value' => ['rate' => 10]]
+        );
+
+        $makeUserAndProduct(10000);
+
+        $response = getJson(route("products.index", ["vat" => "true"]))->assertOk();
+
+        expect($response->json("data.0.price"))->toEqual(11000.0);
+        expect($response->json("data.0.vat"))->toEqual(10.0);
+    });
+
+    it("returns prices with VAT on the search endpoint", function () use ($makeUserAndProduct): void {
+        $makeUserAndProduct(10000);
+
+        $response = postJson(route("products.search"), [
+            "vat" => true,
+            "filters" => [
+                "price" => ["min" => 0, "max" => 20000],
+            ],
+        ])->assertOk();
+
+        expect($response->json("data.0.price"))->toEqual(11900.0);
+        expect($response->json("vat"))->toEqual(['included' => true, 'rate' => 19.0]);
+    });
+
+    it(
+        "matches products whose net price falls inside a VAT-inclusive price filter",
+        function () use ($makeUserAndProduct): void {
+            $makeUserAndProduct(10000);
+
+            // 10,000 net is 11,900 with VAT: the range only fits if the filter
+            // is converted to net before checking the prices.
+            $response = postJson(route("products.search"), [
+                "vat" => true,
+                "filters" => [
+                    "price" => ["min" => 11000, "max" => 12000],
+                ],
+            ])->assertOk();
+
+            expect($response->json("data"))->toHaveCount(1);
+            expect($response->json("data.0.price"))->toEqual(11900.0);
+
+            $withoutVat = postJson(route("products.search"), [
+                "filters" => [
+                    "price" => ["min" => 11000, "max" => 12000],
+                ],
+            ])->assertOk();
+
+            expect($withoutVat->json("data"))->toBeEmpty();
+        },
+    );
+
+    it("returns the price extremes with VAT when vat=true", function () use ($makeUserAndProduct): void {
+        [$user] = $makeUserAndProduct(10000);
+        $user->givePermissionTo("read-all-prices");
+
+        getJson(route("products.price-extremes"))
+            ->assertOk()
+            ->assertJson([
+                'lowest_price_product' => 10000,
+                'highest_price_product' => 10000,
+                'vat' => 0,
+            ]);
+
+        getJson(route("products.price-extremes", ["vat" => "true"]))
+            ->assertOk()
+            ->assertJson([
+                'lowest_price_product' => 11900,
+                'highest_price_product' => 11900,
+                'vat' => 19,
+            ]);
+    });
+
+    it("returns the detail prices with VAT when vat=true", function () use ($makeUserAndProduct): void {
+        [$user, $product] = $makeUserAndProduct(10000);
+        $user->givePermissionTo("read-all-products");
+
+        $response = getJson(route("products.show", ["product" => $product->id, "vat" => "true"]))
+            ->assertOk();
+
+        expect($response->json("data.vat"))->toEqual(19.0);
+        expect($response->json("data.prices.0.price"))->toEqual(11900.0);
     });
 });
