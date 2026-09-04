@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Siteinfo;
+use App\Services\VatService;
 use Illuminate\Database\Seeder;
 
 class SiteInfoSeeder extends Seeder
@@ -38,6 +39,14 @@ class SiteInfoSeeder extends Seeder
         Siteinfo::firstOrCreate(
             ['key' => 'prices_settings'],
             ['value' => ['min_max_quantity_enabled' => false]]
+        );
+
+        Siteinfo::firstOrCreate(
+            ['key' => VatService::SETTINGS_KEY],
+            [
+                'value' => ['rate' => (float) config('vat.rate')],
+                'content' => 'Tasa de IVA aplicada a productos y órdenes, en porcentaje',
+            ]
         );
 
         Siteinfo::firstOrCreate(

@@ -17,6 +17,7 @@ class ProductScenario
                     "name",
                     "unit",
                     "price",
+                    "vat",
                     "stock",
                     "price_list_id",
                     "image",
@@ -28,6 +29,7 @@ class ProductScenario
                 ],
             ],
             "extra" => ["supercategories", "categories", "subcategories", "brands"],
+            "vat" => ["included", "rate"],
             "meta",
             "filters" => ["min_price", "max_price"],
         ];

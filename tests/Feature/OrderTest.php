@@ -6,6 +6,8 @@ use App\Models\Address;
 use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Siteinfo;
+use App\Services\VatService;
 use App\Services\WebpayService;
 use Laravel\Sanctum\Sanctum;
 use Tests\Scenarios\OrderScenario;
@@ -223,8 +225,9 @@ describe('OrderController', function () {
 
             $order = Order::first();
             expect($order->subtotal)->toBe(450.0);
+            expect($order->total)->toBe(536.0); // 450 plus 19% VAT
             expect($order->shipping_cost)->toBe(5990.0);
-            expect($order->amount)->toBe(6440.0);
+            expect($order->amount)->toBe(6526.0);
         });
 
         test('rounds cart subtotal to whole pesos before sending payment amount', function () {
@@ -243,8 +246,9 @@ describe('OrderController', function () {
                     ->withArgs(function (Order $order, string $docType) {
                         return $docType === PaymentDocumentType::RECEIPT
                             && $order->subtotal === 3558.0
+                            && $order->total === 4234.0
                             && $order->shipping_cost === 5990.0
-                            && $order->amount === 9548.0;
+                            && $order->amount === 10224.0;
                     })
                     ->andReturn([
                         'url'   => 'https://webpay.test/init',
@@ -482,5 +486,92 @@ describe('OrderController', function () {
             $response->assertStatus(422)
                 ->assertJsonValidationErrors('payment_document_type');
         });
+    });
+});
+
+describe('Order VAT', function () {
+    /**
+     * Pay a one-product cart and hand back the resulting order.
+     */
+    $payCart = function (float $price, int $quantity): Order {
+        $scenario = OrderScenario::make();
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $scenario->addProductToCart($price, $quantity);
+
+        $address = Address::factory()->create(['user_id' => $scenario->user->id]);
+
+        mock(WebpayService::class, function ($mock) {
+            $mock->shouldReceive('createTransaction')
+                ->once()
+                ->andReturn([
+                    'url' => 'https://webpay.test/init',
+                    'token' => 'test-token-123',
+                ]);
+        });
+
+        postJson(route('orders.pay'), [
+            'address_id' => $address->id,
+            'payment_method' => 'transbank',
+            'branch_id' => $scenario->branch->id,
+            'payment_document_type' => PaymentDocumentType::RECEIPT,
+        ])->assertOk();
+
+        return Order::first();
+    };
+
+    it('stores the VAT rate and the gross total on the order', function () use ($payCart) {
+        $order = $payCart(1000, 2);
+
+        expect($order->subtotal)->toBe(2000.0);
+        expect($order->vat)->toBe(19.0);
+        expect($order->vat_amount)->toBe(380.0);
+        expect($order->total)->toBe(2380.0);
+        expect($order->amount)->toBe($order->total + $order->shipping_cost);
+    });
+
+    it('stores the subtotal, rate and total of every order item', function () use ($payCart) {
+        $order = $payCart(1000, 2);
+        $item = $order->orderDetails()->first();
+
+        expect((float) $item->subtotal)->toBe(2000.0);
+        expect($item->vat)->toBe(19.0);
+        expect((float) $item->total)->toBe(2380.0);
+        expect($item->vat_amount)->toBe(380.0);
+    });
+
+    it('uses the VAT rate configured in siteinfo', function () use ($payCart) {
+        Siteinfo::updateOrCreate(
+            ['key' => VatService::SETTINGS_KEY],
+            ['value' => ['rate' => 5]]
+        );
+
+        $order = $payCart(1000, 2);
+
+        expect($order->vat)->toBe(5.0);
+        expect($order->total)->toBe(2100.0);
+    });
+
+    it('leaves the total equal to the subtotal when the rate is zero', function () use ($payCart) {
+        Siteinfo::updateOrCreate(
+            ['key' => VatService::SETTINGS_KEY],
+            ['value' => ['rate' => 0]]
+        );
+
+        $order = $payCart(1000, 2);
+
+        expect($order->vat)->toBe(0.0);
+        expect($order->vat_amount)->toBe(0.0);
+        expect($order->total)->toBe($order->subtotal);
+    });
+
+    it('exposes the VAT breakdown in the order listing', function () use ($payCart) {
+        $payCart(1000, 2);
+
+        $response = getJson(route('orders.index'))->assertOk();
+
+        expect($response->json('data.0.vat'))->toEqual(19);
+        expect($response->json('data.0.vat_amount'))->toEqual(380);
+        expect($response->json('data.0.total'))->toEqual(2380);
+        expect($response->json('data.0.subtotal'))->toEqual(2000);
     });
 });

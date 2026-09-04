@@ -50,12 +50,16 @@ class OrderFactory extends Factory
         ];
 
         $shippingCost = $subtotal >= 70000 ? 0 : (int) config('random.fixed_shipping_cost');
+        $vatRate = (float) config('vat.rate');
+        $total = (int) round($subtotal * (1 + $vatRate / 100));
 
         return [
             'user_id' => User::factory(),
             'subtotal' => $subtotal,
+            'vat' => $vatRate,
+            'total' => $total,
             'shipping_cost' => $shippingCost,
-            'amount' => $subtotal + $shippingCost,
+            'amount' => $total + $shippingCost,
             'status' => fake()->randomElement(['pending', 'processing', 'on_hold', 'completed', 'canceled', 'refunded', 'failed']),
             'order_meta' => json_encode($meta),
             'branch_id' => Branch::factory(),

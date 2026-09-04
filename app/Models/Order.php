@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 
 class Order extends Model
@@ -16,6 +15,8 @@ class Order extends Model
     protected $fillable = [
         'user_id',
         'subtotal',
+        'vat',
+        'total',
         'shipping_cost',
         'amount',
         'status',
@@ -70,6 +71,36 @@ class Order extends Model
     public function getSubtotalAttribute()
     {
         return round($this->attributes['subtotal'], 0);
+    }
+
+    /**
+     * VAT rate applied to the order, in percentage.
+     *
+     * @return float
+     */
+    public function getVatAttribute()
+    {
+        return (float) ($this->attributes['vat'] ?? 0);
+    }
+
+    /**
+     * Subtotal plus VAT, without shipping cost.
+     *
+     * @return float
+     */
+    public function getTotalAttribute()
+    {
+        return round($this->attributes['total'] ?? 0, 0);
+    }
+
+    /**
+     * VAT amount of the order: the difference between the total and the net subtotal.
+     *
+     * @return float
+     */
+    public function getVatAmountAttribute()
+    {
+        return $this->total - $this->subtotal;
     }
 
     public function getShippingCostAttribute()
