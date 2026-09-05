@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProductImagePresignedUrlController;
 use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
 use App\Http\Controllers\Api\ProductImageSyncController;
+use App\Http\Controllers\Api\VatController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\SettingsController;
 
@@ -278,11 +279,13 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
 // Settings
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {
     Route::get('/settings/prices', [SettingsController::class, 'index']);
+    Route::get('/settings/vat', [VatController::class, 'show'])->name('settings.vat.get');
     Route::get('/settings/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings-upload-files.get');
 });
 
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
+    Route::put('/settings/vat', [VatController::class, 'update'])->name('settings.vat.update');
     Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
 });
 

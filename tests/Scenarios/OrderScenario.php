@@ -19,6 +19,9 @@ class OrderScenario
                 'id',
                 'user',
                 'subtotal',
+                'vat',
+                'vat_amount',
+                'total',
                 'amount',
                 'status',
                 'order_items',
@@ -36,6 +39,9 @@ class OrderScenario
                 'id',
                 'user',
                 'subtotal',
+                'vat',
+                'vat_amount',
+                'total',
                 'amount',
                 'status',
                 'order_items' => [
@@ -46,6 +52,9 @@ class OrderScenario
                         'quantity',
                         'price',
                         'subtotal',
+                        'vat',
+                        'vat_amount',
+                        'total',
                         'created_at',
                         'updated_at'
                     ]

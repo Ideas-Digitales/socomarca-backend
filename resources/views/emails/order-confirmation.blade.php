@@ -248,7 +248,9 @@
         $payment = $order->payments->first();
         $paymentMethodLabel = $payment?->paymentMethod?->name ?? 'No especificado';
         $shippingMethodLabel = ($order->shipping_cost > 0) ? 'Despacho a domicilio' : 'Retiro en tienda';
-        $subtotal = (int) $order->subtotal;
+        // Every amount shown to the customer already includes VAT: the order total
+        // holds the subtotal plus its VAT, and each line total does the same.
+        $subtotal = (int) $order->total;
         $shippingCost = (int) $order->shipping_cost;
         $discount = 0;
         $refund = 0;
@@ -287,7 +289,7 @@
                     ?? $product?->image
                     ?? $product?->thumbnail
                     ?? null;
-                $lineTotal = (int) round($item->price * $item->quantity);
+                $lineTotal = (int) round($item->total);
             @endphp
             <div class="product-row">
                 <div class="product-image">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Products;
 
+use App\Services\VatService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,13 @@ class ProductCollection extends ResourceCollection
      */
     public function toArray(Request $request)
     {
-        return $this->collection->map(function ($product) {
+        // With "vat=true" the price is delivered with VAT included. The rate is resolved
+        // only once because reading it queries siteinfo.
+        $vat = app(VatService::class);
+        $vatIncluded = $request->boolean('vat');
+        $vatRate = $vatIncluded ? $vat->rate() : 0.0;
+
+        return $this->collection->map(function ($product) use ($vatIncluded, $vatRate, $vat) {
             $isFavorite = false;
             if (Auth::check()) {
                 $isFavorite = $product->favorites()->whereHas('favoriteList', function ($q) {
@@ -47,7 +54,11 @@ class ProductCollection extends ResourceCollection
                     'name' => $product->brand->name,
                 ] : null,
                 'unit' => $product->joined_unit,
-                'price' => (float) $product->joined_price,
+                'price' => $vatIncluded
+                    ? $vat->applyTo((float) $product->joined_price, $vatRate)
+                    : (float) $product->joined_price,
+                // VAT rate contained in the previous price; 0 if ordered without VAT.
+                'vat' => $vatRate,
                 'stock' => (int) $product->joined_stock,
                 // Price list this row belongs to. The stored value is the human readable
                 // name coming from Random; a product repeats once per price list.
