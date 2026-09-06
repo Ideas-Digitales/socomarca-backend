@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 use Tests\Scenarios\CategoryScenario;
+use Tests\Scenarios\WrongCategoryProductAssociationScenario;
+
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
@@ -121,7 +123,7 @@ describe("Category API", function () {
             "enabled" => true,
         ]);
 
-        // Products for categories (level 2) - matches real data pattern
+        // Products for categories (level 2) -matches real data pattern
         for ($i = 0; $i < 2; $i++) {
             createProductWithPrice([
                 "name" => "Product Cat1 {$i}",
@@ -494,7 +496,7 @@ describe("Category API", function () {
             "parent_category_id" => $cat4->id,
         ]);
 
-        // Create products for all categories (level 2) - matches real data pattern
+        // Create products for all categories (level 2) -matches real data pattern
         $cats = [$cat1, $cat2, $cat3, $cat4];
         $supers = [$super1, $super2];
         foreach ($supers as $super) {
@@ -700,18 +702,52 @@ describe("Category API", function () {
     );
 });
 
+describe("Category association integrity", function () {
+    it(
+        "should hide the categories held up only by a product filed under another supercategory",
+        function () {
+            /**
+             * @var \Tests\TestCase $this
+             */
+
+            //Product 10956 declares superfamily 0003, but its family hangs on the
+            //0001. Neither of the two nodes that only he holds has a good product
+            //associated, so none should reach the tree.
+            $scenario = WrongCategoryProductAssociationScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $response
+                ->assertJsonStructure($scenario->indexJsonStructure)
+                ->assertJsonFragment(['id' => $scenario->superFamily0001->id])
+                ->assertJsonFragment(['id' => $scenario->family0004->id])
+                ->assertJsonFragment(['id' => $scenario->superFamily0009->id])
+                ->assertJsonFragment(['id' => $scenario->family0009->id])
+                ->assertJsonFragment(['id' => $scenario->subFamily0009->id]);
+
+            $renderedIds = $scenario->renderedCategoryIds($response->json());
+
+            expect($renderedIds)->not->toContain(
+                $scenario->superFamily0003->id,
+                $scenario->family0003->id,
+            );
+            //0002 is the legitimate daughter of 0003, but has no products of its own.
+            expect($renderedIds)->not->toContain($scenario->family0002->id);
+        },
+    );
+});
+
 describe("Category stock filter", function () {
     it(
         "should not return supercategory with products stock equal to 0 in index",
         function () {
             /**
              * @var \Tests\TestCase $this
-             * @var \App\Models\User $this->user
              */
 
             $scenario = CategoryScenario::make();
-            $user = $scenario->user;
-            Sanctum::actingAs($user, ['api-access']);
+            Sanctum::actingAs($scenario->user, ['api-access']);
 
             $super = Category::factory()->create([
                 "level" => 1,
@@ -732,13 +768,10 @@ describe("Category stock filter", function () {
                 "stock" => 0,
             ]);
 
-            $response = getJson(
-                route("categories.index"),
-            );
+            $response = getJson(route("categories.index"));
 
             $response->assertStatus(200);
-            $data = $response->json();
-            expect($data)->toBeEmpty();
+            expect($response->json())->toBeEmpty();
         },
     );
 
@@ -1174,6 +1207,109 @@ describe("Category price list visibility", function () {
             expect($ids)->not->toContain($zeroPriceSuper->id);
         },
     );
+
+    it(
+        "should hide categories at every level whose only product carries an unbuyable price",
+        function (array $unbuyablePrice) {
+            /**
+             * @var \Tests\TestCase $this
+             */
+
+            //A zero or disabled price is not an offer, so it should not hold
+            //no nodes in the tree. One product per level, so that the visibility of
+            //each node depends only on its own.
+            $scenario = CategoryScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            $superOk = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+                "name" => "Super OK",
+            ]);
+            $catOk = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $superOk->id,
+                "enabled" => true,
+                "name" => "Cat OK",
+            ]);
+            $catHidden = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $superOk->id,
+                "enabled" => true,
+                "name" => "Cat Hidden",
+            ]);
+            $subOk = Category::factory()->create([
+                "level" => 3,
+                "parent_category_id" => $catOk->id,
+                "enabled" => true,
+                "name" => "Sub OK",
+            ]);
+            $subHidden = Category::factory()->create([
+                "level" => 3,
+                "parent_category_id" => $catOk->id,
+                "enabled" => true,
+                "name" => "Sub Hidden",
+            ]);
+            $superHidden = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+                "name" => "Super Hidden",
+            ]);
+
+            createProductWithPrice([
+                "name" => "Product Super OK",
+                "supercategory_id" => $superOk->id,
+                "sku" => "SKU-SUPER-OK",
+                "status" => true,
+            ]);
+            createProductWithPrice([
+                "name" => "Product Cat OK",
+                "category_id" => $catOk->id,
+                "sku" => "SKU-CAT-OK",
+                "status" => true,
+            ]);
+            createProductWithPrice([
+                "name" => "Product Sub OK",
+                "subcategory_id" => $subOk->id,
+                "sku" => "SKU-SUB-OK",
+                "status" => true,
+            ]);
+
+            createProductWithPrice(array_merge([
+                "name" => "Product Super Hidden",
+                "supercategory_id" => $superHidden->id,
+                "sku" => "SKU-SUPER-HIDDEN",
+                "status" => true,
+            ], $unbuyablePrice));
+            createProductWithPrice(array_merge([
+                "name" => "Product Cat Hidden",
+                "category_id" => $catHidden->id,
+                "sku" => "SKU-CAT-HIDDEN",
+                "status" => true,
+            ], $unbuyablePrice));
+            createProductWithPrice(array_merge([
+                "name" => "Product Sub Hidden",
+                "subcategory_id" => $subHidden->id,
+                "sku" => "SKU-SUB-HIDDEN",
+                "status" => true,
+            ], $unbuyablePrice));
+
+            $data = getJson(route("categories.index"))->assertStatus(200)->json();
+
+            // Level 1: only the super category with the affordable price.
+            expect(array_column($data, "name"))->toBe(["Super OK"]);
+
+            // Level 2.
+            $categories = $data[0]["categories"];
+            expect(array_column($categories, "name"))->toBe(["Cat OK"]);
+
+            // Level 3.
+            expect(array_column($categories[0]["subcategories"], "name"))->toBe(["Sub OK"]);
+        },
+    )->with([
+        "zero price" => [["price" => 0]],
+        "inactive price" => [["price_is_active" => false]],
+    ]);
 });
 
 describe("Category product status filter", function () {
@@ -1185,9 +1321,9 @@ describe("Category product status filter", function () {
              * @var \App\Models\User $this->user
              */
 
-            // Árbol del caso: A > (B > (D, E), C > F). Cada producto se cuelga de un
-            // único nivel para que la visibilidad de un nodo dependa sólo de sus propios
-            // productos y no de los de sus hijos.
+            // Case tree: A > (B > (D, E), C > F). Each product is hung from a
+            // single level so that the visibility of a node depends only on its own
+            // products and not those of their children.
             $scenario = CategoryScenario::make();
             Sanctum::actingAs($scenario->user, ['api-access']);
 
@@ -1227,7 +1363,7 @@ describe("Category product status filter", function () {
                 "name" => "Sub F",
             ]);
 
-            // A: un producto activo y uno deshabilitado.
+            // A: one active product and one disabled product.
             createProductWithPrice([
                 "name" => "Product A On",
                 "supercategory_id" => $superA->id,
@@ -1241,7 +1377,7 @@ describe("Category product status filter", function () {
                 "status" => false,
             ]);
 
-            // B: un producto activo y uno deshabilitado.
+            // B: one active product and one disabled.
             createProductWithPrice([
                 "name" => "Product B On",
                 "category_id" => $catB->id,
@@ -1255,7 +1391,7 @@ describe("Category product status filter", function () {
                 "status" => false,
             ]);
 
-            // C: sólo productos deshabilitados.
+            // C: only disabled products.
             createProductWithPrice([
                 "name" => "Product C Off 1",
                 "category_id" => $catC->id,
@@ -1269,7 +1405,7 @@ describe("Category product status filter", function () {
                 "status" => false,
             ]);
 
-            // D: un producto activo y uno deshabilitado.
+            // D: one active product and one disabled.
             createProductWithPrice([
                 "name" => "Product D On",
                 "subcategory_id" => $subD->id,
@@ -1283,7 +1419,7 @@ describe("Category product status filter", function () {
                 "status" => false,
             ]);
 
-            // E: sólo productos deshabilitados.
+            // E: only disabled products.
             createProductWithPrice([
                 "name" => "Product E Off 1",
                 "subcategory_id" => $subE->id,
@@ -1297,7 +1433,7 @@ describe("Category product status filter", function () {
                 "status" => false,
             ]);
 
-            // F: un producto activo, pero cuelga de C, que queda fuera del listado.
+            // F: an active product, but it hangs on C, which is left out of the list.
             createProductWithPrice([
                 "name" => "Product F On",
                 "subcategory_id" => $subF->id,
@@ -1310,20 +1446,20 @@ describe("Category product status filter", function () {
             $response->assertStatus(200);
             $data = $response->json();
 
-            // A se muestra: tiene un producto activo con precio visible.
+            // A shown: You have an active product with visible price.
             expect(array_column($data, "name"))->toBe(["Super A"]);
 
-            // B se muestra, C se oculta porque todos sus productos están deshabilitados.
+            // B is shown, C is hidden because all their products are disabled.
             $categories = $data[0]["categories"];
             expect(array_column($categories, "name"))->toBe(["Cat B"]);
 
-            // D se muestra y E se oculta bajo B.
+            // D is shown and E is hidden under B.
             $renderedB = collect($categories)->firstWhere("name", "Cat B");
             expect(array_column($renderedB["subcategories"], "name"))->toBe(["Sub D"]);
 
-            // F no aparece en ninguna parte: al ocultarse C, su rama entera desaparece.
+            // F does not appear anywhere: when C is hidden, its entire branch disappears.
             $allSubcategoryNames = collect($categories)
-                ->flatMap(fn ($category) => array_column($category["subcategories"], "name"))
+                ->flatMap(fn($category) => array_column($category["subcategories"], "name"))
                 ->all();
             expect($allSubcategoryNames)->not->toContain("Sub F");
         },
