@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Models\Siteinfo;
+use App\Services\CategoryAssociationService;
 use App\Services\VatService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -100,5 +101,65 @@ describe('VAT settings', function () {
 
         getJson(route('settings.vat.get'))->assertForbidden();
         putJson(route('settings.vat.update'), ['rate' => 19])->assertForbidden();
+    });
+});
+
+describe('Category association settings', function () {
+    it('returns the config default when no setting exists', function () {
+        Sanctum::actingAs(SettingsScenario::make()->admin, ['api-access']);
+
+        getJson(route('settings.category-association.get'))
+            ->assertOk()
+            ->assertJson([
+                CategoryAssociationService::FLAG => (bool) config('category_association.' . CategoryAssociationService::FLAG),
+            ]);
+    });
+
+    it('returns the flag stored in siteinfo', function () {
+        Siteinfo::updateOrCreate(
+            ['key' => CategoryAssociationService::SETTINGS_KEY],
+            ['value' => [CategoryAssociationService::FLAG => true]]
+        );
+
+        Sanctum::actingAs(SettingsScenario::make()->admin, ['api-access']);
+
+        getJson(route('settings.category-association.get'))
+            ->assertOk()
+            ->assertJson([CategoryAssociationService::FLAG => true]);
+    });
+
+    it('lets an admin turn the strict association on and back off', function () {
+        Sanctum::actingAs(SettingsScenario::make()->admin, ['api-access']);
+
+        putJson(route('settings.category-association.update'), [
+            CategoryAssociationService::FLAG => true,
+        ])->assertOk();
+
+        expect(app(CategoryAssociationService::class)->strictEnabled())->toBeTrue();
+
+        putJson(route('settings.category-association.update'), [
+            CategoryAssociationService::FLAG => false,
+        ])->assertOk();
+
+        expect(app(CategoryAssociationService::class)->strictEnabled())->toBeFalse();
+    });
+
+    it('rejects a non boolean flag', function () {
+        Sanctum::actingAs(SettingsScenario::make()->admin, ['api-access']);
+
+        putJson(route('settings.category-association.update'), [
+            CategoryAssociationService::FLAG => 'maybe',
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrorFor(CategoryAssociationService::FLAG);
+    });
+
+    it('denies access to a user without the settings permissions', function () {
+        Sanctum::actingAs(User::factory()->create(), ['api-access']);
+
+        getJson(route('settings.category-association.get'))->assertForbidden();
+        putJson(route('settings.category-association.update'), [
+            CategoryAssociationService::FLAG => true,
+        ])->assertForbidden();
     });
 });

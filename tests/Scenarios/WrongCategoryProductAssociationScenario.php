@@ -5,7 +5,9 @@ namespace Tests\Scenarios;
 use App\Models\Category;
 use App\Models\Price;
 use App\Models\Product;
+use App\Models\Siteinfo;
 use App\Models\User;
+use App\Services\CategoryAssociationService;
 
 /**
  * Category tree holding one product filed under a supercategory that is not the parent
@@ -118,6 +120,24 @@ class WrongCategoryProductAssociationScenario
             $misfiledProduct1,
             $wellFiledProduct1,
             $wellFiledProduct2,
+        );
+    }
+
+    /**
+     * Turn the strict category association on or off for the request under test.
+     *
+     * The flag defaults to off, so a test that wants the feature has to ask for it; the
+     * mirror tests asserting the untouched behaviour simply never call this.
+     *
+     * @see \App\Services\CategoryAssociationService
+     * @param bool $enabled Whether inconsistently filed products must be discarded
+     * @return void
+     */
+    public static function strictAssociation(bool $enabled = true): void
+    {
+        Siteinfo::updateOrCreate(
+            ["key" => CategoryAssociationService::SETTINGS_KEY],
+            ["value" => [CategoryAssociationService::FLAG => $enabled]],
         );
     }
 

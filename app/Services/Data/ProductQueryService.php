@@ -83,11 +83,21 @@ class ProductQueryService
      * Useful for building faceted navigation/filter sidebar. Excludes sort filters to ensure
      * all matching products are considered regardless of sort order.
      *
+     * Products whose category chain contradicts itself are left out, once the strict
+     * association flag is on: the sidebar must not offer a category the tree itself
+     * refuses to render (CategoryController applies the same scope). The constraint sits
+     * here and not in buildFacetQuery() because it is about the categories only — such a
+     * product is still on sale, so it keeps its row in the listing and its brand in the
+     * brand facet.
+     *
+     * @see \App\Models\Product::scopeConsistentlyFiled()
+     * @see \App\Http\Controllers\Api\CategoryController::hasVisiblePrices()
      * @return array{supercategories: array, categories: array, subcategories: array}
      */
     public function getMatchingCategories(): array
     {
         $matchingProducts = $this->buildFacetQuery()
+            ->consistentlyFiled()
             ->select('supercategory_id', 'category_id', 'subcategory_id')
             ->get();
 

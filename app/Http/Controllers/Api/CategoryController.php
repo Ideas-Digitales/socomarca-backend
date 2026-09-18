@@ -20,13 +20,20 @@ class CategoryController extends Controller
      * A disabled product is not on offer, so it must not keep its branch of the tree
      * alive either; the brand listing applies the same rule.
      *
+     * A product whose category chain contradicts itself does not keep its branch alive
+     * either, once the strict association flag is on: it holds nodes no customer can
+     * navigate to. The same scope guards the category facets of the product search, so
+     * the sidebar and the search can never disagree about it.
+     *
      * @see \App\Models\Price::visibleTo()
+     * @see \App\Models\Product::scopeConsistentlyFiled()
      * @see \App\Http\Controllers\Api\BrandController::index()
      * @return \Closure A closure receiving the products query builder and constraining it
      */
     private function hasVisiblePrices(): \Closure
     {
         return fn ($query) => $query->where('status', true)
+            ->consistentlyFiled()
             ->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
     }
 

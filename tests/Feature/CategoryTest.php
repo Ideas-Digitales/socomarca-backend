@@ -7,6 +7,7 @@ use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 use Tests\Scenarios\CategoryScenario;
 use Tests\Scenarios\WrongCategoryProductAssociationScenario;
+use Tests\Scenarios\WrongSubcategoryProductAssociationScenario;
 
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
@@ -714,6 +715,7 @@ describe("Category association integrity", function () {
             //0001. Neither of the two nodes that only he holds has a good product
             //associated, so none should reach the tree.
             $scenario = WrongCategoryProductAssociationScenario::make();
+            WrongCategoryProductAssociationScenario::strictAssociation();
             Sanctum::actingAs($scenario->user, ['api-access']);
 
             $response = getJson(route("categories.index"))->assertStatus(200);
@@ -734,6 +736,78 @@ describe("Category association integrity", function () {
             );
             //0002 is the legitimate daughter of 0003, but has no products of its own.
             expect($renderedIds)->not->toContain($scenario->family0002->id);
+        },
+    );
+
+    it(
+        "should keep the categories held up by a misfiled product while the strict association is off",
+        function () {
+            /**
+             * @var \Tests\TestCase $this
+             */
+
+            //The flag ships off, so nothing changes until somebody turns it on: the
+            //superfamily 0003 and the family 0003 that only the 10956 holds keep
+            //reaching the tree, each under a branch the other does not belong to.
+            $scenario = WrongCategoryProductAssociationScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $renderedIds = $scenario->renderedCategoryIds($response->json());
+
+            expect($renderedIds)->toContain(
+                $scenario->superFamily0003->id,
+                $scenario->family0003->id,
+            );
+            //0002 is the legitimate daughter of 0003, but has no products of its own.
+            expect($renderedIds)->not->toContain($scenario->family0002->id);
+        },
+    );
+
+    it(
+        "should hide a subcategory held up only by a product filed under another category",
+        function () {
+            /**
+             * @var \Tests\TestCase $this
+             */
+
+            //Second link of the chain: the product sits in family A but claims a
+            //subfamily of family B. Both families are held up by products of their
+            //own, so the only node the rule may take away is that subfamily.
+            $scenario = WrongSubcategoryProductAssociationScenario::make();
+            WrongCategoryProductAssociationScenario::strictAssociation();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $renderedIds = $scenario->renderedCategoryIds($response->json());
+
+            expect($renderedIds)->toContain(
+                $scenario->superFamily->id,
+                $scenario->familyA->id,
+                $scenario->familyB->id,
+                $scenario->subFamilyA->id,
+            );
+            expect($renderedIds)->not->toContain($scenario->subFamilyB->id);
+        },
+    );
+
+    it(
+        "should keep a subcategory held up by a misfiled product while the strict association is off",
+        function () {
+            /**
+             * @var \Tests\TestCase $this
+             */
+
+            $scenario = WrongSubcategoryProductAssociationScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            $response = getJson(route("categories.index"))->assertStatus(200);
+
+            $renderedIds = $scenario->renderedCategoryIds($response->json());
+
+            expect($renderedIds)->toContain($scenario->subFamilyB->id);
         },
     );
 });

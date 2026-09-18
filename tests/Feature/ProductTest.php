@@ -10,6 +10,7 @@ use App\Models\Price;
 use App\Models\Product;
 use Laravel\Sanctum\Sanctum;
 use Tests\Scenarios\ProductScenario;
+use Tests\Scenarios\WrongCategoryProductAssociationScenario;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\getJson;
@@ -2023,4 +2024,72 @@ describe("Product prices with VAT", function (): void {
         expect($response->json("data.vat"))->toEqual(19.0);
         expect($response->json("data.prices.0.price"))->toEqual(11900.0);
     });
+});
+
+describe("Product search category facets integrity", function (): void {
+    /**
+     * The sidebar of the search offers the categories of the products that matched, so
+     * it has to agree with the category tree about which ones exist.
+     *
+     * @see \App\Services\Data\ProductQueryService::getMatchingCategories()
+     */
+    $search = function (WrongCategoryProductAssociationScenario $scenario) {
+        Sanctum::actingAs($scenario->user, ['api-access']);
+
+        return postJson(route("products.search"), [
+            "filters" => ["price" => ["min" => 1, "max" => 10000]],
+        ])->assertOk();
+    };
+
+    it(
+        "should leave the categories of a misfiled product out of the search facets",
+        function () use ($search): void {
+            //Product 10956 is still on sale and still matches the search, but neither
+            //the superfamily it declares nor the family it sits in leads back to it,
+            //so the sidebar must not offer either.
+            $scenario = WrongCategoryProductAssociationScenario::make();
+            WrongCategoryProductAssociationScenario::strictAssociation();
+
+            $response = $search($scenario);
+
+            $response->assertJsonStructure(ProductScenario::make()->getResponseStructure);
+
+            $supercategoryIds = array_column($response->json("extra.supercategories"), "id");
+            $categoryIds = array_column($response->json("extra.categories"), "id");
+            $subcategoryIds = array_column($response->json("extra.subcategories"), "id");
+
+            expect($supercategoryIds)->not->toContain($scenario->superFamily0003->id);
+            expect($categoryIds)->not->toContain($scenario->family0003->id);
+
+            //The well filed branches keep every level of their facets.
+            expect($supercategoryIds)->toContain(
+                $scenario->superFamily0001->id,
+                $scenario->superFamily0009->id,
+            );
+            expect($categoryIds)->toContain(
+                $scenario->family0004->id,
+                $scenario->family0009->id,
+            );
+            expect($subcategoryIds)->toContain($scenario->subFamily0009->id);
+
+            //Discarding it from the facets does not take the product off the catalogue.
+            expect(array_column($response->json("data"), "id"))
+                ->toContain($scenario->misfiledProduct1->id);
+        },
+    );
+
+    it(
+        "should keep the categories of a misfiled product in the search facets while the strict association is off",
+        function () use ($search): void {
+            //Default behaviour, untouched until somebody turns the flag on.
+            $scenario = WrongCategoryProductAssociationScenario::make();
+
+            $response = $search($scenario);
+
+            expect(array_column($response->json("extra.supercategories"), "id"))
+                ->toContain($scenario->superFamily0003->id);
+            expect(array_column($response->json("extra.categories"), "id"))
+                ->toContain($scenario->family0003->id);
+        },
+    );
 });

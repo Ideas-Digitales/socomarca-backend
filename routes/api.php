@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\Api\CategoryAssociationController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\SubcategoryController;
 use App\Http\Controllers\Api\BrandController;
@@ -281,12 +282,14 @@ Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(f
     Route::get('/settings/prices', [SettingsController::class, 'index']);
     Route::get('/settings/vat', [VatController::class, 'show'])->name('settings.vat.get');
     Route::get('/settings/upload-files', [SiteinfoController::class, 'getUploadSettings'])->name('upload.settings-upload-files.get');
+    Route::get('/settings/category-association', [CategoryAssociationController::class, 'show'])->name('settings.category-association.get');
 });
 
 Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group(function () {
     Route::put('/settings/prices', [SettingsController::class, 'update']);
     Route::put('/settings/vat', [VatController::class, 'update'])->name('settings.vat.update');
     Route::put('/settings/upload-files', [SiteinfoController::class, 'updateUploadSettings'])->name('upload.settings-upload-files.update');
+    Route::put('/settings/category-association', [CategoryAssociationController::class, 'update'])->name('settings.category-association.update');
 });
 
 Route::middleware(['auth:sanctum', 'permission:read-all-notifications'])->group(function () {
