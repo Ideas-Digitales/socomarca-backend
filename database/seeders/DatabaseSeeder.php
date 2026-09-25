@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
             // FavoriteSeeder::class,
             // FaqSeeder::class,
 
-            RegionSeeder::class,
+            // RegionSeeder::class, // use: php artisan random:sync-regions-municipalities
             PaymentMethodSeeder::class,
             RolesAndPermissionsSeeder::class,
             SiteInfoSeeder::class,
