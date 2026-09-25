@@ -180,6 +180,34 @@ describe('Store addresses endpoint', function () {
                 'alias',
             ]);
     });
+
+    it('should forbid storing a branch address', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['create-addresses']);
+        $municipality = \App\Models\Municipality::factory()->create();
+        $branch = \App\Models\Branch::factory()->create([
+            'user_id' => $user->id,
+        ]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(route('addresses.store'), [
+            'branch_id' => $branch->id,
+            'address_line1' => 'Calle Falsa 123',
+            'address_line2' => 'Depto 4B',
+            'postal_code' => '1234567',
+            'is_default' => true,
+            'type' => 'shipping',
+            'phone' => '987654321',
+            'contact_name' => 'Juan Pérez',
+            'municipality_id' => $municipality->id,
+            'alias' => 'Casa',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['branch_id']);
+
+        expect(Address::where('branch_id', $branch->id)->exists())->toBeFalse();
+    });
 });
 
 describe('Update addresses endpoint', function () {
@@ -250,6 +278,32 @@ describe('Update addresses endpoint', function () {
             'id' => $address->id,
             'address_line1' => 'Solo Cambio Calle',
             'contact_name' => 'Nombre Original', // No cambia
+        ]);
+    });
+
+    it('should forbid updating a branch address', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['update-addresses', 'read-own-addresses']);
+
+        $branch = \App\Models\Branch::factory()->create([
+            'user_id' => $user->id,
+        ]);
+        $address = Address::factory()->create([
+            'user_id' => $user->id,
+            'branch_id' => $branch->id,
+            'address_line1' => 'GARRETON ARCE 1698',
+        ]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        $response = putJson(route('addresses.update', ['address' => $address->id]), [
+            'address_line1' => 'Calle Prohibida 123',
+        ]);
+
+        $response->assertForbidden();
+
+        assertDatabaseHas('addresses', [
+            'id' => $address->id,
+            'address_line1' => 'GARRETON ARCE 1698',
         ]);
     });
 });

@@ -39,12 +39,17 @@ class AddressPolicy
 
     /**
      * Determine whether the user can update the model.
+     * Branch addresses are managed by Random sync and cannot be updated via the API.
      */
     public function update(User $user, Address $address): bool
     {
+        if ($address->branch_id !== null) {
+            return false;
+        }
+
         if (!$user->can('update-addresses')) {
             return false;
-        };
+        }
 
         return $this->view($user, $address);
     }
