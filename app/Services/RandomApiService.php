@@ -313,4 +313,44 @@ class RandomApiService
 
         return $response;
     }
+
+    /**
+     * Get Random ERP Territorios
+     *
+     * @param int $level
+     * @param string $countryCode
+     *
+     * @return \Illuminate\Http\Client\Response
+     */
+    public function getTerritorios($level = 3, $countryCode = 'CL'): \Illuminate\Http\Client\Response
+    {
+        $endpoint = "/territorios";
+        $query = [
+            "ter1"=> $countryCode,
+            "nivel" => strval($level),
+        ];
+
+        if (!empty(config('random.token'))) {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000, null, false)
+            ->acceptJson()
+            ->get($this->baseUrl . $endpoint, $query);
+
+        if ($response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "Territorios query failed",
+                ['query' => $query],
+                $response
+            );
+
+            throw $exception;
+        }
+
+        return $response;
+    }
 }
