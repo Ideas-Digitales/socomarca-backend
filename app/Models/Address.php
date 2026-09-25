@@ -11,6 +11,8 @@ class Address extends Model
 
     protected $fillable = [
         'user_id',
+        'branch_id',
+        'region_id',
         'address_line1',
         'address_line2',
         'municipality_id',
@@ -32,6 +34,16 @@ class Address extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
+    }
+
+    public function region()
+    {
+        return $this->belongsTo(Region::class);
     }
 
     public function municipality()

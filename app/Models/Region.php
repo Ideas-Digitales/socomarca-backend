@@ -22,4 +22,9 @@ class Region extends Model
     {
         return $this->hasMany(Municipality::class);
     }
+
+    public function addresses()
+    {
+        return $this->hasMany(Address::class);
+    }
 }

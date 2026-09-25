@@ -25,6 +25,8 @@ class UpdateRequest extends FormRequest
         switch (strtolower($this->method())) {
             case 'put':
                 return [
+                    // Branch addresses are managed by Random sync only.
+                    'branch_id' => 'bail|prohibited',
                     'address_line1' => 'bail|required|string',
                     'address_line2' => 'bail|nullable|string',
                     'postal_code' => 'bail|nullable|string',
@@ -38,6 +40,7 @@ class UpdateRequest extends FormRequest
 
             case 'patch':
                 return [
+                    'branch_id' => 'bail|prohibited',
                     'address_line1' => 'sometimes|string|max:255',
                     'address_line2' => 'sometimes|nullable|string|max:255',
                     'postal_code'   => 'sometimes|nullable|string|max:20',

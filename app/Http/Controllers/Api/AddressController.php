@@ -51,6 +51,7 @@ class AddressController extends Controller
         $address->contact_name = $data['contact_name'];
         $address->user_id = $user->id;
         $address->municipality_id = $data['municipality_id'];
+        $address->region_id = Municipality::whereKey($data['municipality_id'])->value('region_id');
         $address->alias = $data['alias'];
 
         $address->save();
@@ -99,6 +100,9 @@ class AddressController extends Controller
                 ->update(['is_default' => false]);
         }
         $data['user_id'] = $user->id;
+        if (array_key_exists('municipality_id', $data)) {
+            $data['region_id'] = Municipality::whereKey($data['municipality_id'])->value('region_id');
+        }
         $address->update($data);
 
         return response()->json(['message' => 'The selected address has been updated']);
