@@ -15,7 +15,7 @@ class SyncRandomStockCommand extends Command
         $this->info('Iniciando sincronización de stock...');
         
         SyncRandomStock::dispatch()
-            ->onQueue('random-stock');
+            ->onQueue('random-sync-products');
 
         $this->info('Proceso de sincronización encolado correctamente.');
     }

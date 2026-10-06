@@ -15,7 +15,7 @@ class SyncRandomBrandsCommand extends Command
         $this->info('Iniciando sincronización de marcas...');
         
         SyncRandomBrands::dispatch()
-            ->onQueue('random-brands');
+            ->onQueue('random-sync-products');
 
         $this->info('Proceso de sincronización encolado correctamente.');
     }

@@ -1,205 +1,401 @@
 <?php
 
+use App\Enums\BranchType;
 use App\Jobs\SyncRandomUsers;
+use App\Models\Address;
+use App\Models\Municipality;
+use App\Models\Region;
 use App\Models\User;
 use App\Services\RandomApiService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 
 uses(RefreshDatabase::class);
 
-test('sync users creates new user with null email when email is empty', function () {
+/**
+ * Build a Random entity record (GET /web32/entidades) for a primary customer branch.
+ */
+function randomEntity(array $overrides = []): array
+{
+    return array_merge([
+        'IDMAEEN'    => 2475,
+        'KOEN'       => '77528378',
+        'RTEN'       => '77528378',
+        'SUEN'       => 'CM',
+        'TIPOSUC'    => 'P',
+        'TIEN'       => 'C',
+        'NOKOEN'     => '500 SABORES SPA',
+        'SIEN'       => '500 Sabores',
+        'EMAIL'      => 'dte_500sabores@idte.cl',
+        'EMAILCOMER' => 'dbustos@grupomilsabores.com',
+        'FOEN'       => '56911111111',
+        'DIEN'       => '',
+        'CIEN'       => '',
+        'CMEN'       => '',
+        'CPOSTAL'    => '',
+        'KOLTVEN'    => ['MIL'],
+    ], $overrides);
+}
+
+/**
+ * Mock the Random API so that each argument is returned as a page of entities.
+ */
+function mockRandomEntities(array ...$pages): void
+{
     $mock = Mockery::mock(RandomApiService::class);
-    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
-        [
-            [
-                'KOEN' => '12345678-9',
-                'RTEN' => '11111111-1',
-                'NOKOEN' => 'John Doe',
-                'EMAILCOMER' => '',
-                'SIEN' => 'John Doe Business',
-                'FOEN' => '+56912345678',
-                'SUEN' => 'BRANCH001',
-                'TIPOSUC' => 'P',
-                'TIEN' => 'C',
-                'KOLTVEN' => ['LIST1'],
-            ]
-        ],
-        []
-    );
+    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(...[...$pages, []]);
     App::instance(RandomApiService::class, $mock);
+}
 
-    Log::shouldReceive('info')->zeroOrMoreTimes();
-    Log::shouldReceive('debug')->zeroOrMoreTimes();
-    Log::shouldReceive('warning')->zeroOrMoreTimes();
-    Log::shouldReceive('error')->zeroOrMoreTimes();
+function runUsersSync(): void
+{
+    (new SyncRandomUsers())->handle(app(RandomApiService::class));
+}
 
-    $job = new SyncRandomUsers();
-    $job->handle(app(RandomApiService::class));
-
-    $this->assertDatabaseHas('users', [
-        'user_code' => '12345678-9',
-        'rut' => '11111111-1',
-        'name' => 'John Doe',
-        'business_name' => 'John Doe Business',
+function seedQuinteroMunicipality(): Municipality
+{
+    $region = Region::factory()->create([
+        'code' => '05',
+        'name' => 'Valparaíso',
+        'random_key' => 'CL/5',
+        'random_name' => 'V Region de Valparaiso',
     ]);
 
-    $user = User::where('user_code', '12345678-9')->first();
-    expect($user->email)->toBeNull();
-    expect($user->hasRole('customer'))->toBeTrue();
+    return Municipality::factory()->create([
+        'name' => 'Quintero',
+        'region_id' => $region->id,
+        'random_key' => 'CL/5/QIN',
+        'random_name' => 'Quintero',
+    ]);
+}
+
+beforeEach(function () {
+    Log::spy();
 });
 
-test('sync users allows duplicate email with different user', function () {
-    User::factory()->create([
-        'email' => 'existing@example.com',
-        'rut' => '98765432-1',
-        'user_code' => '98765432-1',
+describe('users', function () {
+    it('creates a customer user for a primary branch entity', function () {
+        mockRandomEntities([randomEntity([
+            'EMAILCOMER' => '  DBustos@GrupoMilSabores.com ',
+            'EMAIL'      => 'DTE_500Sabores@idte.cl',
+            'KOLTVEN'    => ['MIL', 'LOC'],
+        ])]);
+
+        runUsersSync();
+
+        $user = User::where('random_entity_id', 2475)->firstOrFail();
+
+        expect($user->user_code)->toBe('77528378')
+            ->and($user->branch_code)->toBe('CM')
+            ->and($user->branch_type)->toBe(BranchType::PRIMARY)
+            ->and($user->rut)->toBe('77528378')
+            ->and($user->name)->toBe('500 SABORES SPA')
+            ->and($user->business_name)->toBe('500 Sabores')
+            ->and($user->email)->toBe('dbustos@grupomilsabores.com')
+            ->and($user->billing_email)->toBe('dte_500sabores@idte.cl')
+            ->and($user->phone)->toBe('56911111111')
+            ->and($user->random_user_type)->toBe('C')
+            ->and($user->prices_lists)->toBe(['MIL', 'LOC'])
+            ->and($user->is_active)->toBeTrue()
+            ->and($user->password)->toBeNull()
+            ->and($user->random_synced_at)->not->toBeNull()
+            ->and($user->hasRole('customer'))->toBeTrue();
+    });
+
+    it('creates a user for each branch of the same entity', function () {
+        mockRandomEntities([
+            randomEntity(['IDMAEEN' => 2475, 'SUEN' => 'CM', 'TIPOSUC' => 'P', 'EMAILCOMER' => 'principal@example.com']),
+            randomEntity(['IDMAEEN' => 2476, 'SUEN' => 'LO', 'TIPOSUC' => 'S', 'EMAILCOMER' => 'secundaria@example.com']),
+        ]);
+
+        runUsersSync();
+
+        expect(User::where('user_code', '77528378')->count())->toBe(2);
+
+        $secondary = User::where('random_entity_id', 2476)->firstOrFail();
+        expect($secondary->branch_code)->toBe('LO')
+            ->and($secondary->branch_type)->toBe(BranchType::SECONDARY)
+            ->and($secondary->email)->toBe('secundaria@example.com')
+            ->and($secondary->hasRole('customer'))->toBeTrue();
+    });
+
+    it('syncs entities of type "Ambos"', function () {
+        mockRandomEntities([randomEntity(['TIEN' => 'A'])]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->value('random_user_type'))->toBe('A');
+    });
+
+    it('skips provider entities', function () {
+        mockRandomEntities([randomEntity(['TIEN' => 'P'])]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->exists())->toBeFalse();
+    });
+
+    it('skips entities without IDMAEEN or KOEN', function (array $overrides) {
+        mockRandomEntities([randomEntity($overrides)]);
+
+        runUsersSync();
+
+        expect(User::where('user_code', '77528378')->exists())->toBeFalse();
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message) => str_contains($message, 'missing IDMAEEN or KOEN'))
+            ->once();
+    })->with([
+        'missing IDMAEEN' => [['IDMAEEN' => null]],
+        'missing KOEN' => [['KOEN' => '']],
+        'blank KOEN' => [['KOEN' => '   ']],
     ]);
 
-    $mock = Mockery::mock(RandomApiService::class);
-    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
-        [
-            [
-                'KOEN' => '12345678-9',
-                'RTEN' => '11111111-1',
-                'NOKOEN' => 'John Doe',
-                'EMAILCOMER' => 'existing@example.com',
-                'SIEN' => 'John Doe Business',
-                'FOEN' => '+56912345678',
-                'SUEN' => 'BRANCH001',
-                'TIPOSUC' => 'P',
-                'TIEN' => 'C',
-                'KOLTVEN' => ['LIST1'],
-            ]
-        ],
-        []
-    );
-    App::instance(RandomApiService::class, $mock);
+    it('normalizes a null SUEN to an empty string', function () {
+        mockRandomEntities([randomEntity(['SUEN' => null])]);
 
-    Log::shouldReceive('info')->zeroOrMoreTimes();
-    Log::shouldReceive('debug')->zeroOrMoreTimes();
-    Log::shouldReceive('warning')->zeroOrMoreTimes();
-    Log::shouldReceive('error')->zeroOrMoreTimes();
+        runUsersSync();
 
-    $job = new SyncRandomUsers();
-    $job->handle(app(RandomApiService::class));
+        expect(User::where('random_entity_id', 2475)->value('branch_code'))->toBe('');
+    });
 
-    $this->assertDatabaseHas('users', [
-        'user_code' => '12345678-9',
-        'rut' => '11111111-1',
-        'email' => 'existing@example.com',
-    ]);
+    it('stores a null email when EMAILCOMER is empty', function () {
+        mockRandomEntities([randomEntity(['EMAILCOMER' => '  '])]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->firstOrFail()->email)->toBeNull();
+    });
+
+    it('syncs entities sharing the same EMAILCOMER', function () {
+        mockRandomEntities([
+            randomEntity(['IDMAEEN' => 2475, 'SUEN' => 'CM', 'EMAILCOMER' => 'compartido@example.com']),
+            randomEntity(['IDMAEEN' => 2476, 'SUEN' => 'LO', 'TIPOSUC' => 'S', 'EMAILCOMER' => 'Compartido@Example.com']),
+        ]);
+
+        runUsersSync();
+
+        expect(User::where('email', 'compartido@example.com')->count())->toBe(2);
+    });
+
+    it('updates an existing user by IDMAEEN without changing its password or reactivating it', function () {
+        $user = User::factory()->create([
+            'random_entity_id' => 2475,
+            'user_code' => '77528378',
+            'branch_code' => 'CM',
+            'name' => 'Old Name',
+            'email' => 'old@example.com',
+            'password' => Hash::make('secret'),
+            'is_active' => false,
+        ]);
+        $passwordHash = $user->password;
+
+        mockRandomEntities([randomEntity(['NOKOEN' => 'New Name', 'SUEN' => 'NEW', 'TIPOSUC' => 'S'])]);
+
+        runUsersSync();
+
+        $user->refresh();
+        expect(User::where('user_code', '77528378')->count())->toBe(1)
+            ->and($user->name)->toBe('New Name')
+            ->and($user->branch_code)->toBe('NEW')
+            ->and($user->branch_type)->toBe(BranchType::SECONDARY)
+            ->and($user->email)->toBe('dbustos@grupomilsabores.com')
+            ->and($user->password)->toBe($passwordHash)
+            ->and($user->is_active)->toBeFalse();
+    });
+
+    it('associates an existing user without IDMAEEN by KOEN and SUEN', function () {
+        $user = User::factory()->create([
+            'user_code' => '77528378',
+            'branch_code' => 'CM',
+            'password' => Hash::make('secret'),
+        ]);
+        $passwordHash = $user->password;
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        $user->refresh();
+        expect(User::where('user_code', '77528378')->count())->toBe(1)
+            ->and($user->random_entity_id)->toBe(2475)
+            ->and($user->email)->toBe('dbustos@grupomilsabores.com')
+            ->and($user->password)->toBe($passwordHash);
+    });
+
+    it('associates an existing user with a null branch code to an entity without SUEN', function () {
+        $user = User::factory()->create(['user_code' => '77528378', 'branch_code' => null]);
+
+        mockRandomEntities([randomEntity(['SUEN' => ''])]);
+
+        runUsersSync();
+
+        expect($user->fresh()->random_entity_id)->toBe(2475)
+            ->and(User::where('user_code', '77528378')->count())->toBe(1);
+    });
+
+    it('does not associate a user already linked to another entity', function () {
+        $linked = User::factory()->create([
+            'random_entity_id' => 9999,
+            'user_code' => '77528378',
+            'branch_code' => 'CM',
+        ]);
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        expect($linked->fresh()->random_entity_id)->toBe(9999)
+            ->and(User::where('random_entity_id', 2475)->where('id', '!=', $linked->id)->exists())->toBeTrue();
+    });
 });
 
-test('sync users allows same user to update email by user_code', function () {
-    User::factory()->create([
-        'user_code' => '12345678-9',
-        'rut' => '11111111-1',
-        'name' => 'John Doe',
-        'email' => 'old@example.com',
-    ]);
+describe('pagination and errors', function () {
+    it('syncs every page of entities', function () {
+        mockRandomEntities(
+            [randomEntity(['IDMAEEN' => 1, 'SUEN' => 'A'])],
+            [randomEntity(['IDMAEEN' => 2, 'SUEN' => 'B'])],
+        );
 
-    $mock = Mockery::mock(RandomApiService::class);
-    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
-        [
-            [
-                'KOEN' => '12345678-9',
-                'RTEN' => '11111111-1',
-                'NOKOEN' => 'John Doe Updated',
-                'EMAILCOMER' => 'new@example.com',
-                'SIEN' => 'John Doe Business Updated',
-                'FOEN' => '+56912345678',
-                'SUEN' => 'BRANCH001',
-                'TIPOSUC' => 'P',
-                'TIEN' => 'A',
-                'KOLTVEN' => ['LIST1'],
-            ]
-        ],
-        []
-    );
-    App::instance(RandomApiService::class, $mock);
+        runUsersSync();
 
-    Log::shouldReceive('info')->zeroOrMoreTimes();
-    Log::shouldReceive('debug')->zeroOrMoreTimes();
-    Log::shouldReceive('warning')->zeroOrMoreTimes();
-    Log::shouldReceive('error')->zeroOrMoreTimes();
+        expect(User::whereIn('random_entity_id', [1, 2])->count())->toBe(2);
+    });
 
-    $job = new SyncRandomUsers();
-    $job->handle(app(RandomApiService::class));
+    it('continues with the next entity when one fails', function () {
+        mockRandomEntities([
+            randomEntity(['IDMAEEN' => 1, 'SUEN' => 'A', 'RTEN' => str_repeat('9', 300)]),
+            randomEntity(['IDMAEEN' => 2, 'SUEN' => 'B']),
+        ]);
 
-    $this->assertDatabaseHas('users', [
-        'user_code' => '12345678-9',
-        'rut' => '11111111-1',
-        'email' => 'new@example.com',
-        'name' => 'John Doe Updated',
-        'business_name' => 'John Doe Business Updated',
-    ]);
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 1)->exists())->toBeFalse()
+            ->and(User::where('random_entity_id', 2)->exists())->toBeTrue();
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $message) => str_contains($message, 'failed syncing entity'))
+            ->once();
+    });
+
+    it('stops when Random returns an invalid response', function () {
+        $mock = Mockery::mock(RandomApiService::class);
+        $mock->shouldReceive('getEntidadesUsuarios')->once()->andReturn(['message' => 'jwt malformed']);
+        App::instance(RandomApiService::class, $mock);
+
+        runUsersSync();
+
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $message) => str_contains($message, 'invalid Random entities response'))
+            ->once();
+    });
+
+    it('is queued only once at a time', function () {
+        Queue::fake();
+
+        SyncRandomUsers::dispatch();
+        SyncRandomUsers::dispatch();
+
+        expect(new SyncRandomUsers())->toBeInstanceOf(ShouldBeUnique::class);
+        Queue::assertPushed(SyncRandomUsers::class, 1);
+    });
 });
 
-test('sync users skips non primary branch sucursales', function () {
-    $mock = Mockery::mock(RandomApiService::class);
-    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
-        [
-            [
-                'KOEN' => '12345678-9',
-                'RTEN' => '11111111-1',
-                'NOKOEN' => 'John Doe',
-                'EMAILCOMER' => 'john@example.com',
-                'SIEN' => 'John Doe Business',
-                'FOEN' => '+56912345678',
-                'SUEN' => 'BRANCH001',
-                'TIPOSUC' => 'S',
-                'TIEN' => 'C',
-            ]
-        ],
-        []
-    );
-    App::instance(RandomApiService::class, $mock);
+describe('addresses', function () {
+    it('creates a synced shipping address using CL/{CIEN}/{CMEN}', function (string $branchType) {
+        $municipality = seedQuinteroMunicipality();
 
-    Log::shouldReceive('info')->zeroOrMoreTimes();
-    Log::shouldReceive('debug')->zeroOrMoreTimes();
-    Log::shouldReceive('warning')->zeroOrMoreTimes();
-    Log::shouldReceive('error')->zeroOrMoreTimes();
+        mockRandomEntities([randomEntity([
+            'TIPOSUC' => $branchType,
+            'PAEN'    => 'CHI',
+            'CIEN'    => '5',
+            'CMEN'    => 'QIN',
+            'DIEN'    => 'GARRETON ARCE 1698',
+            'CPOSTAL' => '2480000',
+        ])]);
 
-    $job = new SyncRandomUsers();
-    $job->handle(app(RandomApiService::class));
+        runUsersSync();
 
-    $this->assertDatabaseMissing('users', [
-        'user_code' => '12345678-9',
+        $user = User::where('random_entity_id', 2475)->firstOrFail();
+
+        $this->assertDatabaseHas('addresses', [
+            'user_id' => $user->id,
+            'is_synced' => true,
+            'region_id' => $municipality->region_id,
+            'municipality_id' => $municipality->id,
+            'address_line1' => 'GARRETON ARCE 1698',
+            'postal_code' => '2480000',
+            'phone' => '56911111111',
+            'contact_name' => '500 SABORES SPA',
+            'type' => 'shipping',
+            'is_default' => false,
+        ]);
+    })->with([
+        'primary branch' => [BranchType::PRIMARY],
+        'secondary branch' => [BranchType::SECONDARY],
     ]);
-});
 
-test('sync users stores prices_lists from KOLTVEN field', function () {
-    $mock = Mockery::mock(RandomApiService::class);
-    $mock->shouldReceive('getEntidadesUsuarios')->andReturn(
-        [
-            [
-                'KOEN' => '12345678-9',
-                'RTEN' => '11111111-1',
-                'NOKOEN' => 'John Doe',
-                'EMAILCOMER' => 'john@example.com',
-                'SIEN' => 'John Doe Business',
-                'FOEN' => '+56912345678',
-                'SUEN' => 'BRANCH001',
-                'TIPOSUC' => 'P',
-                'TIEN' => 'C',
-                'KOLTVEN' => ['LIST1', 'LIST2', 'LIST3'],
-            ]
-        ],
-        []
-    );
-    App::instance(RandomApiService::class, $mock);
+    it('updates the synced address and keeps the addresses created by the user', function () {
+        $municipality = seedQuinteroMunicipality();
+        $otherMunicipality = Municipality::factory()->create([
+            'region_id' => $municipality->region_id,
+            'random_key' => 'CL/5/ALG',
+            'random_name' => 'Algarrobo',
+        ]);
+        $user = User::factory()->create(['random_entity_id' => 2475, 'user_code' => '77528378']);
+        $synced = Address::factory()->create([
+            'user_id' => $user->id,
+            'is_synced' => true,
+            'municipality_id' => $otherMunicipality->id,
+            'address_line1' => 'Old Street 1',
+        ]);
+        $own = Address::factory()->create([
+            'user_id' => $user->id,
+            'address_line1' => 'Own Street 2',
+        ]);
 
-    Log::shouldReceive('info')->zeroOrMoreTimes();
-    Log::shouldReceive('debug')->zeroOrMoreTimes();
-    Log::shouldReceive('warning')->zeroOrMoreTimes();
-    Log::shouldReceive('error')->zeroOrMoreTimes();
+        mockRandomEntities([randomEntity([
+            'CIEN' => '5',
+            'CMEN' => 'QIN',
+            'DIEN' => 'GARRETON ARCE 1698',
+        ])]);
 
-    $job = new SyncRandomUsers();
-    $job->handle(app(RandomApiService::class));
+        runUsersSync();
 
-    $user = User::where('rut', '11111111-1')->first();
-    expect($user->prices_lists)->toBeArray();
-    expect($user->prices_lists)->toBe(['LIST1', 'LIST2', 'LIST3']);
+        expect(Address::where('user_id', $user->id)->where('is_synced', true)->count())->toBe(1);
+        $this->assertDatabaseHas('addresses', [
+            'id' => $synced->id,
+            'municipality_id' => $municipality->id,
+            'address_line1' => 'GARRETON ARCE 1698',
+        ]);
+        $this->assertDatabaseHas('addresses', [
+            'id' => $own->id,
+            'is_synced' => false,
+            'address_line1' => 'Own Street 2',
+        ]);
+    });
+
+    it('skips the address when it cannot be resolved', function (array $overrides, bool $seedMunicipality) {
+        if ($seedMunicipality) {
+            seedQuinteroMunicipality();
+        }
+
+        mockRandomEntities([randomEntity(array_merge([
+            'CIEN' => '5',
+            'CMEN' => 'QIN',
+            'DIEN' => 'GARRETON ARCE 1698',
+        ], $overrides))]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->exists())->toBeTrue()
+            ->and(Address::count())->toBe(0);
+    })->with([
+        'region not found' => [[], false],
+        'municipality not found' => [['CMEN' => 'XXX'], true],
+        'missing CIEN' => [['CIEN' => ''], true],
+        'missing DIEN' => [['DIEN' => ''], true],
+    ]);
 });

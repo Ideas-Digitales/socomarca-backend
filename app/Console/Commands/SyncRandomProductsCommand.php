@@ -15,7 +15,7 @@ class SyncRandomProductsCommand extends Command
         $this->info('Iniciando sincronización de productos...');
         
         SyncRandomProducts::dispatch()
-            ->onQueue('random-products');
+            ->onQueue('random-sync-products');
 
         $this->info('Proceso de sincronización encolado correctamente.');
     }

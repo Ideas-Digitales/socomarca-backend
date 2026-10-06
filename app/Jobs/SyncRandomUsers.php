@@ -2,8 +2,13 @@
 
 namespace App\Jobs;
 
+use App\Enums\BranchType;
+use App\Models\Address;
+use App\Models\Municipality;
+use App\Models\Region;
 use App\Models\User;
 use App\Services\RandomApiService;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Foundation\Queue\Queueable;
@@ -12,9 +17,25 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class SyncRandomUsers implements ShouldQueue
+/**
+ * Syncs every Random customer entity (entity + branch record, primary or secondary) as a User.
+ */
+class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    private const PAGE_SIZE = 100;
+
+    /**
+     * Random entity types (TIEN) synced as customers: C=Cliente, A=Ambos.
+     */
+    private const CUSTOMER_TYPES = ['C', 'A'];
+
+    /**
+     * Seconds the unique lock is kept, so a crashed worker does not block future syncs.
+     */
+    public int $uniqueFor = 3600;
+
     /**
      * Create a new job instance.
      */
@@ -27,121 +48,209 @@ class SyncRandomUsers implements ShouldQueue
     {
         Log::info('SyncRandomUsers started');
 
-        $entidades = [];
-        $size = 100;
         $page = 1;
 
         do {
-            /** @var array $entidades */
-            $entidades = $randomApi->getEntidadesUsuarios($size, $page);
+            $entities = $randomApi->getEntidadesUsuarios(self::PAGE_SIZE, $page);
 
-            Log::debug("Random Entidades", [
-                'count' => count($entidades),
+            if (!is_array($entities) || !array_is_list($entities)) {
+                Log::error('SyncRandomUsers failed: invalid Random entities response', [
+                    'page' => $page,
+                    'response' => $entities,
+                ]);
+                return;
+            }
+
+            Log::debug('SyncRandomUsers fetched Random entities', [
+                'page' => $page,
+                'count' => count($entities),
             ]);
 
-            foreach ($entidades as $entidad) {
+            foreach ($entities as $entity) {
                 try {
-                    Log::debug("Entidad -> KOEN: {$entidad['KOEN']}, RTEN: {$entidad['RTEN']}");
-                    if ($entidad['TIPOSUC'] == 'P') { //Sincroniza solo si es sucursal principal
-                        if (empty($entidad['KOEN'])) {
-                            Log::warning('Random entidad without KOEN fetched', $entidad);
-                        }
-
-                        if (empty($entidad['RTEN'])) {
-                            Log::warning('Random entidad without RTEN fetched', $entidad);
-                        }
-
-                        Log::info("Processing Random Entidad. KOEN: {$entidad['KOEN']}, RTEN: {$entidad['RTEN']}");
-
-                        $email = trim($entidad['EMAILCOMER'] ?? '') ?: null;
-
-                        $pricesLists = $entidad['KOLTVEN'] ?? [];
-                        // Note: upsert() bypasses model casts, so we need to manually JSON encode
-                        // The 'array' cast in User model will automatically decode when reading
-                        $jsonPricesLists = json_encode($pricesLists);
-
-                        User::upsert(
-                            [
-                                [
-                                    'user_code'        => $entidad['KOEN'],
-                                    'rut'              => $entidad['RTEN'],
-                                    'name'             => $entidad['NOKOEN'] ?? '',
-                                    'email'            => $email,
-                                    'business_name'    => $entidad['SIEN'] ?? '',
-                                    'is_active'        => true,
-                                    'phone'            => $entidad['FOEN'] ?? null,
-                                    'branch_code'      => $entidad['SUEN'] ?? '',
-                                    'random_user_type' => $entidad['TIEN'],
-                                    'password'         => null, // default password
-                                    'prices_lists' => $jsonPricesLists,
-                                ],
-                            ],
-                            uniqueBy: ['rut'],
-                            update: [
-                                'user_code',
-                                'name',
-                                'email',
-                                'business_name',
-                                'is_active',
-                                'phone',
-                                'branch_code',
-                                'random_user_type',
-                                'prices_lists',
-                            ]
-                        );
-
-                        $user = User::where('rut', $entidad['RTEN'])->firstOrFail();
-
-                        DB::table('branches')->upsert( // Sync primary branch
-                            [
-                                [
-                                    'code' => $entidad['SUEN'],
-                                    'user_code' => $entidad['KOEN'],
-                                    'name' => $entidad['NOKOEN'] ?? '',
-                                    'email' => $entidad['EMAIL'] ?? '',
-                                    'commercial_email' => $entidad['EMAILCOMER'] ?? '',
-                                    'phone' => $entidad['FOEN'] ?? '',
-                                    'rut' => $entidad['RTEN'],
-                                    'business_name' => $entidad['SIEN'] ?? '',
-                                    'user_id' => $user->id,
-                                    'branch_type' => $entidad['TIPOSUC'],
-                                ],
-                            ],
-                            uniqueBy: ['code', 'user_code'],
-                            update: [
-                                'name',
-                                'code',
-                                'user_code',
-                                'email',
-                                'commercial_email',
-                                'phone',
-                                'rut',
-                                'business_name',
-                                'user_id',
-                                'branch_type',
-                            ]
-                        );
-
-                        if (in_array($user->random_user_type, ['C', 'A'])) {
-                            $user->assignRole('customer');
-                        } else {
-                            Log::warning('User doesn\'t have a valid random TIEN to assign a role', [
-                                'user' => $user->toArray(),
-                                'entidad_random' => $entidad,
-                            ]);
-                        }
-
-                        Log::info("User {$user->id}, with RUT {$user->rut} and code {$user->user_code} successfully synced");
-                    }
+                    DB::transaction(fn () => $this->syncEntity($entity));
                 } catch (\Throwable $e) {
-                    Log::error('SyncRandomUsers failed: ' . $e->getMessage());
-                    return;
+                    Log::error('SyncRandomUsers failed syncing entity: ' . $e->getMessage(), [
+                        'entity' => $entity,
+                    ]);
                 }
             }
 
             $page++;
-        } while (!empty($entidades));
+        } while (!empty($entities));
 
-        Log::info('SyncRandomUsers completed successfully');
+        Log::info('SyncRandomUsers completed');
+    }
+
+    /**
+     * Create or update the user of a Random entity record.
+     *
+     * @param array<string, mixed> $entity
+     */
+    private function syncEntity(array $entity): void
+    {
+        $entityId = $entity['IDMAEEN'] ?? null;
+        $userCode = trim((string) ($entity['KOEN'] ?? ''));
+
+        if (empty($entityId) || $userCode === '') {
+            Log::warning('SyncRandomUsers skipped entity: missing IDMAEEN or KOEN', ['entity' => $entity]);
+            return;
+        }
+
+        if (!in_array($entity['TIEN'] ?? null, self::CUSTOMER_TYPES, true)) {
+            return;
+        }
+
+        $entityId = (int) $entityId;
+        $branchCode = trim((string) ($entity['SUEN'] ?? ''));
+        $branchType = in_array($entity['TIPOSUC'] ?? null, BranchType::values(), true)
+            ? $entity['TIPOSUC']
+            : null;
+
+        $this->associateExistingUser($entityId, $userCode, $branchCode);
+
+        // upsert() bypasses the model mutators and casts, so values are normalized and encoded here.
+        User::upsert(
+            [
+                [
+                    'random_entity_id' => $entityId,
+                    'user_code'        => $userCode,
+                    'branch_code'      => $branchCode,
+                    'branch_type'      => $branchType,
+                    'rut'              => trim((string) ($entity['RTEN'] ?? '')),
+                    'name'             => trim((string) ($entity['NOKOEN'] ?? '')),
+                    'email'            => User::normalizeEmail($entity['EMAILCOMER'] ?? null),
+                    'billing_email'    => User::normalizeEmail($entity['EMAIL'] ?? null),
+                    'business_name'    => trim((string) ($entity['SIEN'] ?? '')),
+                    'phone'            => trim((string) ($entity['FOEN'] ?? '')) ?: null,
+                    'random_user_type' => $entity['TIEN'],
+                    'prices_lists'     => json_encode($entity['KOLTVEN'] ?? []),
+                    'random_synced_at' => now(),
+                    'is_active'        => true,
+                    'password'         => null,
+                ],
+            ],
+            uniqueBy: ['random_entity_id'],
+            update: [
+                'user_code',
+                'branch_code',
+                'branch_type',
+                'rut',
+                'name',
+                'email',
+                'billing_email',
+                'business_name',
+                'phone',
+                'random_user_type',
+                'prices_lists',
+                'random_synced_at',
+            ]
+        );
+
+        $user = User::where('random_entity_id', $entityId)->firstOrFail();
+
+        if (!$user->hasRole('customer')) {
+            $user->assignRole('customer');
+        }
+
+        $this->syncAddress($user, $entity);
+    }
+
+    /**
+     * Link a user that has not been synced by IDMAEEN yet to its Random entity, matching
+     * by KOEN + SUEN, so that it keeps its orders, addresses, cart, favorites and password.
+     */
+    private function associateExistingUser(int $entityId, string $userCode, string $branchCode): void
+    {
+        if (User::where('random_entity_id', $entityId)->exists()) {
+            return;
+        }
+
+        $user = User::whereNull('random_entity_id')
+            ->whereRaw('trim(user_code) = ?', [$userCode])
+            ->whereRaw("coalesce(trim(branch_code), '') = ?", [$branchCode])
+            ->orderBy('id')
+            ->first();
+
+        if ($user === null) {
+            return;
+        }
+
+        $user->forceFill(['random_entity_id' => $entityId])->save();
+
+        Log::info('SyncRandomUsers associated existing user with Random entity', [
+            'user_id' => $user->id,
+            'random_entity_id' => $entityId,
+            'koen' => $userCode,
+            'suen' => $branchCode,
+        ]);
+    }
+
+    /**
+     * Create or update the Random-sourced address of a user.
+     *
+     * Random PAEN is ignored (always Chile). Geography is resolved as:
+     * - Region.random_key = CL/{CIEN}
+     * - Municipality.random_key = CL/{CIEN}/{CMEN}
+     *
+     * @param array{CIEN?: string, CMEN?: string, DIEN?: string, CPOSTAL?: string, FOEN?: string, NOKOEN?: string, KOEN?: string, SUEN?: string} $entity
+     */
+    private function syncAddress(User $user, array $entity): void
+    {
+        $cien = trim((string) ($entity['CIEN'] ?? ''));
+        $cmen = trim((string) ($entity['CMEN'] ?? ''));
+        $dien = trim((string) ($entity['DIEN'] ?? ''));
+        $context = [
+            'user_id' => $user->id,
+            'koen' => $entity['KOEN'] ?? null,
+            'suen' => $entity['SUEN'] ?? null,
+        ];
+
+        if ($cien === '' || $cmen === '') {
+            Log::warning('SyncRandomUsers skipped address: missing CIEN/CMEN', $context + [
+                'cien' => $cien,
+                'cmen' => $cmen,
+            ]);
+            return;
+        }
+
+        if ($dien === '') {
+            Log::warning('SyncRandomUsers skipped address: missing DIEN', $context);
+            return;
+        }
+
+        // PAEN from Random is wrong (e.g. "CHI"); always use CL.
+        $regionKey = "CL/{$cien}";
+        $municipalityKey = "CL/{$cien}/{$cmen}";
+
+        $region = Region::where('random_key', $regionKey)->first();
+        if ($region === null) {
+            Log::warning('SyncRandomUsers skipped address: region not found', $context + [
+                'random_key' => $regionKey,
+            ]);
+            return;
+        }
+
+        $municipality = Municipality::where('random_key', $municipalityKey)->first();
+        if ($municipality === null) {
+            Log::warning('SyncRandomUsers skipped address: municipality not found', $context + [
+                'random_key' => $municipalityKey,
+            ]);
+            return;
+        }
+
+        Address::updateOrCreate(
+            ['user_id' => $user->id, 'is_synced' => true],
+            [
+                'region_id' => $region->id,
+                'municipality_id' => $municipality->id,
+                'address_line1' => $dien,
+                'postal_code' => trim((string) ($entity['CPOSTAL'] ?? '')) ?: null,
+                'phone' => trim((string) ($entity['FOEN'] ?? '')) ?: null,
+                'contact_name' => $entity['NOKOEN'] ?? null,
+                'type' => 'shipping',
+                'is_default' => false,
+            ]
+        );
     }
 }
