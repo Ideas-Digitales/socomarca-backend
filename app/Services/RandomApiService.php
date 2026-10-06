@@ -74,13 +74,20 @@ class RandomApiService
         ]);
     }
 
+    /**
+     * Get the customer entities (entity + branch records) to sync as users.
+     *
+     * When `fields` is given, Random only returns the requested columns (plus TIPODOCVEN
+     * and KOLTVEN), and IDMAEEN is not guaranteed in the default response.
+     */
     public function getEntidadesUsuarios($size = 15, $page = 1)
     {
         return $this->makeRequest('get', '/web32/entidades', [
             'empresa' => config('random.business_code'),
             'modalidad' => config('random.modality'),
             'size' => $size,
-            'page' => $page
+            'page' => $page,
+            'fields' => 'IDMAEEN,KOEN,SUEN,TIPOSUC,TIEN,RTEN,NOKOEN,SIEN,EMAIL,EMAILCOMER,FOEN,DIEN,CIEN,CMEN,CPOSTAL',
         ]);
     }
 

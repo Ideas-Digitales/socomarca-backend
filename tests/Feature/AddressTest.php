@@ -7,6 +7,7 @@ use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\patchJson;
 use function Pest\Laravel\postJson;
@@ -181,17 +182,14 @@ describe('Store addresses endpoint', function () {
             ]);
     });
 
-    it('should forbid storing a branch address', function () {
+    it('should forbid storing a synced address', function () {
         $user = User::factory()->create();
         $user->givePermissionTo(['create-addresses']);
         $municipality = \App\Models\Municipality::factory()->create();
-        $branch = \App\Models\Branch::factory()->create([
-            'user_id' => $user->id,
-        ]);
 
         Sanctum::actingAs($user, ['api-access']);
         $response = postJson(route('addresses.store'), [
-            'branch_id' => $branch->id,
+            'is_synced' => true,
             'address_line1' => 'Calle Falsa 123',
             'address_line2' => 'Depto 4B',
             'postal_code' => '1234567',
@@ -204,9 +202,9 @@ describe('Store addresses endpoint', function () {
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['branch_id']);
+            ->assertJsonValidationErrors(['is_synced']);
 
-        expect(Address::where('branch_id', $branch->id)->exists())->toBeFalse();
+        expect(Address::where('user_id', $user->id)->exists())->toBeFalse();
     });
 });
 
@@ -281,16 +279,13 @@ describe('Update addresses endpoint', function () {
         ]);
     });
 
-    it('should forbid updating a branch address', function () {
+    it('should forbid updating a synced address', function () {
         $user = User::factory()->create();
         $user->givePermissionTo(['update-addresses', 'read-own-addresses']);
 
-        $branch = \App\Models\Branch::factory()->create([
-            'user_id' => $user->id,
-        ]);
         $address = Address::factory()->create([
             'user_id' => $user->id,
-            'branch_id' => $branch->id,
+            'is_synced' => true,
             'address_line1' => 'GARRETON ARCE 1698',
         ]);
 
@@ -305,6 +300,33 @@ describe('Update addresses endpoint', function () {
             'id' => $address->id,
             'address_line1' => 'GARRETON ARCE 1698',
         ]);
+    });
+});
+
+describe('Delete addresses endpoint', function () {
+    it('should allow deleting an own address when having "delete-addresses" and "read-own-addresses" permissions', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['delete-addresses', 'read-own-addresses']);
+        $address = Address::factory()->create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        deleteJson(route('addresses.destroy', ['address' => $address->id]))->assertOk();
+
+        expect(Address::whereKey($address->id)->exists())->toBeFalse();
+    });
+
+    it('should forbid deleting a synced address', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['delete-addresses', 'read-own-addresses']);
+        $address = Address::factory()->create([
+            'user_id' => $user->id,
+            'is_synced' => true,
+        ]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        deleteJson(route('addresses.destroy', ['address' => $address->id]))->assertForbidden();
+
+        expect(Address::whereKey($address->id)->exists())->toBeTrue();
     });
 });
 

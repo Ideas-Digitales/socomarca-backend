@@ -15,7 +15,7 @@ return new class extends Migration
         Schema::table('addresses', function (Blueprint $table) {
             $table->foreignId('region_id')
                 ->nullable()
-                ->after('branch_id')
+                ->after('user_id')
                 ->constrained(
                     table: 'regions',
                     indexName: 'addresses_region_id',

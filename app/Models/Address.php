@@ -11,7 +11,7 @@ class Address extends Model
 
     protected $fillable = [
         'user_id',
-        'branch_id',
+        'is_synced',
         'region_id',
         'address_line1',
         'address_line2',
@@ -28,17 +28,13 @@ class Address extends Model
     {
         return [
             'is_default' => 'boolean',
+            'is_synced' => 'boolean',
         ];
     }
 
     public function user()
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function branch()
-    {
-        return $this->belongsTo(Branch::class);
     }
 
     public function region()

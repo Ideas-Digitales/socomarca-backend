@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -41,6 +42,10 @@ class User extends Authenticatable
         'user_code',
         'random_user_type',
         'prices_lists',
+        'random_entity_id',
+        'branch_type',
+        'billing_email',
+        'random_synced_at',
     ];
 
     /**
@@ -112,7 +117,32 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'prices_lists' => 'array',
+            'random_entity_id' => 'integer',
+            'random_synced_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Emails are stored normalized so that lookups and duplicate detection are case-insensitive.
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => self::normalizeEmail($value),
+        );
+    }
+
+    /**
+     * Normalize an email address (trimmed and lowercase). Blank values are normalized to null.
+     *
+     * @param string|null $email
+     * @return string|null
+     */
+    public static function normalizeEmail(?string $email): ?string
+    {
+        $email = mb_strtolower(trim((string) $email));
+
+        return $email === '' ? null : $email;
     }
 
     public function addresses()

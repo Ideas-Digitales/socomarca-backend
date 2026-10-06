@@ -24,8 +24,8 @@ class StoreRequest extends FormRequest
     {
         return
         [
-            // Branch addresses are created by Random sync only.
-            'branch_id' => 'bail|prohibited',
+            // Synced addresses are created by the Random sync only.
+            'is_synced' => 'bail|prohibited',
             'address_line1' => 'bail|required|string',
             'address_line2' => 'bail|nullable|string',
             'postal_code' => 'bail|nullable|integer',

@@ -43,6 +43,29 @@ it('throws an error when trace request fails', function () {
         ->toThrow(RandomApiServiceErrorException::class);
 });
 
+it('requests IDMAEEN explicitly when fetching customer entities', function () {
+    Http::fake([
+        '*/web32/entidades*' => Http::response([['IDMAEEN' => 2475, 'KOEN' => '77528378']], 200),
+    ]);
+
+    $entities = (new RandomApiService())->getEntidadesUsuarios(100, 2);
+
+    expect($entities)->toBe([['IDMAEEN' => 2475, 'KOEN' => '77528378']]);
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
+        $fields = explode(',', $query['fields'] ?? '');
+
+        return str_contains($request->url(), '/web32/entidades')
+            && $query['size'] === '100'
+            && $query['page'] === '2'
+            && empty(array_diff(
+                ['IDMAEEN', 'KOEN', 'SUEN', 'TIPOSUC', 'TIEN', 'RTEN', 'NOKOEN', 'SIEN', 'EMAIL', 'EMAILCOMER', 'FOEN', 'DIEN', 'CIEN', 'CMEN', 'CPOSTAL'],
+                $fields
+            ));
+    });
+});
+
 it('can create a document in Random API', function () {
     $payload = [
         'doc' => 'test'
