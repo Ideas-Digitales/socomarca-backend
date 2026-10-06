@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\BranchType;
+use App\Events\EntityEmailIssuesDetected;
 use App\Jobs\SyncRandomUsers;
 use App\Models\Address;
 use App\Models\Municipality;
@@ -10,6 +11,7 @@ use App\Services\RandomApiService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -300,6 +302,98 @@ describe('pagination and errors', function () {
 
         expect(new SyncRandomUsers())->toBeInstanceOf(ShouldBeUnique::class);
         Queue::assertPushed(SyncRandomUsers::class, 1);
+    });
+});
+
+describe('email issues alert', function () {
+    it('dispatches a single event with the duplicated and missing commercial emails', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        User::factory()->create(['email' => 'compartido@example.com', 'random_entity_id' => null]);
+
+        mockRandomEntities([
+            randomEntity(['IDMAEEN' => 3, 'SUEN' => 'C', 'NOKOEN' => 'Tercera', 'TIPOSUC' => 'S', 'EMAILCOMER' => 'Compartido@Example.com']),
+            randomEntity(['IDMAEEN' => 1, 'SUEN' => 'A', 'NOKOEN' => 'Principal', 'EMAILCOMER' => 'compartido@example.com']),
+            randomEntity(['IDMAEEN' => 2, 'SUEN' => 'B', 'NOKOEN' => 'Sin email', 'TIPOSUC' => 'S', 'EMAILCOMER' => '']),
+            randomEntity(['IDMAEEN' => 4, 'SUEN' => 'D', 'NOKOEN' => 'Unica', 'TIPOSUC' => 'S', 'EMAILCOMER' => 'unica@example.com']),
+        ]);
+
+        runUsersSync();
+
+        Event::assertDispatchedTimes(EntityEmailIssuesDetected::class, 1);
+        Event::assertDispatched(EntityEmailIssuesDetected::class, function (EntityEmailIssuesDetected $event) {
+            return $event->duplicatedEmails === [
+                ['IDMAEEN' => 1, 'KOEN' => '77528378', 'SUEN' => 'A', 'NOKOEN' => 'Principal', 'EMAILCOMER' => 'compartido@example.com'],
+                ['IDMAEEN' => 3, 'KOEN' => '77528378', 'SUEN' => 'C', 'NOKOEN' => 'Tercera', 'EMAILCOMER' => 'compartido@example.com'],
+            ] && $event->missingEmails === [
+                ['IDMAEEN' => 2, 'KOEN' => '77528378', 'SUEN' => 'B', 'NOKOEN' => 'Sin email', 'EMAILCOMER' => null],
+            ];
+        });
+    });
+
+    it('considers synced users that were not part of the current sync', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        User::factory()->create([
+            'random_entity_id' => 9,
+            'user_code' => '11111111',
+            'branch_code' => '',
+            'name' => 'Anterior',
+            'email' => 'dbustos@grupomilsabores.com',
+            'is_active' => true,
+        ]);
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        Event::assertDispatched(EntityEmailIssuesDetected::class, function (EntityEmailIssuesDetected $event) {
+            return array_column($event->duplicatedEmails, 'IDMAEEN') === [9, 2475];
+        });
+    });
+
+    it('ignores inactive users', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        User::factory()->create([
+            'random_entity_id' => 9,
+            'user_code' => '11111111',
+            'email' => 'dbustos@grupomilsabores.com',
+            'is_active' => false,
+        ]);
+        User::factory()->create([
+            'random_entity_id' => 10,
+            'user_code' => '22222222',
+            'email' => null,
+            'is_active' => false,
+        ]);
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        Event::assertNotDispatched(EntityEmailIssuesDetected::class);
+    });
+
+    it('does not dispatch the event when there are no email issues', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        User::factory()->create(['email' => 'dbustos@grupomilsabores.com', 'random_entity_id' => null]);
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        Event::assertNotDispatched(EntityEmailIssuesDetected::class);
+    });
+
+    it('does not dispatch the event when the sync is interrupted', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        User::factory()->create(['random_entity_id' => 9, 'user_code' => '11111111', 'email' => null]);
+
+        $mock = Mockery::mock(RandomApiService::class);
+        $mock->shouldReceive('getEntidadesUsuarios')->once()->andReturn(['message' => 'jwt malformed']);
+        App::instance(RandomApiService::class, $mock);
+
+        runUsersSync();
+
+        Event::assertNotDispatched(EntityEmailIssuesDetected::class);
     });
 });
 

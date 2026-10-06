@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Enums\BranchType;
+use App\Events\EntityEmailIssuesDetected;
 use App\Models\Address;
 use App\Models\Municipality;
 use App\Models\Region;
@@ -79,7 +80,58 @@ class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
             $page++;
         } while (!empty($entities));
 
+        $this->reportEmailIssues();
+
         Log::info('SyncRandomUsers completed');
+    }
+
+    /**
+     * Dispatch EntityEmailIssuesDetected when active synced users share a commercial email
+     * or do not have one, so that the client can fix them in Random. Inactive users are
+     * ignored because they cannot log in and may no longer exist in Random.
+     */
+    private function reportEmailIssues(): void
+    {
+        $columns = [
+            'random_entity_id as IDMAEEN',
+            'user_code as KOEN',
+            'branch_code as SUEN',
+            'name as NOKOEN',
+            'email as EMAILCOMER',
+        ];
+
+        $duplicatedEmails = DB::table('users')
+            ->selectRaw('lower(trim(email))')
+            ->whereNotNull('random_entity_id')
+            ->where('is_active', true)
+            ->whereRaw("trim(coalesce(email, '')) <> ''")
+            ->groupByRaw('lower(trim(email))')
+            ->havingRaw('count(*) > 1');
+
+        $duplicated = DB::table('users')
+            ->whereNotNull('random_entity_id')
+            ->where('is_active', true)
+            ->whereIn(DB::raw('lower(trim(email))'), $duplicatedEmails)
+            ->orderByRaw('lower(trim(email))')
+            ->orderBy('random_entity_id')
+            ->get($columns)
+            ->map(fn (object $user) => (array) $user)
+            ->all();
+
+        $missing = DB::table('users')
+            ->whereNotNull('random_entity_id')
+            ->where('is_active', true)
+            ->whereRaw("trim(coalesce(email, '')) = ''")
+            ->orderBy('random_entity_id')
+            ->get($columns)
+            ->map(fn (object $user) => (array) $user)
+            ->all();
+
+        if (empty($duplicated) && empty($missing)) {
+            return;
+        }
+
+        EntityEmailIssuesDetected::dispatch($duplicated, $missing);
     }
 
     /**
