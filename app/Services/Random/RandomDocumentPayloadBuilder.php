@@ -5,7 +5,6 @@ namespace App\Services\Random;
 use App\Enums\PaymentDocumentType;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Scopes\SecondaryBranchesScope;
 
 class RandomDocumentPayloadBuilder
 {
@@ -36,17 +35,14 @@ class RandomDocumentPayloadBuilder
             ->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
-        $branch = $order
-            ->branch()
-            ->withoutGlobalScope(SecondaryBranchesScope::class)
-            ->first();
+        $customer = $order->customer;
 
         return [
             "datos" => [
                 "empresa" => config("random.business_code"),
-                "codigoEntidad" => $order->user->user_code,
-                "sucursalEntidad" => $branch->code,
-                "sucursalEntidadDespacho" => $branch->code,
+                "codigoEntidad" => $customer->user_code,
+                "sucursalEntidad" => $customer->branch_code,
+                "sucursalEntidadDespacho" => $customer->branch_code,
                 "flujoVenta" => PaymentDocumentType::getSaleFlowOption(
                     $generateRandomDocType,
                 ),
@@ -56,7 +52,7 @@ class RandomDocumentPayloadBuilder
                 "funcionario" => config("random.functionary"),
                 "lineas" => $lines,
                 "texto1" => "{$paymentLabel}. Orden de compra: #{$order->id}",
-                "texto2" => "{$order?->user?->rut} - {$randomDocType}",
+                "texto2" => "{$customer->rut} - {$randomDocType}",
                 "texto3" => "Origen: Compra rápida",
                 "observacion" => $order->notes,
             ],

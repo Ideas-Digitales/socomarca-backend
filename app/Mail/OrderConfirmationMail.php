@@ -17,8 +17,8 @@ class OrderConfirmationMail extends Mailable
     {
         $this->order->loadMissing([
             "user",
+            "customer",
             "orderDetails.product",
-            "branch",
             "payments.paymentMethod",
         ]);
     }

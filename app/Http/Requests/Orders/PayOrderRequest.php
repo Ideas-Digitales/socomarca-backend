@@ -3,6 +3,9 @@
 namespace App\Http\Requests\Orders;
 
 use App\Enums\PaymentDocumentType;
+use App\Models\Address;
+use App\Models\Order;
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,16 +19,27 @@ class PayOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'customer_id' => [
+                'sometimes',
+                'integer',
+                function ($attribute, $value, $fail) {
+                    $customer = User::find($value);
+
+                    if (!$customer || !$this->user()->can('placeFor', [Order::class, $customer])) {
+                        $fail('No puede emitir pedidos para el cliente indicado.');
+                    }
+                },
+            ],
             'address_id' => [
                 'required',
                 'exists:addresses,id',
                 function ($attribute, $value, $fail) {
-                    $address = \App\Models\Address::where('id', $value)
-                        ->where('user_id', \Illuminate\Support\Facades\Auth::id())
-                        ->first();
+                    $belongsToCustomer = Address::where('id', $value)
+                        ->where('user_id', $this->customerId())
+                        ->exists();
 
-                    if (!$address) {
-                        $fail('La dirección no pertenece al usuario actual.');
+                    if (!$belongsToCustomer) {
+                        $fail('La dirección no pertenece al cliente del pedido.');
                     }
                 },
             ],
@@ -33,11 +47,6 @@ class PayOrderRequest extends FormRequest
                 'required',
                 'string',
                 'exists:payment_methods,code',
-            ],
-            'branch_id' => [
-                'sometimes',
-                'integer',
-                'exists:branches,id',
             ],
             'payment_document_type' => [
                 'required',
@@ -49,6 +58,21 @@ class PayOrderRequest extends FormRequest
                 'string',
             ]
         ];
+    }
+
+    /**
+     * User the order is placed for: the requested customer, or the authenticated user.
+     */
+    public function customer(): User
+    {
+        return $this->has('customer_id')
+            ? User::findOrFail($this->integer('customer_id'))
+            : $this->user();
+    }
+
+    private function customerId(): int
+    {
+        return filter_var($this->input('customer_id'), FILTER_VALIDATE_INT) ?: $this->user()->id;
     }
 
     protected function prepareForValidation()

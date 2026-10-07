@@ -22,7 +22,7 @@ class Order extends Model
         'status',
         'order_meta',
         'random_document_number',
-        'branch_id',
+        'customer_id',
         'notes',
     ];
 
@@ -53,9 +53,25 @@ class Order extends Model
         return $this->hasMany(Payment::class);
     }
 
-    public function branch()
+    /**
+     * User (Random entity + branch) the order is placed for. It may differ from the user
+     * who placed it: a primary branch can order for its secondary branches.
+     */
+    public function customer()
     {
-        return $this->belongsTo(Branch::class);
+        return $this->belongsTo(User::class, 'customer_id');
+    }
+
+    /**
+     * Orders placed by the user or for the user.
+     */
+    #[Scope]
+    protected function visibleTo(Builder $query, User $user): void
+    {
+        $query->where(function (Builder $query) use ($user) {
+            $query->where('orders.user_id', $user->id)
+                ->orWhere('orders.customer_id', $user->id);
+        });
     }
 
     public function orderDetails()

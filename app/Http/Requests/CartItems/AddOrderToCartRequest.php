@@ -19,7 +19,7 @@ class AddOrderToCartRequest extends FormRequest
             return true; // Dejar que las validaciones manejen order_id inexistente
         }
 
-        return $order->user_id === Auth::id();
+        return $order->user_id === Auth::id() || $order->customer_id === Auth::id();
     }
 
     public function rules(): array

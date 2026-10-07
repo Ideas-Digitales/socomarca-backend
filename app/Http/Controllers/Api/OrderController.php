@@ -2,18 +2,15 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\BranchType;
 use App\Events\OrderCompleted;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Orders\PayOrderRequest;
 use App\Http\Resources\Orders\OrderCollection;
 use App\Http\Resources\Orders\PaymentResource;
-use App\Models\Branch;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
-use App\Models\Scopes\SecondaryBranchesScope;
 use Illuminate\Support\Facades\DB;
 use App\Services\WebpayService;
 use Illuminate\Support\Facades\Auth;
@@ -72,8 +69,8 @@ class OrderController extends Controller
             ? $request->input("sort_direction")
             : "desc";
 
-        $orders = Order::where("user_id", Auth::user()->id)
-            ->with(["payments", "branch"])
+        $orders = Order::visibleTo(Auth::user())
+            ->with(["payments", "customer", "orderDetails.product"])
             ->when($request->has("payment_method_code"), function (
                 Builder $query,
             ) use ($request) {
@@ -94,15 +91,15 @@ class OrderController extends Controller
      * is charged is what was in force at checkout time, no matter what the price
      * list or the VAT setting do afterwards.
      *
-     * @param int $addressId Address stored in the order metadata
-     * @param int $branchId Branch the order belongs to; falls back to the user's primary branch when 0
+     * @param int $addressId Address of the customer, stored in the order metadata
+     * @param User $customer User the order is placed for (the authenticated user or one of its secondary branches)
      * @param string|null $notes Free text notes, forwarded to the ERP document
      *
      * @return \App\Models\Order|\Illuminate\Http\JsonResponse The created order, or a 400 response when the cart is empty
      */
     public function createFromCart(
         int $addressId,
-        int $branchId,
+        User $customer,
         ?string $notes = null,
     ) {
         //$this->createCart();
@@ -138,16 +135,7 @@ class OrderController extends Controller
             $amount = $total + $shippingCost;
 
             $user = User::find(Auth::user()->id);
-            $address = $user->addresses()->where("id", $addressId)->first();
-
-            if (!$branchId) {
-                $branchId = Branch::withoutGlobalScope(
-                    SecondaryBranchesScope::class,
-                )
-                    ->where("user_id", $user->id)
-                    ->where("branch_type", BranchType::PRIMARY)
-                    ->value("id");
-            }
+            $address = $customer->addresses()->where("id", $addressId)->first();
 
             $order_meta = [
                 "user" => $user->toArray(),
@@ -163,7 +151,7 @@ class OrderController extends Controller
                 "amount" => $amount,
                 "status" => "pending",
                 "order_meta" => $order_meta,
-                "branch_id" => $branchId,
+                "customer_id" => $customer->id,
                 "notes" => $notes ?? "",
             ];
 
@@ -205,7 +193,7 @@ class OrderController extends Controller
     {
         $orderInfo = $this->createFromCart(
             intval($request->input("address_id")),
-            intval($request->input("branch_id")),
+            $request->customer(),
             $request->input("notes", ""),
         );
 
@@ -216,7 +204,7 @@ class OrderController extends Controller
                     400,
                 );
             }
-            $order = Order::find($orderInfo->id);
+            $order = Order::with("customer")->find($orderInfo->id);
 
             if ($request->payment_method === "random_credit") {
                 return $this->processRandomCreditPayment(
@@ -271,15 +259,16 @@ class OrderController extends Controller
         )->firstOrFail();
 
         $randomApiService = app(\App\Services\RandomApiService::class);
-        $user = $order->user;
+        // The credit line is the one of the customer the document is issued for.
+        $customer = $order->customer;
 
         if (
-            $user?->branch_code === null ||
-            $user?->rut === null ||
-            $user?->user_code === null
+            $customer?->branch_code === null ||
+            $customer?->rut === null ||
+            $customer?->user_code === null
         ) {
-            Log::error("RandomCredit Error: User missing required attributes", [
-                "user" => $user,
+            Log::error("RandomCredit Error: Customer missing required attributes", [
+                "customer" => $customer,
             ]);
             // TODO Handle with a custom exception
             throw new \Exception(
@@ -289,8 +278,8 @@ class OrderController extends Controller
 
         $creditLine = \App\Models\CreditLine::firstOrCreate(
             [
-                "user_id" => $user->id,
-                "branch_code" => $user->branch_code,
+                "user_id" => $customer->id,
+                "branch_code" => $customer->branch_code,
             ],
             [
                 "is_blocked" => false,
@@ -308,8 +297,8 @@ class OrderController extends Controller
         }
 
         $creditLineResponse = $randomApiService->getCreditLine(
-            $user->user_code,
-            $user->branch_code,
+            $customer->user_code,
+            $customer->branch_code,
         );
 
         $creditLineInfo = $creditLineResponse->json();
@@ -382,7 +371,7 @@ class OrderController extends Controller
 
         $payment->load("order");
 
-        \App\Models\CartItem::where("user_id", $user->id)->delete();
+        \App\Models\CartItem::where("user_id", $order->user_id)->delete();
 
         return response()->json(
             [

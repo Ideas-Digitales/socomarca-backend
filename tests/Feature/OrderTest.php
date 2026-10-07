@@ -3,7 +3,6 @@
 use App\Enums\BranchType;
 use App\Enums\PaymentDocumentType;
 use App\Models\Address;
-use App\Models\Branch;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Siteinfo;
@@ -40,6 +39,49 @@ describe('OrderController', function () {
                 ->assertJsonStructure($scenario->listJsonStructure);
         });
 
+        it('lists the orders placed for the user by its primary branch', function () {
+            $scenario = OrderScenario::make();
+            $branch = $scenario->makeSecondaryBranch();
+            Sanctum::actingAs($branch, ['api-access']);
+
+            $ownOrder = Order::factory()->create(['user_id' => $branch->id]);
+            $orderForBranch = Order::factory()->create([
+                'user_id' => $scenario->user->id,
+                'customer_id' => $branch->id,
+            ]);
+            Order::factory()->create(['user_id' => $scenario->user->id]);
+
+            $response = getJson(route('orders.index'))
+                ->assertOk()
+                ->assertJsonCount(2, 'data')
+                ->assertJsonStructure($scenario->listJsonStructure);
+
+            expect(collect($response->json('data'))->pluck('id')->sort()->values()->all())
+                ->toBe([$ownOrder->id, $orderForBranch->id]);
+            expect(collect($response->json('data'))->firstWhere('id', $orderForBranch->id)['customer']['id'])
+                ->toBe($branch->id);
+        });
+
+        it('lists the orders the user placed for its secondary branches', function () {
+            $scenario = OrderScenario::make();
+            $branch = $scenario->makeSecondaryBranch();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+
+            Order::factory()->create([
+                'user_id' => $scenario->user->id,
+                'customer_id' => $branch->id,
+            ]);
+
+            getJson(route('orders.index', ['payment_method_code' => 'transbank']))
+                ->assertOk()
+                ->assertJsonCount(0, 'data');
+
+            getJson(route('orders.index'))
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.customer.id', $branch->id);
+        });
+
         test('requires authentication to list orders', function () {
             $response = getJson(route('orders.index'));
 
@@ -72,7 +114,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -102,7 +143,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -123,7 +163,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -139,7 +178,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => 999999,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -188,7 +226,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -217,7 +254,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -259,7 +295,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -287,7 +322,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -300,7 +334,7 @@ describe('OrderController', function () {
             expect($order->order_meta['address']['id'])->toBe($address->id);
         });
 
-        test('stores branch_id and notes on order', function () {
+        test('stores notes on order', function () {
             $scenario = OrderScenario::make();
             Sanctum::actingAs($scenario->user, ['api-access']);
             $scenario->addProductToCart();
@@ -321,7 +355,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
                 'notes'                  => 'Leave at the door',
             ]);
@@ -330,7 +363,6 @@ describe('OrderController', function () {
 
             assertDatabaseHas('orders', [
                 'id'        => Order::first()->id,
-                'branch_id' => $scenario->branch->id,
                 'notes'     => 'Leave at the door',
             ]);
         });
@@ -359,24 +391,18 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::INVOICE,
             ]);
 
             $response->assertOk();
         });
 
-        test('defaults to principal branch when branch_id is omitted', function () {
+        it('places the order for the authenticated user when customer_id is omitted', function () {
             $scenario = OrderScenario::make();
             Sanctum::actingAs($scenario->user, ['api-access']);
             $scenario->addProductToCart();
 
             $address = Address::factory()->create(['user_id' => $scenario->user->id]);
-
-            $principalBranch = Branch::factory()->create([
-                'user_id'     => $scenario->user->id,
-                'branch_type' => BranchType::PRIMARY,
-            ]);
 
             mock(WebpayService::class, function ($mock) {
                 $mock->shouldReceive('createTransaction')
@@ -387,19 +413,122 @@ describe('OrderController', function () {
                     ]);
             });
 
-            $response = postJson(route('orders.pay'), [
+            postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
-            ]);
-
-            $response->assertOk();
+            ])
+                ->assertOk()
+                ->assertJsonPath('data.order.customer.id', $scenario->user->id);
 
             assertDatabaseHas('orders', [
-                'id'        => Order::first()->id,
-                'branch_id' => $principalBranch->id,
+                'id'          => Order::first()->id,
+                'user_id'     => $scenario->user->id,
+                'customer_id' => $scenario->user->id,
             ]);
         });
+
+        it('places the order for a secondary branch of the same entity', function () {
+            $scenario = OrderScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+            $scenario->addProductToCart();
+            $branch = $scenario->makeSecondaryBranch();
+            $address = Address::factory()->create(['user_id' => $branch->id]);
+
+            mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url'   => 'https://webpay.test/init',
+                        'token' => 'test-token-123'
+                    ]);
+            });
+
+            postJson(route('orders.pay'), [
+                'customer_id'            => $branch->id,
+                'address_id'             => $address->id,
+                'payment_method'         => 'transbank',
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+            ])
+                ->assertOk()
+                ->assertJsonPath('data.order.customer', [
+                    'id'          => $branch->id,
+                    'name'        => $branch->name,
+                    'user_code'   => '77528378',
+                    'branch_code' => 'LO',
+                    'branch_type' => BranchType::SECONDARY,
+                ]);
+
+            $order = Order::first();
+            expect($order->user_id)->toBe($scenario->user->id)
+                ->and($order->customer_id)->toBe($branch->id)
+                ->and($order->order_meta['address']['id'])->toBe($address->id);
+        });
+    });
+
+    describe('payOrder customer', function () {
+        $pay = function (OrderScenario $scenario, int $customerId, ?int $addressId = null) {
+            Sanctum::actingAs($scenario->user, ['api-access']);
+            $scenario->addProductToCart();
+
+            return postJson(route('orders.pay'), [
+                'customer_id'            => $customerId,
+                'address_id'             => $addressId ?? Address::factory()->create(['user_id' => $customerId])->id,
+                'payment_method'         => 'transbank',
+                'payment_document_type'  => PaymentDocumentType::RECEIPT,
+            ]);
+        };
+
+        it('rejects a customer that does not exist', function () use ($pay) {
+            $scenario = OrderScenario::make();
+            $address = Address::factory()->create(['user_id' => $scenario->user->id]);
+
+            $pay($scenario, 99999, $address->id)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('customer_id');
+        });
+
+        it('rejects a secondary branch of another entity', function () use ($pay) {
+            $scenario = OrderScenario::make();
+            $branch = $scenario->makeSecondaryBranch(['user_code' => '11111111']);
+
+            $pay($scenario, $branch->id)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('customer_id');
+        });
+
+        it('rejects an inactive secondary branch', function () use ($pay) {
+            $scenario = OrderScenario::make();
+            $branch = $scenario->makeSecondaryBranch(['is_active' => false]);
+
+            $pay($scenario, $branch->id)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('customer_id');
+        });
+
+        it('does not let a secondary branch order for another branch', function () use ($pay) {
+            $scenario = OrderScenario::make();
+            $scenario->user->update(['branch_type' => BranchType::SECONDARY]);
+            $branch = $scenario->makeSecondaryBranch();
+
+            $pay($scenario, $branch->id)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('customer_id');
+        });
+
+        it('requires the address to belong to the customer', function () use ($pay) {
+            $scenario = OrderScenario::make();
+            $branch = $scenario->makeSecondaryBranch();
+            $buyerAddress = Address::factory()->create(['user_id' => $scenario->user->id]);
+
+            $pay($scenario, $branch->id, $buyerAddress->id)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('address_id')
+                ->assertJsonMissingValidationErrors('customer_id');
+        });
+    });
+
+    describe('payOrder defaults', function () {
 
         test('notes defaults to empty string when not provided', function () {
             $scenario = OrderScenario::make();
@@ -420,7 +549,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => PaymentDocumentType::RECEIPT,
             ]);
 
@@ -434,24 +562,6 @@ describe('OrderController', function () {
     });
 
     describe('payOrder validation', function () {
-        it('validates branch_id exists', function () {
-            $scenario = OrderScenario::make();
-            Sanctum::actingAs($scenario->user, ['api-access']);
-            $scenario->addProductToCart();
-
-            $address = Address::factory()->create(['user_id' => $scenario->user->id]);
-
-            $response = postJson(route('orders.pay'), [
-                'address_id'             => $address->id,
-                'payment_method'         => 'transbank',
-                'branch_id'              => 99999,
-                'payment_document_type'  => PaymentDocumentType::RECEIPT,
-            ]);
-
-            $response->assertStatus(422)
-                ->assertJsonValidationErrors('branch_id');
-        });
-
         it('requires payment_document_type field', function () {
             $scenario = OrderScenario::make();
             Sanctum::actingAs($scenario->user, ['api-access']);
@@ -462,7 +572,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'    => $address->id,
                 'payment_method' => 'transbank',
-                'branch_id'     => $scenario->branch->id,
             ]);
 
             $response->assertStatus(422)
@@ -479,7 +588,6 @@ describe('OrderController', function () {
             $response = postJson(route('orders.pay'), [
                 'address_id'             => $address->id,
                 'payment_method'         => 'transbank',
-                'branch_id'              => $scenario->branch->id,
                 'payment_document_type'  => 'invalid_type',
             ]);
 
@@ -512,7 +620,6 @@ describe('Order VAT', function () {
         postJson(route('orders.pay'), [
             'address_id' => $address->id,
             'payment_method' => 'transbank',
-            'branch_id' => $scenario->branch->id,
             'payment_document_type' => PaymentDocumentType::RECEIPT,
         ])->assertOk();
 

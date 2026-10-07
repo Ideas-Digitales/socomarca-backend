@@ -3,7 +3,6 @@
 use App\Events\OrderCompleted;
 use App\Listeners\SendOrderCompletedEmail;
 use App\Mail\OrderCompletedMail;
-use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -18,9 +17,10 @@ use Illuminate\Support\Facades\Storage;
 /**
  * Create a fully populated completed-order scenario with all related entities.
  *
+ * The order is placed by the user for itself.
+ *
  * @return array{
  *     user: User,
- *     branch: Branch,
  *     paymentMethod: PaymentMethod,
  *     order: Order,
  *     product: Product
@@ -29,14 +29,12 @@ use Illuminate\Support\Facades\Storage;
 function makeCompletedOrderScenario(): array
 {
     $user = User::factory()->create();
-    $branch = Branch::factory()->create();
     $paymentMethod = PaymentMethod::factory()->create([
         'code' => 'webpay',
         'name' => 'Webpay',
     ]);
     $order = Order::factory()->completed()->create([
         'user_id' => $user->id,
-        'branch_id' => $branch->id,
         'amount' => 55000,
         'subtotal' => 45000,
         'shipping_cost' => 10000,
@@ -57,7 +55,6 @@ function makeCompletedOrderScenario(): array
 
     return [
         'user' => $user,
-        'branch' => $branch,
         'paymentMethod' => $paymentMethod,
         'order' => $order,
         'product' => $product,
@@ -112,6 +109,30 @@ test('email body renders the order summary view', function () {
             && str_contains($rendered, $user->name)
             && str_contains($rendered, $product->name)
             && str_contains($rendered, $logoUrl);
+    });
+});
+
+it('renders the branch the order is placed for', function () {
+    Mail::fake();
+    Storage::fake('s3');
+
+    ['user' => $user, 'order' => $order] = makeCompletedOrderScenario();
+    $branch = User::factory()->create([
+        'name' => 'Sucursal Los Leones',
+        'user_code' => '77528378',
+        'branch_code' => 'LO',
+    ]);
+    $order->update(['customer_id' => $branch->id]);
+
+    (new SendOrderCompletedEmail)->handle(new OrderCompleted($order->fresh()));
+
+    Mail::assertSent(OrderCompletedMail::class, function (OrderCompletedMail $mail) use ($user) {
+        $rendered = $mail->render();
+
+        return str_contains($rendered, 'Sucursal de destino')
+            && str_contains($rendered, 'Sucursal Los Leones')
+            && str_contains($rendered, '77528378 / LO')
+            && str_contains($rendered, $user->name);
     });
 });
 

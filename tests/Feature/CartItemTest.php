@@ -953,6 +953,34 @@ it('should fail when adding an order that doesn\'t belong to the user', function
     $response->assertStatus(403);
 });
 
+it('adds to the cart the products of an order placed for the user by another branch', function () {
+    $scenario = CartItemScenario::make();
+    $user = $scenario->user;
+    Sanctum::actingAs($user, ['api-access']);
+    $primaryBranch = User::factory()->create();
+    $order = Order::factory()->create([
+        'user_id' => $primaryBranch->id,
+        'customer_id' => $user->id,
+        'status' => 'completed',
+    ]);
+    OrderItem::factory()->create([
+        'order_id' => $order->id,
+        'product_id' => $scenario->product->id,
+        'quantity' => 4,
+        'unit' => 'kg',
+    ]);
+
+    postJson(route('cart.add-order'), ['order_id' => $order->id])
+        ->assertOk()
+        ->assertJsonPath('added_items', 1);
+
+    assertDatabaseHas('cart_items', [
+        'user_id' => $user->id,
+        'product_id' => $scenario->product->id,
+        'quantity' => 4,
+    ]);
+});
+
 it('should require authentication to add order to cart', function () {
     /** @var \Tests\TestCase $this */
 
