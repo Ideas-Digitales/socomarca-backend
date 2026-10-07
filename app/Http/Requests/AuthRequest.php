@@ -16,6 +16,11 @@ class AuthRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /**
+             * Login email. Customers use their commercial email (Random ERP `EMAILCOMER`).
+             *
+             * @example compras@cliente.cl
+             */
             'email' => [
                 'required',
                 'string',

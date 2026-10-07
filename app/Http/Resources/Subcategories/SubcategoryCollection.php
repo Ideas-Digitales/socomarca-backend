@@ -15,6 +15,28 @@ class SubcategoryCollection extends ResourceCollection
     public function toArray(Request $request): array
     {
         return [
+            /**
+             * @var list<array{
+             *     id: int,
+             *     name: string,
+             *     description: string|null,
+             *     code: string|null,
+             *     level: int|null,
+             *     key: string|null,
+             *     category: array{
+             *         id: int,
+             *         name: string,
+             *         description: string|null,
+             *         code: string,
+             *         level: int,
+             *         key: string,
+             *         created_at: \Illuminate\Support\Carbon|null,
+             *         updated_at: \Illuminate\Support\Carbon|null,
+             *     },
+             *     created_at: \Illuminate\Support\Carbon|null,
+             *     updated_at: \Illuminate\Support\Carbon|null,
+             * }>
+             */
             'data' => $this->collection->map(function ($subcategory) {
                 return [
                     'id' => $subcategory->id,

@@ -25,6 +25,7 @@ class AddOrderToCartRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /** Order to copy, placed by the user or for the user. */
             'order_id' => 'required|integer|exists:orders,id'
         ];
     }

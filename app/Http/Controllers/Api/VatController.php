@@ -5,38 +5,43 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Siteinfo;
 use App\Services\VatService;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 
+#[Group('Settings')]
 class VatController extends Controller
 {
     /**
-     * Show the VAT rate in force
+     * Get the VAT rate
      *
-     * @param VatService $vatService
-     *
-     * @return \Illuminate\Http\JsonResponse
+     * Returns the VAT rate in force, falling back to the default rate until one is saved.
      */
     public function show(VatService $vatService)
     {
         return response()->json([
+            /**
+             * VAT rate, as a percentage.
+             *
+             * @example 19
+             */
             'rate' => $vatService->rate(),
         ]);
     }
 
     /**
-     * Update the VAT rate applied to products and orders
+     * Update the VAT rate
      *
-     * The rate is stored as a percentage (19 means 19%) and takes effect on the
-     * next product listing and the next order; orders already placed keep the rate
-     * they were charged with.
-     *
-     * @param Request $request
-     *
-     * @return \Illuminate\Http\JsonResponse
+     * Sets the VAT rate applied to products and orders. It takes effect on the next product listing and
+     * the next order; orders already placed keep the rate they were charged with.
      */
     public function update(Request $request)
     {
         $data = $request->validate([
+            /**
+             * VAT rate, as a percentage (19 means 19%).
+             *
+             * @example 19
+             */
             'rate' => 'required|numeric|min:0|max:100',
         ]);
 

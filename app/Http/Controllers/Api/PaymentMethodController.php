@@ -7,10 +7,18 @@ use App\Http\Requests\PaymentMethods\IndexRequest;
 use App\Http\Requests\PaymentMethods\UpdateRequest;
 use App\Http\Resources\PaymentMethods\PaymentMethodCollection;
 use App\Models\PaymentMethod;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\PathParameter;
 use Illuminate\Http\Request;
 
+#[Group('Payment methods', 'List the payment methods offered at checkout and enable or disable them.', weight: 12)]
 class PaymentMethodController extends Controller
 {
+    /**
+     * List active payment methods
+     *
+     * Lists the enabled payment methods. Their `code` is the `payment_method` sent to `POST /orders/pay`.
+     */
     public function index()
     {
         // $data = $indexRequest->validated();
@@ -19,6 +27,12 @@ class PaymentMethodController extends Controller
         return $data;
     }
 
+    /**
+     * Enable or disable a payment method
+     *
+     * Disabled methods are no longer listed by `GET /payment-methods`.
+     */
+    #[PathParameter('id', 'Payment method ID.', type: 'int')]
     public function update(UpdateRequest $updateRequest, $id)
     {
         $data = $updateRequest->validated();

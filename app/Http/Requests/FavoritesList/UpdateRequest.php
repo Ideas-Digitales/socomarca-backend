@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\FavoritesList;
 
+use Dedoc\Scramble\Attributes\SchemaName;
 use Illuminate\Foundation\Http\FormRequest;
 
+#[SchemaName('FavoriteListUpdateRequest')]
 class UpdateRequest extends FormRequest
 {
     /**
@@ -23,6 +25,7 @@ class UpdateRequest extends FormRequest
     {
         return
         [
+            /** New name of the list. */
             'name' => 'bail|required|string',
         ];
     }

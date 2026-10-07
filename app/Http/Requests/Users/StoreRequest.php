@@ -46,13 +46,32 @@ class StoreRequest extends FormRequest
         return
         [
             'name' => 'bail|required|string|max:255',
+            /**
+             * Stored lowercase; must not belong to another user.
+             *
+             * @example juan.perez@socomarca.cl
+             */
             'email' => 'bail|required|email|unique:users,email|max:255',
+            /** At least 8 characters with letters. Send it again as `password_confirmation`. */
             'password' => ['bail', 'required', 'confirmed', Password::min(8)->letters()],
+            /** @example +56912345678 */
             'phone' => 'bail|required|string|max:15',
+            /**
+             * Chilean RUT, with check digit.
+             *
+             * @example 12345678-5
+             */
             'rut' => ['bail', 'required', 'string', 'max:12', new ValidateRut],
             'business_name' => 'bail|required|string|max:255',
+            /** Inactive users cannot log in. */
             'is_active' => 'bail|required|boolean',
+            /**
+             * Role names. `admin` and `superadmin` require the `create-admin-users` permission.
+             *
+             * @example ["supervisor"]
+             */
             'roles' => 'bail|required|array|min:1',
+            /** Existing role name other than `customer`. */
             'roles.*' => ['bail', 'string', 'exists:roles,name', Rule::notIn(['customer'])],
         ];
     }

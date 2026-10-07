@@ -7,17 +7,18 @@ use App\Http\Requests\SearchUsersRequest;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
+#[Group('Roles and permissions', 'Roles, their permissions and the roles and permissions of each user.', weight: 2)]
 class RoleController extends Controller
 {
     /**
-     * Obtener todos los roles del sistema
-     * Solo accesible para usuarios con roles admin y superadmin
+     * List roles
      *
-     * @return \Illuminate\Http\JsonResponse
+     * Every role with the names of its permissions.
      */
     public function index()
     {
@@ -25,10 +26,21 @@ class RoleController extends Controller
 
         $result = $roles->map(function($role) {
             return [
+                /** @var int */
                 'id' => $role->id,
+                /** @var string */
                 'name' => $role->name,
+                /** @var list<string> */
                 'permissions' => $role->permissions->pluck('name'),
+                /**
+                 * @var string|null
+                 * @format date-time
+                 */
                 'created_at' => $role->created_at,
+                /**
+                 * @var string|null
+                 * @format date-time
+                 */
                 'updated_at' => $role->updated_at,
             ];
         });
@@ -36,6 +48,11 @@ class RoleController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * List roles with their users
+     *
+     * Every role with the users that have it.
+     */
     public function rolesWithUsers()
     {
         $roles = Role::all();
@@ -45,7 +62,9 @@ class RoleController extends Controller
         $users = User::role($role->name)->get(['id', 'name', 'email']);
 
         return [
+                /** Role name. */
                 'role' => $role->name,
+                /** @var list<array{id: int, name: string, email: string}> */
                 'users' => $users,
             ];
         });
@@ -54,6 +73,11 @@ class RoleController extends Controller
     }
 
 
+    /**
+     * Show the roles of a user
+     *
+     * Roles of the user and all its permissions, through its roles or assigned directly.
+     */
     public function userRoles(User $user)
     {
         
@@ -62,7 +86,9 @@ class RoleController extends Controller
         return response()->json([
             'user_id' => $user->id,
             'user_name' => $user->name,
+            /** @var list<string> */
             'roles' => $roles,
+            /** @var list<string> */
             'permissions' => $permissions,
         ]);
     }

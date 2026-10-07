@@ -19,6 +19,11 @@ class PayOrderRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /**
+             * User (Random ERP branch) the order is placed for: the authenticated user, or one of the active
+             * secondary branches of its entity when the authenticated user is a primary branch. Defaults to
+             * the authenticated user.
+             */
             'customer_id' => [
                 'sometimes',
                 'integer',
@@ -30,6 +35,7 @@ class PayOrderRequest extends FormRequest
                     }
                 },
             ],
+            /** Delivery address. It must belong to the customer of the order. */
             'address_id' => [
                 'required',
                 'exists:addresses,id',
@@ -43,15 +49,23 @@ class PayOrderRequest extends FormRequest
                     }
                 },
             ],
+            /**
+             * Payment method `code`: `random_credit` charges the customer's Random ERP credit line; any other
+             * method pays with Webpay.
+             *
+             * @example transbank
+             */
             'payment_method' => [
                 'required',
                 'string',
                 'exists:payment_methods,code',
             ],
+            /** Tax document Random ERP issues for the sales note: `invoice` (factura) or `receipt` (boleta). */
             'payment_document_type' => [
                 'required',
                 Rule::in(PaymentDocumentType::values())
             ],
+            /** Notes for the order, forwarded to the Random ERP sales note. */
             'notes' => [
                 'sometimes',
                 'nullable',

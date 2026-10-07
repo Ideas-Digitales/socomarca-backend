@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\FavoritesList;
 
+use Dedoc\Scramble\Attributes\SchemaName;
 use Illuminate\Foundation\Http\FormRequest;
 
+#[SchemaName('FavoriteListStoreRequest')]
 class StoreRequest extends FormRequest
 {
     /**
@@ -23,6 +25,7 @@ class StoreRequest extends FormRequest
     {
         return
         [
+            /** @example Compras semanales */
             'name' => 'bail|required|string',
         ];
     }

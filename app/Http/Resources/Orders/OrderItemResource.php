@@ -20,11 +20,37 @@ class OrderItemResource extends JsonResource
             "product" => new ProductResource($this->product),
             "unit" => $this->unit,
             "quantity" => $this->quantity,
+            /**
+             * Net unit price, as a decimal string.
+             *
+             * @example 3490.00
+             */
             "price" => $this->price,
+            /**
+             * Random ERP price list the price was taken from; `null` on orders placed before it was stored.
+             *
+             * @var string|null
+             */
             "price_list_id" => $this->price_list_id,
+            /**
+             * Net amount of the line (price × quantity), as a decimal string.
+             *
+             * @var string
+             */
             "subtotal" => $this->subtotal,
+            /**
+             * VAT rate applied, in percentage.
+             *
+             * @var float
+             */
             "vat" => $this->vat,
+            /** @var float */
             "vat_amount" => $this->vat_amount,
+            /**
+             * Subtotal plus VAT, as a decimal string.
+             *
+             * @var string
+             */
             "total" => $this->total,
             "created_at" => $this->created_at,
             "updated_at" => $this->updated_at,

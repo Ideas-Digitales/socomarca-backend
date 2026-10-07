@@ -15,6 +15,11 @@ class PasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /**
+             * Login email of the user who forgot the password.
+             *
+             * @example compras@cliente.cl
+             */
             'email' => [
                 'required',
                 'string',

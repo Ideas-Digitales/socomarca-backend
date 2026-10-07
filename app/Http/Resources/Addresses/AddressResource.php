@@ -23,6 +23,7 @@ class AddressResource extends JsonResource
             'address_line2' => $this->address_line2,
             'postal_code' => $this->postal_code,
             'is_default' => $this->is_default,
+            /** @var 'billing'|'shipping' */
             'type' => $this->type,
             'phone' => $this->phone,
             'contact_name' => $this->contact_name,
