@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Auth;
 
 class OrderScenario
 {
+    /**
+     * Price list of the user and, by default, of its secondary branches.
+     */
+    public const PRICE_LIST = 'MIL';
+
     public array $listJsonStructure = [
         'data' => [
             '*' => [
@@ -52,6 +57,7 @@ class OrderScenario
                         'unit',
                         'quantity',
                         'price',
+                        'price_list_id',
                         'subtotal',
                         'vat',
                         'vat_amount',
@@ -89,6 +95,7 @@ class OrderScenario
             'user_code' => '77528378',
             'branch_code' => 'CM',
             'branch_type' => BranchType::PRIMARY,
+            'prices_lists' => [self::PRICE_LIST],
         ]);
 
         return new OrderScenario($user);
@@ -105,13 +112,21 @@ class OrderScenario
             'branch_code' => 'LO',
             'branch_type' => BranchType::SECONDARY,
             'is_active' => true,
+            'prices_lists' => $this->user->prices_lists,
         ], $attributes));
 
         return $branch;
     }
 
-    public function addProductToCart(float $price = 100, int $quantity = 2, string $unit = 'kg'): void
-    {
+    /**
+     * Add a new product to the authenticated user's cart, priced on the given list.
+     */
+    public function addProductToCart(
+        float $price = 100,
+        int $quantity = 2,
+        string $unit = 'kg',
+        string $priceList = self::PRICE_LIST,
+    ): Product {
         $supercategory = Category::factory()->create(['level' => 1]);
         $category = Category::factory()->create(['level' => 2, 'parent_category_id' => $supercategory->id]);
         $subcategory = Category::factory()->create(['level' => 3, 'parent_category_id' => $category->id]);
@@ -126,6 +141,7 @@ class OrderScenario
 
         Price::factory()->create([
             'product_id' => $product->id,
+            'price_list_id' => $priceList,
             'unit' => $unit,
             'price' => $price,
             'valid_from' => now()->subDays(1),
@@ -140,5 +156,7 @@ class OrderScenario
             'price' => $price,
             'unit' => $unit,
         ]);
+
+        return $product;
     }
 }

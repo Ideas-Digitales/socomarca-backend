@@ -22,6 +22,7 @@ use App\Models\Brand;
 use App\Models\Price;
 use App\Services\Random\RandomDocumentService;
 use App\Services\Random\RandomDocumentPayloadBuilder;
+use App\Services\CustomerPriceResolver;
 use App\Services\PaymentService;
 use App\Services\VatService;
 use Illuminate\Database\Eloquent\Builder;
@@ -42,18 +43,22 @@ class OrderController extends Controller
 
     protected VatService $vatService;
 
+    protected CustomerPriceResolver $priceResolver;
+
     public function __construct(
         WebpayService $webpayService,
         RandomDocumentService $randomDocumentService,
         RandomDocumentPayloadBuilder $payloadBuilder,
         PaymentService $paymentService,
         VatService $vatService,
+        CustomerPriceResolver $priceResolver,
     ) {
         $this->webpayService = $webpayService;
         $this->documentService = $randomDocumentService;
         $this->payloadBuilder = $payloadBuilder;
         $this->paymentService = $paymentService;
         $this->vatService = $vatService;
+        $this->priceResolver = $priceResolver;
     }
 
     public function index(Request $request)
@@ -91,11 +96,15 @@ class OrderController extends Controller
      * is charged is what was in force at checkout time, no matter what the price
      * list or the VAT setting do afterwards.
      *
+     * Items are priced with the price lists of the customer, since Random prices the
+     * sales document with them; the price list of every item is stored on it.
+     *
      * @param int $addressId Address of the customer, stored in the order metadata
      * @param User $customer User the order is placed for (the authenticated user or one of its secondary branches)
      * @param string|null $notes Free text notes, forwarded to the ERP document
      *
-     * @return \App\Models\Order|\Illuminate\Http\JsonResponse The created order, or a 400 response when the cart is empty
+     * @return \App\Models\Order|\Illuminate\Http\JsonResponse The created order, a 400 response when the cart is empty,
+     *                                                         or a 422 response listing the products the customer has no price for
      */
     public function createFromCart(
         int $addressId,
@@ -103,7 +112,10 @@ class OrderController extends Controller
         ?string $notes = null,
     ) {
         //$this->createCart();
-        $carts = CartItem::where("user_id", Auth::user()->id)->get();
+        $carts = CartItem::with("product")
+            ->where("user_id", Auth::user()->id)
+            ->orderBy("id")
+            ->get();
 
         if ($carts->isEmpty()) {
             return response()->json(
@@ -112,18 +124,34 @@ class OrderController extends Controller
             );
         }
 
+        $prices = $this->priceResolver->resolve($customer, $carts);
+        $unpriced = $carts->filter(fn (CartItem $cart) => $prices->get($cart->id) === null);
+
+        if ($unpriced->isNotEmpty()) {
+            return response()->json(
+                [
+                    "message" => "Algunos productos del carrito no tienen precio para el cliente del pedido",
+                    "products" => $unpriced->map(fn (CartItem $cart) => [
+                        "id" => $cart->product_id,
+                        "name" => $cart->product?->name,
+                        "sku" => $cart->product?->sku,
+                        "unit" => $cart->unit,
+                    ])->values(),
+                ],
+                422,
+            );
+        }
+
         try {
             DB::beginTransaction();
 
-            // Calculate totals
-            $subtotal = $carts->sum(function ($cart) {
-                $price = $cart->product->prices
-                    ->where("unit", $cart->unit)
-                    ->first();
-                return $price->price * $cart->quantity;
-            });
+            $lines = $carts->map(fn (CartItem $cart) => [
+                "cart" => $cart,
+                "price" => $prices->get($cart->id),
+                "subtotal" => (float) $prices->get($cart->id)->price * $cart->quantity,
+            ]);
 
-            $subtotal = (int) round($subtotal);
+            $subtotal = (int) round($lines->sum("subtotal"));
             $vatRate = $this->vatService->rate();
             // VAT is calculated on the net subtotal of the order; the office is
             // sum later, just as it was charged before integrating VAT.
@@ -159,22 +187,18 @@ class OrderController extends Controller
             $order = Order::create($data);
 
             // Create the order items
-            foreach ($carts as $cart) {
-                $price = $cart->product->prices
-                    ->where("unit", $cart->unit)
-                    ->first();
-                $lineSubtotal = (float) ($price->price ?? 0) * $cart->quantity;
-
+            foreach ($lines as $line) {
                 OrderItem::create([
                     "order_id" => $order->id,
-                    "product_id" => $cart->product_id,
-                    "unit" => $price->unit,
-                    "quantity" => $cart->quantity,
-                    "price" => $price->price ?? 0,
-                    "subtotal" => $lineSubtotal,
+                    "product_id" => $line["cart"]->product_id,
+                    "unit" => $line["price"]->unit,
+                    "quantity" => $line["cart"]->quantity,
+                    "price" => $line["price"]->price,
+                    "price_list_id" => $line["price"]->price_list_id,
+                    "subtotal" => $line["subtotal"],
                     "vat" => $vatRate,
                     "total" => $this->vatService->applyTo(
-                        $lineSubtotal,
+                        $line["subtotal"],
                         $vatRate,
                     ),
                 ]);

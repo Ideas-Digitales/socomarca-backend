@@ -44,6 +44,7 @@ test("it rejects payment if the user credit line is blocked", function () {
     $product = Product::factory()->create();
     \App\Models\Price::factory()->create([
         "product_id" => $product->id,
+        "price_list_id" => getPriceListCode(),
         "unit" => "UN",
     ]);
 
@@ -80,6 +81,7 @@ test(
         $product = Product::factory()->create();
         $price = \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
         ]);
 
@@ -181,6 +183,7 @@ test(
         $product = Product::factory()->create();
         \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
         ]);
 
@@ -253,6 +256,7 @@ test("it can process a credit line payment successfully", function () {
     $product = Product::factory()->create();
     $price = \App\Models\Price::factory()->create([
         "product_id" => $product->id,
+        "price_list_id" => getPriceListCode(),
         "unit" => "UN",
     ]);
 
@@ -436,6 +440,7 @@ test(
         $product = Product::factory()->create();
         \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
         ]);
 
@@ -624,6 +629,7 @@ test("it handles credit line payment failure correctly", function () {
     $product = Product::factory()->create();
     $price = \App\Models\Price::factory()->create([
         "product_id" => $product->id,
+        "price_list_id" => getPriceListCode(),
         "unit" => "UN",
     ]);
 
@@ -695,6 +701,7 @@ test(
         $product = Product::factory()->create();
         $price = \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
         ]);
 
@@ -743,6 +750,7 @@ test(
         $product = Product::factory()->create();
         \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
         ]);
 
@@ -777,6 +785,7 @@ test(
             "rut" => "9876543-2",
             "user_code" => "9876543-2",
             "branch_code" => "VALPO",
+            "prices_lists" => [getPriceListCode()],
         ]);
         if (!$user->hasRole("customer")) {
             $user->assignRole("customer");
@@ -786,6 +795,7 @@ test(
         $product = Product::factory()->create();
         $price = \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
             "price" => 500000,
         ]);
@@ -846,6 +856,7 @@ test(
         $product = Product::factory()->create();
         \App\Models\Price::factory()->create([
             "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
             "unit" => "UN",
         ]);
 
