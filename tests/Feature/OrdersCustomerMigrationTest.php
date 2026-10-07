@@ -7,6 +7,15 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
+ * Restore the branches table and orders.branch_id, dropped by a later migration, so that
+ * the test data can be inserted as it existed before the deploy.
+ */
+beforeEach(function () {
+    $dropBranches = require database_path('migrations/2026_10_07_120000_drop_branches_table.php');
+    $dropBranches->down();
+});
+
+/**
  * Run the migration over the current data, as it happens on deploy: RefreshDatabase already
  * migrated, so the column is dropped first and the migration is run again.
  */

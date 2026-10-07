@@ -1,203 +1,161 @@
 <?php
 
-use App\Models\Branch;
+use App\Enums\BranchType;
+use App\Models\Address;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\getJson;
 
+function createSecondaryBranch(array $attributes = []): User
+{
+    return createSyncedCustomer(array_merge([
+        'branch_code' => 'LO',
+        'branch_type' => BranchType::SECONDARY,
+    ], $attributes));
+}
+
 describe('Branches tests', function () {
     describe('Index endpoint', function () {
         it('returns 401 when unauthenticated', function () {
-            $route = route('branches.index');
-
-            getJson($route)->assertStatus(401);
+            getJson(route('branches.index'))->assertUnauthorized();
         });
 
-        it('returns 403 when authenticated without permission', function () {
-            $user = User::factory()->create();
-            $route = route('branches.index');
-            Sanctum::actingAs($user, ['api-access']);
-            getJson($route)->assertForbidden();
-        });
-
-        it('returns empty list when user has permission but no branches', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $route = route('branches.index');
-
-            Sanctum::actingAs($user, ['api-access']);
-            getJson($route)
-                ->assertOk()
-                ->assertJsonCount(0, 'data');
-        });
-
-        it('returns own branches when user has permission', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $branches = Branch::factory()->count(2)->create(['user_id' => $user->id]);
-            $route = route('branches.index');
-
-            Sanctum::actingAs($user, ['api-access']);
-            $response = getJson($route);
-
-            $response
-                ->assertOk()
-                ->assertJsonCount(2, 'data')
-                ->assertJsonFragment([
-                    'id' => $branches[0]->id,
-                    'name' => $branches[0]->name,
-                    'code' => $branches[0]->code,
-                ])
-                ->assertJsonFragment([
-                    'id' => $branches[1]->id,
-                    'name' => $branches[1]->name,
-                    'code' => $branches[1]->code,
-                ]);
-        });
-
-        it('does not return other users branches', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $otherUser = User::factory()->create();
-            $otherBranch = Branch::factory()->create(['user_id' => $otherUser->id]);
-            $route = route('branches.index');
-
-            Sanctum::actingAs($user, ['api-access']);
-            getJson($route)
-                ->assertOk()
-                ->assertJsonMissingExact([
-                    'name' => $otherBranch->name,
-                    'code' => $otherBranch->code,
-                ]);
-        });
-
-        it('respects pagination when per_page parameter is given', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            Branch::factory()->count(15)->create(['user_id' => $user->id]);
-            $route = route('branches.index', ['per_page' => 5]);
-
-            Sanctum::actingAs($user, ['api-access']);
-            $response = getJson($route);
-            $response
-                ->assertOk()
-                ->assertJsonCount(5, 'data')
-                ->assertJsonStructure([
-                    'data' => [
-                        ['name', 'code', 'email', 'commercial_email', 'phone', 'rut', 'business_name'],
-                    ],
-                    'links',
-                    'meta',
-                ]);
-        });
-
-        it('does not return primary branches in index', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $primaryBranch = Branch::factory()->create([
-                'user_id'     => $user->id,
-                'branch_type' => 'P',
+        it('returns the active secondary branches of the primary branch entity', function () {
+            $primary = createSyncedCustomer(['branch_code' => 'CM']);
+            $secondary = createSecondaryBranch([
+                'name' => 'Sucursal Los Leones',
+                'billing_email' => 'dte@cliente.cl',
+                'phone' => '221234567',
             ]);
-            $secondaryBranch = Branch::factory()->create(['user_id' => $user->id]);
-            $route = route('branches.index');
+            createSecondaryBranch(['branch_code' => 'IN', 'is_active' => false]);
+            createSecondaryBranch(['branch_code' => 'OT', 'user_code' => '99999999']);
+            createSyncedCustomer(['branch_code' => 'P2']);
 
-            Sanctum::actingAs($user, ['api-access']);
-            $response = getJson($route);
-
-            $response
+            Sanctum::actingAs($primary, ['api-access']);
+            getJson(route('branches.index'))
                 ->assertOk()
                 ->assertJsonCount(1, 'data')
-                ->assertJsonFragment([
-                    'name' => $secondaryBranch->name,
-                    'code' => $secondaryBranch->code,
-                ])
-                ->assertJsonMissingExact([
-                    'name' => $primaryBranch->name,
-                    'code' => $primaryBranch->code,
+                ->assertJsonPath('data.0', [
+                    'id' => $secondary->id,
+                    'name' => 'Sucursal Los Leones',
+                    'email' => $secondary->email,
+                    'billing_email' => 'dte@cliente.cl',
+                    'phone' => '221234567',
+                    'rut' => $secondary->rut,
+                    'business_name' => $secondary->business_name,
+                    'user_code' => '77528378',
+                    'branch_code' => 'LO',
+                    'branch_type' => BranchType::SECONDARY,
+                    'addresses' => [],
                 ]);
+        });
+
+        it('includes the addresses of each branch', function () {
+            $primary = createSyncedCustomer(['branch_code' => 'CM']);
+            $secondary = createSecondaryBranch();
+            $address = Address::factory()->create(['user_id' => $secondary->id]);
+            Address::factory()->create(['user_id' => $primary->id]);
+
+            Sanctum::actingAs($primary, ['api-access']);
+            getJson(route('branches.index'))
+                ->assertOk()
+                ->assertJsonCount(1, 'data.0.addresses')
+                ->assertJsonPath('data.0.addresses.0.id', $address->id)
+                ->assertJsonPath('data.0.addresses.0.municipality_name', $address->municipality->name)
+                ->assertJsonPath('data.0.addresses.0.region_name', $address->municipality->region->name);
+        });
+
+        it('returns an empty list to users that are not a primary branch', function (Closure $makeUser) {
+            createSyncedCustomer(['branch_code' => 'CM']);
+            createSecondaryBranch();
+            createSecondaryBranch(['branch_code' => 'S2']);
+
+            Sanctum::actingAs($makeUser(), ['api-access']);
+            getJson(route('branches.index'))
+                ->assertOk()
+                ->assertJsonCount(0, 'data');
+        })->with([
+            'secondary branch' => [fn () => createSecondaryBranch(['branch_code' => 'S3'])],
+            'internal user' => [fn () => User::factory()->create()],
+        ]);
+
+        it('respects pagination when per_page parameter is given', function () {
+            $primary = createSyncedCustomer(['branch_code' => 'CM']);
+            foreach (range(1, 7) as $index) {
+                createSecondaryBranch(['branch_code' => "S{$index}"]);
+            }
+
+            Sanctum::actingAs($primary, ['api-access']);
+            getJson(route('branches.index', ['per_page' => 5]))
+                ->assertOk()
+                ->assertJsonCount(5, 'data')
+                ->assertJsonPath('meta.total', 7)
+                ->assertJsonStructure(['data', 'links', 'meta']);
         });
     });
 
     describe('Show endpoint', function () {
         it('returns 401 when unauthenticated', function () {
-            $route = route('branches.show', ['branch' => 1]);
+            $secondary = createSecondaryBranch();
 
-            getJson($route)->assertStatus(401);
+            getJson(route('branches.show', ['branch' => $secondary->id]))->assertUnauthorized();
         });
 
-        it('returns 403 when authenticated without permission', function () {
-            $user = User::factory()->create();
-            $branch = Branch::factory()->create(['user_id' => $user->id]);
-            $route = route('branches.show', ['branch' => $branch->id]);
+        it('returns a secondary branch of the primary branch entity with its addresses', function () {
+            $primary = createSyncedCustomer(['branch_code' => 'CM']);
+            $secondary = createSecondaryBranch();
+            $address = Address::factory()->create(['user_id' => $secondary->id]);
 
-            $user = User::factory()->create();
-            Sanctum::actingAs($user, ['api-access']);
-            getJson($route)
-                ->assertForbidden();
-        });
-
-        it('returns 404 when branch does not exist', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $route = route('branches.show', ['branch' => 99999]);
-
-            Sanctum::actingAs($user, ['api-access']);
-            getJson($route)
-                ->assertNotFound();
-        });
-
-        it('returns 404 when requesting another users branch', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $otherUser = User::factory()->create();
-            $otherBranch = Branch::factory()->create(['user_id' => $otherUser->id]);
-            $route = route('branches.show', ['branch' => $otherBranch->id]);
-
-            Sanctum::actingAs($user, ['api-access']);
-            getJson($route)
-                ->assertNotFound();
-        });
-
-        it('returns branch data when user has permission and owns it', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $branch = Branch::factory()->create(['user_id' => $user->id]);
-            $route = route('branches.show', ['branch' => $branch->id]);
-
-            Sanctum::actingAs($user, ['api-access']);
-            $response = getJson($route);
-
-            $response
+            Sanctum::actingAs($primary, ['api-access']);
+            getJson(route('branches.show', ['branch' => $secondary->id]))
                 ->assertOk()
-                ->assertJsonStructure([
-                    'data' => [
-                        'name',
-                        'code',
-                        'email',
-                        'commercial_email',
-                        'phone',
-                        'rut',
-                        'business_name',
-                    ],
-                ])
-                ->assertJsonFragment([
-                    'name' => $branch->name,
-                    'code' => $branch->code,
-                ]);
+                ->assertJsonPath('data.id', $secondary->id)
+                ->assertJsonPath('data.branch_code', 'LO')
+                ->assertJsonPath('data.branch_type', BranchType::SECONDARY)
+                ->assertJsonCount(1, 'data.addresses')
+                ->assertJsonPath('data.addresses.0.id', $address->id);
         });
-        it('returns 404 when requesting a primary branch', function () {
-            $user = User::factory()->create();
-            $user->givePermissionTo('read-own-branches');
-            $primaryBranch = Branch::factory()->create([
-                'user_id'     => $user->id,
-                'branch_type' => 'P',
-            ]);
-            $route = route('branches.show', ['branch' => $primaryBranch->id]);
+
+        it('returns 404 when the branch does not exist', function () {
+            $primary = createSyncedCustomer(['branch_code' => 'CM']);
+
+            Sanctum::actingAs($primary, ['api-access']);
+            getJson(route('branches.show', ['branch' => 99999]))->assertNotFound();
+        });
+
+        it('returns 404 for users the authenticated user cannot order for', function (Closure $makeUser, Closure $makeTarget) {
+            createSyncedCustomer(['branch_code' => 'CM']);
+            $user = $makeUser();
+            $target = $makeTarget();
 
             Sanctum::actingAs($user, ['api-access']);
-            getJson($route)
-                ->assertNotFound();
-        });
+            getJson(route('branches.show', ['branch' => $target->id]))->assertNotFound();
+        })->with([
+            'inactive secondary branch' => [
+                fn () => User::where('branch_code', 'CM')->sole(),
+                fn () => createSecondaryBranch(['is_active' => false]),
+            ],
+            'secondary branch of another entity' => [
+                fn () => User::where('branch_code', 'CM')->sole(),
+                fn () => createSecondaryBranch(['user_code' => '99999999']),
+            ],
+            'another primary branch' => [
+                fn () => User::where('branch_code', 'CM')->sole(),
+                fn () => createSyncedCustomer(['branch_code' => 'P2']),
+            ],
+            'sibling, from a secondary branch' => [
+                fn () => createSecondaryBranch(),
+                fn () => createSecondaryBranch(['branch_code' => 'S2']),
+            ],
+            'primary branch, from its secondary branch' => [
+                fn () => createSecondaryBranch(),
+                fn () => User::where('branch_code', 'CM')->sole(),
+            ],
+            'secondary branch, from an internal user' => [
+                fn () => User::factory()->create(),
+                fn () => createSecondaryBranch(),
+            ],
+        ]);
     });
 });

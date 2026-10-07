@@ -206,12 +206,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Branches the user can place orders for, besides itself (see OrderPolicy::placeFor):
+     * the active secondary branches of its Random entity when it is a primary branch, none otherwise.
+     */
+    public function orderableBranches(): HasMany
+    {
+        return $this->secondaryBranches()
+            ->where('is_active', true)
+            ->when($this->branch_type !== BranchType::PRIMARY, fn ($query) => $query->whereRaw('false'));
+    }
+
+    /**
      * Whether the user can place orders for other branches of its Random entity.
      */
     public function canOrderForBranches(): bool
     {
-        return $this->branch_type === BranchType::PRIMARY
-            && $this->secondaryBranches()->where('is_active', true)->exists();
+        return $this->orderableBranches()->exists();
     }
 
     public function addresses()
