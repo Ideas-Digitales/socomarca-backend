@@ -224,9 +224,7 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
 
     Route::resource('branches', BranchController::class)
         ->only(['index', 'show'])
-        ->parameters(['branches' => 'branch'])
-        ->middlewareFor('index', 'permission:read-own-branches')
-        ->middlewareFor('show', 'permission:read-own-branches');
+        ->parameters(['branches' => 'branch']);
 });
 
 // Rutas FAQs

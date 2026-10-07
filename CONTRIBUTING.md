@@ -98,15 +98,14 @@ class OrderScenario
 
     public function __construct(
         public User $user,
-        public Branch $branch,
     ) {}
 
     public static function make(): OrderScenario
     {
         $user = createUserWithPermissions(['read-own-orders', 'create-orders']);
-        $branch = Branch::factory()->create(['user_id' => $user->id]);
+        $user->update(['branch_type' => BranchType::PRIMARY]);
 
-        return new OrderScenario($user, $branch);
+        return new OrderScenario($user);
     }
 }
 ```

@@ -13,7 +13,6 @@
 */
 
 use App\Models\Address;
-use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Favorite;
@@ -97,11 +96,6 @@ function createUserHasFavoriteList()
     return User::factory()
         ->has(FavoriteList::factory(), 'favoritesList')
         ->create();
-}
-
-function createBranch()
-{
-    return Branch::factory()->create();
 }
 
 function createUserHasFavorite()
