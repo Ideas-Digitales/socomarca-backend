@@ -1,13 +1,10 @@
 <?php
 
-use App\Enums\BranchType;
 use App\Listeners\CreateWebpayRandomDocument;
-use App\Models\Branch;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\PaymentMethod;
-use App\Models\Scopes\SecondaryBranchesScope;
 use App\Models\User;
 use App\Services\WebpayService;
 use Illuminate\Events\CallQueuedListener;
@@ -96,10 +93,10 @@ it('handles a successful payment, updates the order status and creates the rando
     expect($scenario->order->random_document_number)->toBe('0000000088');
 });
 
-it('handles a successful payment when choosing the primary branch', function () {
+it('creates the random document for the secondary branch the order is placed for', function () {
     Storage::fake('s3');
 
-    $scenario = WebpayReturnScenario::make(['branch_type' => BranchType::PRIMARY]);
+    $scenario = WebpayReturnScenario::make(['branch_code' => 'LO']);
 
     $webpayServiceMock = Mockery::mock(WebpayService::class);
     $webpayServiceMock
@@ -160,7 +157,9 @@ it('handles a successful payment when choosing the primary branch', function () 
         $payload = $request->data();
 
         return isset($payload['datos']) &&
-            $payload['datos']['codigoEntidad'] === $scenario->user->user_code &&
+            $payload['datos']['codigoEntidad'] === $scenario->customer->user_code &&
+            $payload['datos']['sucursalEntidad'] === 'LO' &&
+            $payload['datos']['sucursalEntidadDespacho'] === 'LO' &&
             $payload['datos']['tido'] === 'NVV' &&
             count($payload['datos']['lineas']) === 1 &&
             $payload['datos']['lineas'][0]['codigoProducto'] === $scenario->product->sku &&
@@ -170,21 +169,13 @@ it('handles a successful payment when choosing the primary branch', function () 
     expect($scenario->order->randomDocuments()->count())->toBe(1);
     expect($scenario->order->randomDocuments()->first()->idmaeedo)->toBe(999);
     expect($scenario->order->random_document_number)->toBe('0000000088');
-    expect(
-        $scenario->order
-            ->branch()
-            ->withoutGlobalScope(SecondaryBranchesScope::class)
-            ->first()->id,
-    )->toBe($scenario->branch->id);
 });
 
 it('handles a failed transaction', function () {
     $user = User::factory()->create();
-    $branch = Branch::factory()->create(['user_id' => $user->id]);
     $order = Order::factory()->create([
         'user_id' => $user->id,
         'status' => 'pending',
-        'branch_id' => $branch->id,
         'notes' => '',
     ]);
 
@@ -227,11 +218,9 @@ it('handles a failed transaction', function () {
 
 it('handles a user-aborted transaction', function () {
     $user = User::factory()->create();
-    $branch = Branch::factory()->create(['user_id' => $user->id]);
     $order = Order::factory()->create([
         'user_id' => $user->id,
         'status' => 'pending',
-        'branch_id' => $branch->id,
         'notes' => '',
     ]);
 
@@ -271,12 +260,11 @@ it('queues the random document listener on an authorized payment', function () {
     $user = User::factory()->create([
         'rut' => '12345678-9',
         'user_code' => '12345678-9',
+        'branch_code' => 'CM',
     ]);
-    $branch = Branch::factory()->create(['user_id' => $user->id]);
     $order = Order::factory()->create([
         'user_id' => $user->id,
         'status' => 'pending',
-        'branch_id' => $branch->id,
         'notes' => '',
     ]);
 

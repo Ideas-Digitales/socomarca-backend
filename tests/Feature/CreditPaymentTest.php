@@ -8,7 +8,6 @@ use App\Models\Order;
 use App\Models\PaymentMethod;
 use App\Models\CartItem;
 use App\Models\Product;
-use App\Models\Branch;
 use App\Services\Random\RandomDocumentService;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Support\Facades\Http;
@@ -20,8 +19,20 @@ use Tests\TestCase;
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
+/**
+ * Primary branch customer whose Random credit line is faked as 12345678-9/CM.
+ */
+function createCreditCustomer(): User
+{
+    return createSyncedCustomer([
+        "rut" => "12345678-9",
+        "user_code" => "12345678-9",
+        "branch_code" => "CM",
+    ]);
+}
+
 test("it rejects payment if the user credit line is blocked", function () {
-    [$user, $branch] = createCustomerWithBranch();
+    $user = createCreditCustomer();
 
     \App\Models\CreditLine::factory()->create([
         "user_id" => $user->id,
@@ -49,7 +60,6 @@ test("it rejects payment if the user credit line is blocked", function () {
     $response = postJson(route("orders.pay"), [
         "address_id" => $address->id,
         "payment_method" => "random_credit",
-        "branch_id" => $branch->id,
         "payment_document_type" => "receipt",
     ]);
 
@@ -64,7 +74,7 @@ test(
     function () {
         /** @var TestCase $this */
 
-        [$user, $branch] = createCustomerWithBranch();
+        $user = createCreditCustomer();
 
         $address = Address::factory()->create(["user_id" => $user->id]);
         $product = Product::factory()->create();
@@ -109,7 +119,6 @@ test(
         postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "receipt",
         ]);
 
@@ -130,8 +139,8 @@ test(
             "datos" => [
                 "empresa" => config("random.business_code"),
                 "codigoEntidad" => $user->user_code,
-                "sucursalEntidad" => $branch->code,
-                "sucursalEntidadDespacho" => $branch->code,
+                "sucursalEntidad" => $user->branch_code,
+                "sucursalEntidadDespacho" => $user->branch_code,
                 "flujoVenta" => "NVVBLV",
                 "tido" => "NVV",
                 "moneda" => "CLP",
@@ -166,7 +175,7 @@ test(
     function () {
         /** @var TestCase $this */
 
-        [$user, $branch] = createCustomerWithBranch();
+        $user = createCreditCustomer();
 
         $address = Address::factory()->create(["user_id" => $user->id]);
         $product = Product::factory()->create();
@@ -214,7 +223,6 @@ test(
         postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "invoice",
         ]);
 
@@ -239,7 +247,7 @@ test("it can process a credit line payment successfully", function () {
     /** @var TestCase $this */
     Storage::fake('s3');
 
-    [$user, $branch] = createCustomerWithBranch();
+    $user = createCreditCustomer();
 
     $address = Address::factory()->create(["user_id" => $user->id]);
     $product = Product::factory()->create();
@@ -300,7 +308,6 @@ test("it can process a credit line payment successfully", function () {
     $response = postJson(route("orders.pay"), [
         "address_id" => $address->id,
         "payment_method" => "random_credit",
-        "branch_id" => $branch->id,
         "payment_document_type" => "receipt",
     ]);
 
@@ -350,7 +357,6 @@ test("it can process a credit line payment successfully", function () {
         $baseUrl,
         $user,
         $product,
-        $branch,
     ) {
         if (!str_starts_with($request->url(), "{$baseUrl}/web32/documento")) {
             return false;
@@ -360,7 +366,7 @@ test("it can process a credit line payment successfully", function () {
 
         return isset($payload["datos"]) &&
             $payload["datos"]["codigoEntidad"] === $user->user_code &&
-            $payload["datos"]["sucursalEntidad"] === $branch->code &&
+            $payload["datos"]["sucursalEntidad"] === $user->branch_code &&
             $payload["datos"]["tido"] === "NVV" &&
             count($payload["datos"]["lineas"]) === 1 &&
             $payload["datos"]["lineas"][0]["codigoProducto"] ===
@@ -413,18 +419,20 @@ test("it can process a credit line payment successfully", function () {
 });
 
 test(
-    "it can process a credit line payment successfully when choosing primary branch",
+    "it charges the credit line of the secondary branch the order is placed for",
     function () {
         /** @var TestCase $this */
 
         Storage::fake('s3');
-        [$user] = createCustomerWithBranch();
-        $branch = Branch::factory()->create([
-            "user_id" => $user->id,
-            "branch_type" => BranchType::PRIMARY,
+        $user = createCreditCustomer();
+        $branch = createSyncedCustomer([
+            "rut" => "12345678-9",
+            "user_code" => "12345678-9",
+            "branch_code" => "LO",
+            "branch_type" => BranchType::SECONDARY,
         ]);
 
-        $address = Address::factory()->create(["user_id" => $user->id]);
+        $address = Address::factory()->create(["user_id" => $branch->id]);
         $product = Product::factory()->create();
         \App\Models\Price::factory()->create([
             "product_id" => $product->id,
@@ -449,10 +457,10 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
-            "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
+            "{$baseUrl}/gestion/credito/resumen/12345678-9/LO" => Http::response(
                 [
                     "KOEN" => "12345678-9",
-                    "SUEN" => "CM",
+                    "SUEN" => "LO",
                     "CRSD" => 50092358399999.99,
                     "CRSDVU" => 5915690,
                     "CRSDVV" => 705736,
@@ -479,14 +487,12 @@ test(
         ]);
 
         Sanctum::actingAs($user, ['api-access']);
-        $currentCredit = getJson(route("users.credit-lines", ["user" => $user->id]))
-            ->json();
-        $CRSDVU = $currentCredit["CRSDVU"];
+        $CRSDVU = 5915690;
 
         $response = postJson(route("orders.pay"), [
+            "customer_id" => $branch->id,
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "receipt",
         ]);
 
@@ -527,17 +533,20 @@ test(
 
         expect(CartItem::where("user_id", $user->id)->count())->toBe(0);
 
+        expect(\App\Models\CreditLine::where("user_id", $user->id)->exists())
+            ->toBeFalse();
         $creditLine = \App\Models\CreditLine::where(
             "user_id",
-            $user->id,
+            $branch->id,
         )->first();
         expect($creditLine)->not->toBeNull();
+        expect($creditLine->branch_code)->toBe("LO");
         expect($creditLine->isBlocked())->toBeTrue();
         expect($creditLine->state["CRSDVU"] == $CRSDVU)->toBeTrue();
 
         Http::assertSent(function (
             \Illuminate\Http\Client\Request $request,
-        ) use ($baseUrl, $user, $product, $branch) {
+        ) use ($baseUrl, $product) {
             if (
                 !str_starts_with($request->url(), "{$baseUrl}/web32/documento")
             ) {
@@ -547,8 +556,9 @@ test(
             $payload = $request->data();
 
             return isset($payload["datos"]) &&
-                $payload["datos"]["codigoEntidad"] === $user->user_code &&
-                $payload["datos"]["sucursalEntidad"] === $branch->code &&
+                $payload["datos"]["codigoEntidad"] === "12345678-9" &&
+                $payload["datos"]["sucursalEntidad"] === "LO" &&
+                $payload["datos"]["sucursalEntidadDespacho"] === "LO" &&
                 $payload["datos"]["tido"] === "NVV" &&
                 count($payload["datos"]["lineas"]) === 1 &&
                 $payload["datos"]["lineas"][0]["codigoProducto"] ===
@@ -559,14 +569,7 @@ test(
         expect($order->randomDocuments()->count())->toBe(1);
         expect($order->randomDocuments()->first()->idmaeedo)->toBe(657);
         expect($order->random_document_number)->toBe("0000000001");
-        expect(
-            $order
-                ->branch()
-                ->withoutGlobalScope(
-                    \App\Models\Scopes\SecondaryBranchesScope::class,
-                )
-                ->first()->id,
-        )->toBe($branch->id); // ¡IMPORTANT!
+        expect($order->customer_id)->toBe($branch->id);
         expect($payment->status)->toBe("processing");
 
         $response = getJson(
@@ -615,7 +618,7 @@ test(
 test("it handles credit line payment failure correctly", function () {
     /** @var TestCase $this */
 
-    [$user, $branch] = createCustomerWithBranch();
+    $user = createCreditCustomer();
 
     $address = Address::factory()->create(["user_id" => $user->id]);
     $product = Product::factory()->create();
@@ -665,7 +668,6 @@ test("it handles credit line payment failure correctly", function () {
     $response = postJson(route("orders.pay"), [
         "address_id" => $address->id,
         "payment_method" => "random_credit",
-        "branch_id" => $branch->id,
         "payment_document_type" => "receipt",
     ]);
 
@@ -687,7 +689,7 @@ test(
     function () {
         /** @var TestCase $this */
 
-        [$user, $branch] = createCustomerWithBranch();
+        $user = createCreditCustomer();
 
         $address = Address::factory()->create(["user_id" => $user->id]);
         $product = Product::factory()->create();
@@ -721,7 +723,6 @@ test(
         $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "receipt",
         ]);
 
@@ -736,7 +737,7 @@ test(
     function () {
         /** @var TestCase $this */
 
-        [$user, $branch] = createCustomerWithBranch();
+        $user = createCreditCustomer();
 
         $address = Address::factory()->create(["user_id" => $user->id]);
         $product = Product::factory()->create();
@@ -758,7 +759,6 @@ test(
         $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "receipt",
         ]);
 
@@ -781,12 +781,6 @@ test(
         if (!$user->hasRole("customer")) {
             $user->assignRole("customer");
         }
-
-        $branch = Branch::factory()->create([
-            "user_id" => $user->id,
-            "code" => "VALPO",
-            "user_code" => "9876543-2",
-        ]);
 
         $address = Address::factory()->create(["user_id" => $user->id]);
         $product = Product::factory()->create();
@@ -827,7 +821,6 @@ test(
         $response = postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "receipt",
         ]);
 
@@ -847,7 +840,7 @@ test(
         /** @var TestCase $this */
         Queue::fake();
 
-        [$user, $branch] = createCustomerWithBranch();
+        $user = createCreditCustomer();
 
         $address = Address::factory()->create(["user_id" => $user->id]);
         $product = Product::factory()->create();
@@ -895,7 +888,6 @@ test(
         postJson(route("orders.pay"), [
             "address_id" => $address->id,
             "payment_method" => "random_credit",
-            "branch_id" => $branch->id,
             "payment_document_type" => "receipt",
         ]);
 

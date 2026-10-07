@@ -49,7 +49,7 @@ class SendOrderCompletedEmail implements ShouldQueue
             return;
         }
 
-        $event->order->loadMissing(['user', 'orderDetails.product', 'branch', 'payments.paymentMethod']);
+        $event->order->loadMissing(['user', 'customer', 'orderDetails.product', 'payments.paymentMethod']);
 
         Mail::to($recipient)->send(new OrderCompletedMail($event->order));
     }

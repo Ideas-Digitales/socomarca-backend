@@ -30,7 +30,13 @@ class OrderResource extends JsonResource
             "payments" => PaymentResource::collection(
                 $this->whenLoaded('payments')
             ),
-            "branch" => $this->whenLoaded('branch'),
+            "customer" => $this->whenLoaded('customer', fn () => [
+                "id" => $this->customer->id,
+                "name" => $this->customer->name,
+                "user_code" => $this->customer->user_code,
+                "branch_code" => $this->customer->branch_code,
+                "branch_type" => $this->customer->branch_type,
+            ]),
             "random_document_number" => $this->random_document_number,
             'notes' => $this->notes,
             "created_at" => $this->created_at,

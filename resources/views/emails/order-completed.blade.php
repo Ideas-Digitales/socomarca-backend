@@ -241,7 +241,10 @@
 </head>
 <body>
     @php
-        $customer = $order->user;
+        $buyer = $order->user;
+        $buyerName = $buyer?->name ?? 'Cliente';
+        // Branch the order was placed for; the buyer itself unless a primary branch ordered for a secondary one.
+        $customer = $order->customer ?? $buyer;
         $customerName = $customer?->name ?? 'Cliente';
         $billingAddress = $order->order_meta['address'] ?? [];
         $shippingAddress = $order->order_meta['address'] ?? [];
@@ -271,7 +274,7 @@
         </div>
 
         <p class="intro">
-            <strong>{{ $customerName }}</strong> ha registrado una compra en Socomarca Compra Rápida.
+            <strong>{{ $buyerName }}</strong> ha registrado una compra en Socomarca Compra Rápida.
         </p>
 
         <p class="order-summary">
@@ -316,6 +319,15 @@
                     <div class="meta-block">
                         <p class="meta-label">Forma de env&iacute;o</p>
                         <p class="meta-value">{{ $shippingMethodLabel }}</p>
+                    </div>
+                    <div class="meta-block">
+                        <p class="meta-label">Sucursal de destino</p>
+                        <p class="meta-value">
+                            {{ $customerName }}
+                            @if (! empty($customer?->user_code))
+                                ({{ $customer->user_code }}{{ $customer->branch_code ? ' / ' . $customer->branch_code : '' }})
+                            @endif
+                        </p>
                     </div>
                     @if (! empty($order->notes))
                         <div class="meta-block">

@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\PaymentDocumentType;
-use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -16,14 +15,10 @@ function buildOrderWithItems(): array
     $user = User::factory()->create([
         "rut" => "11111111-1",
         "user_code" => "11111111-1",
-    ]);
-    $branch = Branch::factory()->create([
-        "user_id" => $user->id,
-        "code" => "CM",
+        "branch_code" => "CM",
     ]);
     $order = Order::factory()->create([
         "user_id" => $user->id,
-        "branch_id" => $branch->id,
         "notes" => "Ring the bell",
     ]);
 
@@ -34,13 +29,13 @@ function buildOrderWithItems(): array
         "quantity" => 3,
     ]);
 
-    return [$order, $branch, $product];
+    return [$order, $product];
 }
 
 test(
     "builds the receipt payload with the receipt sale flow option",
     function () {
-        [$order, $branch, $product] = buildOrderWithItems();
+        [$order, $product] = buildOrderWithItems();
 
         $payload = (new RandomDocumentPayloadBuilder())->build(
             $order,
@@ -49,10 +44,8 @@ test(
         );
 
         expect($payload["datos"]["codigoEntidad"])->toBe("11111111-1");
-        expect($payload["datos"]["sucursalEntidad"])->toBe($branch->code);
-        expect($payload["datos"]["sucursalEntidadDespacho"])->toBe(
-            $branch->code,
-        );
+        expect($payload["datos"]["sucursalEntidad"])->toBe("CM");
+        expect($payload["datos"]["sucursalEntidadDespacho"])->toBe("CM");
         expect($payload["datos"]["flujoVenta"])->toBe("NVVBLV");
         expect($payload["datos"]["tido"])->toBe("NVV");
         expect($payload["datos"]["lineas"])->toBe([
@@ -79,6 +72,29 @@ test(
 
         expect($payload["datos"]["flujoVenta"])->toBe("NVVFCV");
         expect($payload["datos"]["texto2"])->toBe("11111111-1 - Factura");
+    },
+);
+
+test(
+    "issues the document for the customer the order is placed for",
+    function () {
+        [$order] = buildOrderWithItems();
+        $branch = User::factory()->create([
+            "rut" => "11111111-1",
+            "user_code" => "11111111-1",
+            "branch_code" => "LO",
+        ]);
+        $order->update(["customer_id" => $branch->id]);
+
+        $payload = (new RandomDocumentPayloadBuilder())->build(
+            $order->fresh(),
+            PaymentDocumentType::RECEIPT,
+            "Pago por Webpay",
+        );
+
+        expect($payload["datos"]["codigoEntidad"])->toBe("11111111-1");
+        expect($payload["datos"]["sucursalEntidad"])->toBe("LO");
+        expect($payload["datos"]["sucursalEntidadDespacho"])->toBe("LO");
     },
 );
 

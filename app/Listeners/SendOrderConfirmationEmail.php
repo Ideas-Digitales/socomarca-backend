@@ -4,6 +4,8 @@ namespace App\Listeners;
 
 use App\Events\OrderCompleted;
 use App\Mail\OrderConfirmationMail;
+use App\Models\Order;
+use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
@@ -42,14 +44,14 @@ class SendOrderConfirmationEmail implements ShouldQueue
     {
         $event->order->loadMissing([
             "user",
+            "customer",
             "orderDetails.product",
-            "branch",
             "payments.paymentMethod",
         ]);
 
-        $recipient = $event->order->user?->email;
+        $recipients = $this->recipients($event->order);
 
-        if (empty($recipient)) {
+        if (empty($recipients)) {
             Log::warning(
                 "SendOrderConfirmationEmail: order has no customer email, skipping email send.",
                 [
@@ -59,17 +61,28 @@ class SendOrderConfirmationEmail implements ShouldQueue
             return;
         }
 
-        $cc = collect([
-            $event->order->branch?->email,
-            $event->order->branch?->commercial_email,
+        Mail::to($recipients)->send(new OrderConfirmationMail($event->order));
+    }
+
+    /**
+     * Commercial (EMAILCOMER) and billing (EMAIL) emails of the user who placed the order and
+     * of the customer it was placed for, normalized and without duplicates. Invalid emails are
+     * discarded so that a wrong value in Random does not prevent sending to the rest.
+     *
+     * @return list<string>
+     */
+    private function recipients(Order $order): array
+    {
+        return collect([
+            $order->user?->email,
+            $order->user?->billing_email,
+            $order->customer?->email,
+            $order->customer?->billing_email,
         ])
-            ->filter()
+            ->map(fn (?string $email) => User::normalizeEmail($email))
+            ->filter(fn (?string $email) => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
             ->unique()
             ->values()
             ->all();
-
-        Mail::to($recipient)
-            ->cc($cc)
-            ->send(new OrderConfirmationMail($event->order));
     }
 }

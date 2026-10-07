@@ -4,7 +4,6 @@ namespace Tests\Scenarios;
 
 use App\Enums\PaymentDocumentType;
 use App\Listeners\CreateWebpayRandomDocument;
-use App\Models\Branch;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -27,12 +26,11 @@ class WebpayRandomDocumentScenario
         $user = User::factory()->create([
             'rut' => '12345678-9',
             'user_code' => '12345678-9',
+            'branch_code' => 'CM',
         ]);
-        $branch = Branch::factory()->create(['user_id' => $user->id]);
         $order = Order::factory()->create([
             'user_id' => $user->id,
             'status' => 'completed',
-            'branch_id' => $branch->id,
             'notes' => '',
             'random_document_number' => null,
         ]);
