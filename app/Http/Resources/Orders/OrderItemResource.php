@@ -21,6 +21,7 @@ class OrderItemResource extends JsonResource
             "unit" => $this->unit,
             "quantity" => $this->quantity,
             "price" => $this->price,
+            "price_list_id" => $this->price_list_id,
             "subtotal" => $this->subtotal,
             "vat" => $this->vat,
             "vat_amount" => $this->vat_amount,

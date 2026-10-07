@@ -3,9 +3,12 @@
 use App\Enums\BranchType;
 use App\Enums\PaymentDocumentType;
 use App\Models\Address;
+use App\Models\CartItem;
 use App\Models\Order;
+use App\Models\Price;
 use App\Models\Product;
 use App\Models\Siteinfo;
+use App\Models\User;
 use App\Services\VatService;
 use App\Services\WebpayService;
 use Laravel\Sanctum\Sanctum;
@@ -594,6 +597,137 @@ describe('OrderController', function () {
             $response->assertStatus(422)
                 ->assertJsonValidationErrors('payment_document_type');
         });
+    });
+});
+
+describe('Order prices', function () {
+    $mockWebpay = function (): void {
+        mock(WebpayService::class, function ($mock) {
+            $mock->shouldReceive('createTransaction')
+                ->andReturn([
+                    'url' => 'https://webpay.test/init',
+                    'token' => 'test-token-123',
+                ]);
+        });
+    };
+
+    $pay = function (User $customer) {
+        return postJson(route('orders.pay'), [
+            'customer_id' => $customer->id,
+            'address_id' => Address::factory()->create(['user_id' => $customer->id])->id,
+            'payment_method' => 'transbank',
+            'payment_document_type' => PaymentDocumentType::RECEIPT,
+        ]);
+    };
+
+    it('stores and exposes the price list of every order item', function () use ($mockWebpay, $pay) {
+        $scenario = OrderScenario::make();
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $scenario->addProductToCart(1000, 2);
+        $mockWebpay();
+
+        $pay($scenario->user)
+            ->assertOk()
+            ->assertJsonPath('data.order.order_items.0.price_list_id', OrderScenario::PRICE_LIST);
+
+        assertDatabaseHas('order_items', [
+            'order_id' => Order::first()->id,
+            'price' => 1000,
+            'price_list_id' => OrderScenario::PRICE_LIST,
+        ]);
+
+        getJson(route('orders.index'))
+            ->assertOk()
+            ->assertJsonPath('data.0.order_items.0.price_list_id', OrderScenario::PRICE_LIST);
+    });
+
+    it('prices the order with the price lists of the secondary branch', function () use ($mockWebpay, $pay) {
+        $scenario = OrderScenario::make();
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $product = $scenario->addProductToCart(1000, 2);
+        Price::factory()->create([
+            'product_id' => $product->id,
+            'price_list_id' => 'SEC',
+            'unit' => 'kg',
+            'price' => 800,
+        ]);
+        $branch = $scenario->makeSecondaryBranch(['prices_lists' => ['SEC']]);
+        $mockWebpay();
+
+        $pay($branch)->assertOk();
+
+        $order = Order::first();
+        $item = $order->orderDetails()->first();
+        expect($order->customer_id)->toBe($branch->id)
+            ->and($order->subtotal)->toBe(1600.0)
+            ->and((float) $item->price)->toBe(800.0)
+            ->and($item->price_list_id)->toBe('SEC');
+    });
+
+    it('uses the first price list of the customer when the product is priced in several', function () use ($mockWebpay, $pay) {
+        $scenario = OrderScenario::make();
+        $scenario->user->update(['prices_lists' => ['SECOND', OrderScenario::PRICE_LIST]]);
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $product = $scenario->addProductToCart(1000, 1);
+        Price::factory()->create([
+            'product_id' => $product->id,
+            'price_list_id' => 'SECOND',
+            'unit' => 'kg',
+            'price' => 900,
+        ]);
+        $mockWebpay();
+
+        $pay($scenario->user)->assertOk();
+
+        $item = Order::first()->orderDetails()->first();
+        expect((float) $item->price)->toBe(900.0)
+            ->and($item->price_list_id)->toBe('SECOND');
+    });
+
+    it('rejects the order when a product has no price in the customer price lists', function () use ($mockWebpay, $pay) {
+        $scenario = OrderScenario::make();
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $scenario->addProductToCart(1000, 1);
+        $unpriced = $scenario->addProductToCart(500, 1, 'un', 'OTHER');
+        $inactive = $scenario->addProductToCart(700, 1);
+        Price::where('product_id', $inactive->id)->update(['is_active' => false]);
+        $mockWebpay();
+
+        $pay($scenario->user)
+            ->assertUnprocessable()
+            ->assertJsonPath('products', [
+                ['id' => $unpriced->id, 'name' => $unpriced->name, 'sku' => $unpriced->sku, 'unit' => 'un'],
+                ['id' => $inactive->id, 'name' => $inactive->name, 'sku' => $inactive->sku, 'unit' => 'kg'],
+            ]);
+
+        expect(Order::count())->toBe(0)
+            ->and(CartItem::where('user_id', $scenario->user->id)->count())->toBe(3);
+    });
+
+    it('rejects the order for a secondary branch without a price for the cart products', function () use ($mockWebpay, $pay) {
+        $scenario = OrderScenario::make();
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $product = $scenario->addProductToCart(1000, 1);
+        $branch = $scenario->makeSecondaryBranch(['prices_lists' => ['SEC']]);
+        $mockWebpay();
+
+        $pay($branch)
+            ->assertUnprocessable()
+            ->assertJsonPath('products.0.id', $product->id);
+
+        expect(Order::count())->toBe(0);
+    });
+
+    it('rejects the order when the customer has no price lists', function () use ($mockWebpay, $pay) {
+        $scenario = OrderScenario::make();
+        $scenario->user->update(['prices_lists' => []]);
+        Sanctum::actingAs($scenario->user, ['api-access']);
+        $product = $scenario->addProductToCart(1000, 1);
+        $mockWebpay();
+
+        $pay($scenario->user)
+            ->assertUnprocessable()
+            ->assertJsonPath('products.0.id', $product->id);
     });
 });
 
