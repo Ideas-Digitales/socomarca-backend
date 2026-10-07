@@ -397,6 +397,116 @@ describe('email issues alert', function () {
     });
 });
 
+describe('deactivation of absent customers', function () {
+    /**
+     * Create an active customer with an API token.
+     */
+    function activeCustomer(array $attributes = []): User
+    {
+        $user = User::factory()->create(array_merge(['is_active' => true], $attributes));
+        $user->assignRole('customer');
+        $user->createToken('device', ['api-access']);
+
+        return $user;
+    }
+
+    it('deactivates the customers absent in Random and revokes their tokens', function () {
+        $absent = activeCustomer([
+            'random_entity_id' => 9,
+            'user_code' => '11111111',
+            'random_synced_at' => now()->subHours(2),
+        ]);
+        $neverLinked = activeCustomer(['user_code' => '22222222', 'random_entity_id' => null]);
+        $present = activeCustomer([
+            'random_entity_id' => 2475,
+            'user_code' => '77528378',
+            'random_synced_at' => now()->subHours(2),
+        ]);
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        expect($absent->fresh()->is_active)->toBeFalse()
+            ->and($absent->tokens()->count())->toBe(0)
+            ->and($neverLinked->fresh()->is_active)->toBeFalse()
+            ->and($neverLinked->tokens()->count())->toBe(0)
+            ->and($present->fresh()->is_active)->toBeTrue()
+            ->and($present->tokens()->count())->toBe(1);
+    });
+
+    it('deactivates a customer whose entity is no longer a customer in Random', function () {
+        $user = activeCustomer([
+            'random_entity_id' => 2475,
+            'user_code' => '77528378',
+            'random_synced_at' => now()->subHours(2),
+        ]);
+
+        mockRandomEntities([randomEntity(['TIEN' => 'P'])]);
+
+        runUsersSync();
+
+        expect($user->fresh()->is_active)->toBeFalse();
+    });
+
+    it('does not deactivate users without the customer role', function () {
+        $admin = User::factory()->create(['is_active' => true, 'random_synced_at' => null]);
+        $admin->assignRole('admin');
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        expect($admin->fresh()->is_active)->toBeTrue();
+    });
+
+    it('does not deactivate anyone when Random returns an invalid response', function () {
+        $user = activeCustomer(['random_entity_id' => 9, 'user_code' => '11111111']);
+
+        $mock = Mockery::mock(RandomApiService::class);
+        $mock->shouldReceive('getEntidadesUsuarios')->once()->andReturn(['message' => 'jwt malformed']);
+        App::instance(RandomApiService::class, $mock);
+
+        runUsersSync();
+
+        expect($user->fresh()->is_active)->toBeTrue()
+            ->and($user->tokens()->count())->toBe(1);
+    });
+
+    it('does not deactivate anyone when an entity fails to sync', function () {
+        $absent = activeCustomer(['random_entity_id' => 9, 'user_code' => '11111111']);
+        $failing = activeCustomer(['random_entity_id' => 1, 'user_code' => '77528378', 'branch_code' => 'A']);
+
+        mockRandomEntities([
+            randomEntity(['IDMAEEN' => 1, 'SUEN' => 'A', 'RTEN' => str_repeat('9', 300)]),
+            randomEntity(['IDMAEEN' => 2, 'SUEN' => 'B']),
+        ]);
+
+        runUsersSync();
+
+        expect($absent->fresh()->is_active)->toBeTrue()
+            ->and($failing->fresh()->is_active)->toBeTrue();
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message) => str_contains($message, 'skipped the deactivation'))
+            ->once();
+    });
+
+    it('excludes the deactivated customers from the email issues alert', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        activeCustomer([
+            'random_entity_id' => 9,
+            'user_code' => '11111111',
+            'email' => 'dbustos@grupomilsabores.com',
+        ]);
+
+        mockRandomEntities([randomEntity()]);
+
+        runUsersSync();
+
+        Event::assertNotDispatched(EntityEmailIssuesDetected::class);
+    });
+});
+
 describe('addresses', function () {
     it('creates a synced shipping address using CL/{CIEN}/{CMEN}', function (string $branchType) {
         $municipality = seedQuinteroMunicipality();

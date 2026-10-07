@@ -14,7 +14,7 @@ class CredentialScenario
 
     public static function make(array $abilities = ['credentials-restore']): CredentialScenario
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['is_active' => true]);
         $token = $user->createToken('test-device', $abilities);
 
         return new CredentialScenario($user, $token);

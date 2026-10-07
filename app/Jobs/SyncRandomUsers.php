@@ -9,6 +9,7 @@ use App\Models\Municipality;
 use App\Models\Region;
 use App\Models\User;
 use App\Services\RandomApiService;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -17,6 +18,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Syncs every Random customer entity (entity + branch record, primary or secondary) as a User.
@@ -49,6 +51,8 @@ class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
     {
         Log::info('SyncRandomUsers started');
 
+        $startedAt = now();
+        $failedEntities = 0;
         $page = 1;
 
         do {
@@ -71,6 +75,7 @@ class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
                 try {
                     DB::transaction(fn () => $this->syncEntity($entity));
                 } catch (\Throwable $e) {
+                    $failedEntities++;
                     Log::error('SyncRandomUsers failed syncing entity: ' . $e->getMessage(), [
                         'entity' => $entity,
                     ]);
@@ -80,9 +85,49 @@ class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
             $page++;
         } while (!empty($entities));
 
+        if ($failedEntities === 0) {
+            $this->deactivateAbsentCustomers($startedAt);
+        } else {
+            Log::warning('SyncRandomUsers skipped the deactivation of absent customers: some entities failed to sync', [
+                'failed_entities' => $failedEntities,
+            ]);
+        }
+
         $this->reportEmailIssues();
 
         Log::info('SyncRandomUsers completed');
+    }
+
+    /**
+     * Deactivate the customers that were not synced in this run (absent in Random, no longer
+     * a customer entity, or never linked to a Random entity) and revoke their API tokens.
+     *
+     * Only runs after a complete sync: a failed user would look absent and be deactivated.
+     */
+    private function deactivateAbsentCustomers(CarbonInterface $startedAt): void
+    {
+        $userIds = User::role('customer')
+            ->where('is_active', true)
+            ->where(function ($query) use ($startedAt) {
+                $query->whereNull('random_synced_at')
+                    ->orWhere('random_synced_at', '<', $startedAt);
+            })
+            ->pluck('id');
+
+        if ($userIds->isEmpty()) {
+            return;
+        }
+
+        // Bulk updates do not fire model events, so tokens are revoked explicitly.
+        User::whereIn('id', $userIds)->update(['is_active' => false]);
+        PersonalAccessToken::where('tokenable_type', (new User)->getMorphClass())
+            ->whereIn('tokenable_id', $userIds)
+            ->delete();
+
+        Log::info('SyncRandomUsers deactivated customers absent in Random', [
+            'count' => $userIds->count(),
+            'user_ids' => $userIds->all(),
+        ]);
     }
 
     /**

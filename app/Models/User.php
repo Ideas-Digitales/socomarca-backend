@@ -122,6 +122,15 @@ class User extends Authenticatable
         ];
     }
 
+    protected static function booted(): void
+    {
+        static::updated(function (User $user) {
+            if ($user->wasChanged('is_active') && !$user->is_active) {
+                $user->tokens()->delete();
+            }
+        });
+    }
+
     /**
      * Emails are stored normalized so that lookups and duplicate detection are case-insensitive.
      */
