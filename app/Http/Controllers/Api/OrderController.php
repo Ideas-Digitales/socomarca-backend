@@ -25,9 +25,13 @@ use App\Services\Random\RandomDocumentPayloadBuilder;
 use App\Services\CustomerPriceResolver;
 use App\Services\PaymentService;
 use App\Services\VatService;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
+#[Group('Orders', 'List the user\'s orders and check out the cart, paying with Webpay or the Random ERP credit line.', weight: 11)]
 class OrderController extends Controller
 {
     protected WebpayService $webpayService;
@@ -61,6 +65,16 @@ class OrderController extends Controller
         $this->priceResolver = $priceResolver;
     }
 
+    /**
+     * List orders
+     *
+     * Lists the orders placed by the authenticated user and the orders placed for it (by its primary
+     * branch), with their items, payments and customer.
+     */
+    #[QueryParameter('per_page', 'Orders per page.', type: 'int', default: 20)]
+    #[QueryParameter('sort', 'Sort field. Other values fall back to `created_at`.', type: "'id'|'created_at'", default: 'created_at')]
+    #[QueryParameter('sort_direction', 'Sort direction. Other values fall back to `desc`.', type: "'asc'|'desc'", default: 'desc')]
+    #[QueryParameter('payment_method_code', 'Only orders with a payment made with this payment method code.', type: 'string', example: 'random_credit')]
     public function index(Request $request)
     {
         $perPage = $request->input("per_page", 20);
@@ -213,6 +227,51 @@ class OrderController extends Controller
         }
     }
 
+    /**
+     * Pay the cart
+     *
+     * Creates an order out of the authenticated user's cart and starts its payment. The order is placed
+     * for `customer_id` (the user itself by default): a primary branch can also order for the active
+     * secondary branches of its entity. Items are priced with the customer's price lists (the first list,
+     * in the customer's order, that prices the product and unit), and the prices, VAT and shipping cost
+     * are frozen on the order. Shipping is free from a net subtotal of 70,000.
+     *
+     * `payment_method` decides how the order is paid:
+     *
+     * - `random_credit`: the amount is charged to the customer's Random ERP credit line and the order is
+     *   sent to Random ERP right away as a sales note (NVV) issued with the customer's entity and branch
+     *   codes. Failures also respond 200, with `success: false` and one of these messages:
+     *   - `Línea de crédito bloqueada`: a previous credit order of the customer is not invoiced in
+     *     Random ERP yet. The order is left pending.
+     *   - `Crédito insuficiente`: the available credit does not cover the amount; `data.credit_status`
+     *     has the credit summary from Random ERP. The order is left pending.
+     *   - `Creación de nota de venta fallida`: Random ERP rejected the sales note. The order and its
+     *     payment are marked failed.
+     *
+     *   On success the order is completed with its `random_document_number`, the cart is emptied and the
+     *   customer's credit line is blocked until Random ERP invoices the sales note.
+     * - Any other method pays with Webpay: the response has the pending order and the Transbank
+     *   `payment_url` and `token`. Send the buyer to `payment_url` posting the token as `token_ws`;
+     *   Transbank sends the buyer back to the configured return URL with `token_ws`, which must be passed
+     *   to `GET /webpay/return` to settle the order. The cart is kept until the payment is authorized.
+     */
+    #[Response(
+        200,
+        'Webpay transaction created (`data`), or result of the credit payment (`success`)',
+        type: 'array{data: \App\Http\Resources\Orders\PaymentResource}'
+            . '|array{success: true, data: array{transaction: array{status: "AUTHORIZED"}, payment: \App\Http\Resources\PaymentResource}}'
+            . '|array{success: false, message: "Línea de crédito bloqueada", data: array{transaction: array{status: "FAILED"}}}'
+            . '|array{success: false, message: "Crédito insuficiente", payment: null, data: array{transaction: array{status: "FAILED"}, payment: null, credit_status: array<string, mixed>}}'
+            . '|array{success: false, message: "Creación de nota de venta fallida", data: array{transaction: array{status: "FAILED"}, payment: \App\Http\Resources\PaymentResource, credit_status: array<string, mixed>}}',
+    )]
+    #[Response(400, 'The cart is empty')]
+    #[Response(
+        422,
+        'Validation error, or some cart products have no price in the customer\'s price lists (`products`)',
+        type: 'array{message: string, errors: array<string, list<string>>}'
+            . '|array{message: "Algunos productos del carrito no tienen precio para el cliente del pedido", products: list<array{id: int, name: string|null, sku: string|null, unit: string}>}',
+    )]
+    #[Response(500, 'The Webpay transaction could not be created (the order is left pending), or the credit payment failed unexpectedly')]
     public function payOrder(PayOrderRequest $request)
     {
         $orderInfo = $this->createFromCart(
@@ -255,6 +314,11 @@ class OrderController extends Controller
                     [
                         "message" =>
                         "Error al procesar el pago: " . $e->getMessage(),
+                        /**
+                         * The created order, left pending.
+                         *
+                         * @var array<string, mixed>
+                         */
                         "order" => $order,
                     ],
                     500,

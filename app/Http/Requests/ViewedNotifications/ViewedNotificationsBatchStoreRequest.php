@@ -14,7 +14,9 @@ class ViewedNotificationsBatchStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /** Notifications to mark as viewed. */
             'resources' => 'required|array|min:1',
+            /** ID of the notification, as listed by `GET /notifications`. */
             'resources.*.fcm_notification_id' => 'required|integer|exists:fcm_notification_histories,id',
         ];
     }

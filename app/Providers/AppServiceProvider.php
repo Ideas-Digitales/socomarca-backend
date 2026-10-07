@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Services\Data\UserService;
+use App\Support\Scramble\DocumentPermissionMiddleware;
+use Dedoc\Scramble\Scramble;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
@@ -49,6 +52,10 @@ class AppServiceProvider extends ServiceProvider
                 )
             );
         });
+
+        Scramble::configure()
+            ->routes(fn (Route $route) => Str::startsWith($route->uri, 'api/') && $route->uri !== 'api/{url}')
+            ->withOperationTransformers(DocumentPermissionMiddleware::class);
 
         Str::macro('maskEmail', function (string $email) {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {

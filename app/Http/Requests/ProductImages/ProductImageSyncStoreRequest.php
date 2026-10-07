@@ -15,6 +15,11 @@ class ProductImageSyncStoreRequest extends FormRequest
     public function rules()
     {
         return [
+            /**
+             * `path` returned by Create a product images upload URL. The ZIP must already be uploaded.
+             *
+             * @example product-sync/6703f1a2b4c5d.zip
+             */
             'sync_file_path' => [
                 'required',
                 'string',

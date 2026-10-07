@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use Dedoc\Scramble\Attributes\BodyParameter;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\Request;
 use App\Http\Requests\PasswordRequest;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +15,7 @@ use App\Services\Security\PasswordGeneratorService;
 use App\Models\User;
 use Illuminate\Support\Str;
 
+#[Group('Authentication')]
 class PasswordResetController extends Controller
 {
     public function __construct(
@@ -19,10 +23,15 @@ class PasswordResetController extends Controller
     ) {}
 
     /**
-     * Enviar una contraseña temporal al email, solo si corresponde a exactamente un usuario activo.
+     * Request a temporary password
      *
-     * La respuesta es la misma en todos los casos (con el email solicitado enmascarado), para no
-     * revelar si el email está registrado.
+     * Emails a temporary password only when the email belongs to exactly one active user; the user must
+     * change it after logging in. The response is the same in every case (with the requested email masked),
+     * so that it does not reveal whether the email is registered.
+     *
+     * Limited to 6 requests per minute.
+     *
+     * @unauthenticated
      */
     public function forgotPassword(PasswordRequest $request)
     {
@@ -44,8 +53,14 @@ class PasswordResetController extends Controller
         $maskedEmail = Str::maskEmail(User::normalizeEmail($request->input('email')) ?? '');
 
         return response()->json([
+            /** @var string */
             'message' => __('auth.password_reset', ['email' => $maskedEmail]),
             'data' => [
+                /**
+                 * Requested email, masked.
+                 *
+                 * @example c*****s@cliente.cl
+                 */
                 'email' => $maskedEmail,
             ],
         ]);
@@ -53,12 +68,18 @@ class PasswordResetController extends Controller
 
 
     /**
-     * Cambiar contraseña (requiere autenticación)
+     * Change the password
+     *
+     * Changes the authenticated user's password, which also clears the pending password change of a
+     * temporary password.
      */
+    #[BodyParameter('revoke_all_tokens', 'Revoke every other token of the user (other sessions), keeping the current one.', required: false, type: 'bool', default: false)]
+    #[Response(400, 'The current password is wrong', type: 'array{status: false, message: string, errors: array{current_password: list<string>}}')]
     public function changePassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'current_password' => 'required|string',
+            /** New password. Send it again as `password_confirmation`. */
             'password' => 'required|string|min:8|confirmed|different:current_password',
         ]);
 
@@ -98,7 +119,10 @@ class PasswordResetController extends Controller
     }
 
     /**
-     * Verificar si el usuario necesita cambiar su contraseña
+     * Get the password status
+     *
+     * Tells whether the authenticated user must change the password, as after logging in with a
+     * temporary password.
      */
     public function checkPasswordStatus(Request $request)
     {
@@ -108,6 +132,7 @@ class PasswordResetController extends Controller
         return response()->json([
             'status' => true,
             'data' => [
+                /** @var bool */
                 'needs_password_change' => $needsChange
             ]
         ]);

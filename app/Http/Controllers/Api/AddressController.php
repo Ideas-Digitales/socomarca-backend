@@ -9,11 +9,25 @@ use App\Http\Resources\Addresses\AddressCollection;
 use App\Models\Address;
 use App\Models\Municipality;
 use App\Models\Region;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\PathParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+#[Group('Addresses', 'Manage user addresses, and the regions and municipalities (comunas) they belong to.', weight: 4)]
 class AddressController extends Controller
 {
+    /**
+     * List addresses
+     *
+     * Lists the authenticated user's addresses, including the branch addresses synced from Random ERP.
+     * Users with the `read-all-addresses` permission get the addresses of every user. Not paginated.
+     *
+     * Allowed with the `read-own-addresses` or `read-all-addresses` permission.
+     *
+     * @response array{data: list<\App\Http\Resources\Addresses\AddressResource>}
+     */
     public function index(Request $request)
     {
 
@@ -31,6 +45,14 @@ class AddressController extends Controller
         return $data;
     }
 
+    /**
+     * Create an address
+     *
+     * Creates an address for the authenticated user; its region is taken from the municipality. With
+     * `is_default: true` the user's other addresses stop being the default one.
+     *
+     * Allowed with the `create-addresses` permission.
+     */
     public function store(StoreRequest $storeRequest)
     {
         $user = $storeRequest->user();
@@ -82,12 +104,30 @@ class AddressController extends Controller
         ], 201);
     }
 
+    /**
+     * Show an address
+     *
+     * Users can see their own addresses (`read-own-addresses`), or any address with `read-all-addresses`.
+     * The address is not wrapped in `data`.
+     *
+     * @response array{id: int, address_line1: string, address_line2: string|null, postal_code: string|null, is_default: bool, type: 'billing'|'shipping', phone: string|null, contact_name: string|null, municipality_name: string, region_name: string, alias: string|null}
+     */
     public function show(Address $address)
     {
         $data = new AddressCollection([$address]);
         return response()->json($data[0]);
     }
 
+    /**
+     * Update an address
+     *
+     * `PUT` requires every field below; `PATCH` updates only the fields sent. With `is_default: true` the
+     * authenticated user's other addresses stop being the default one, and a new `municipality_id` also
+     * updates the region.
+     *
+     * Addresses synced from Random ERP (customer branches) cannot be updated (403). Users can update their
+     * own addresses with `update-addresses`, or any address when they also have `read-all-addresses`.
+     */
     public function update(UpdateRequest $updateRequest, Address $address)
     {
         $user = $updateRequest->user();
@@ -109,6 +149,13 @@ class AddressController extends Controller
 
     }
 
+    /**
+     * Delete an address
+     *
+     * Responds 200 with an empty body. Addresses synced from Random ERP (customer branches) cannot be
+     * deleted (403). Users can delete their own addresses with `delete-addresses`, or any address when they
+     * also have `read-all-addresses`.
+     */
     public function destroy(Address $address)
     {
         $address->delete();
@@ -116,14 +163,14 @@ class AddressController extends Controller
 
 
     /**
-     * Get all regions
+     * List regions
      *
-     * @return \Illuminate\Database\Eloquent\Collection
+     * Lists every region, enabled or not, ordered by ID, each with its municipalities ordered by name.
+     *
+     * @response list<array{id: int, name: string, status: bool, municipalities: list<array{id: int, name: string, status: bool, region_id: int}>}>
      */
     public function regions()
     {
-
-        //return Region::select('id', 'name','status')->orderBy('id','ASC')->get();
         return Region::with(['municipalities' => function($query) {
             $query->select('id', 'name', 'status', 'region_id')
                   ->orderBy('name');
@@ -134,18 +181,24 @@ class AddressController extends Controller
     }
 
     /**
-     * Get municipalities by region ID
+     * List the municipalities of a region
      *
-     * @param \Illuminate\Http\Request $request
-     * @param int|null $regionId
-     * @return \Illuminate\Database\Eloquent\Collection
+     * Lists the municipalities of the region, enabled or not, ordered by name. An unknown region responds 422.
+     *
+     * @response list<array{id: int, name: string, status: bool}>
      */
+    #[PathParameter('regionId', 'The region ID.', required: true, type: 'int')]
     public function municipalities(Request $request,$regionId = null)
     {
         if ($regionId !== null) {
             $request->merge(['region_id' => $regionId]);
         }
         $validated = $request->validate([
+            /**
+             * Overwritten with the `regionId` path parameter.
+             *
+             * @ignoreParam
+             */
             'region_id' => 'nullable|integer|exists:regions,id',
         ],
         [
@@ -161,16 +214,16 @@ class AddressController extends Controller
     }
 
     /**
-     * Update multiple municipalities status
+     * Enable or disable municipalities
      *
-     * @param \Illuminate\Http\Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Sets the status of the given municipalities. Their regions keep their own status.
      */
     public function updateMunicipalitiesStatus(Request $request)
     {
         $validated = $request->validate([
             'municipality_ids' => 'required|array|min:1',
             'municipality_ids.*' => 'integer|exists:municipalities,id',
+            /** `true` enables the municipalities, `false` disables them. */
             'status' => 'required|boolean',
         ]);
 
@@ -188,21 +241,24 @@ class AddressController extends Controller
 
         return response()->json([
             'message' => "Successfully updated {$updatedCount} municipalities",
+            /** @var list<array{id: int, name: string, status: bool}> */
             'municipalities' => $municipalities,
             'updated_count' => $updatedCount
         ]);
     }
 
     /**
-     * Update all municipalities status for a specific region
+     * Enable or disable a region
      *
-     * @param \Illuminate\Http\Request $request
-     * @param int $region
-     * @return \Illuminate\Http\JsonResponse
+     * Sets the status of the region and of all its municipalities.
+     *
+     * @param int $region The region ID.
      */
+    #[Response(404, 'The region does not exist', type: 'array{message: string}')]
     public function updateRegionMunicipalitiesStatus(Request $request, $region)
     {
         $validated = $request->validate([
+            /** `true` enables the region and its municipalities, `false` disables them. */
             'status' => 'required|boolean',
         ]);
 
@@ -226,10 +282,14 @@ class AddressController extends Controller
         return response()->json([
             'message' => "Successfully updated {$updatedCount} municipalities in region '{$regionModel->name}'",
             'region' => [
+                /** @var int */
                 'id' => $regionModel->id,
+                /** @var string */
                 'name' => $regionModel->name,
+                /** @var bool */
                 'status' => $regionModel->status,
             ],
+            /** @var list<array{id: int, name: string, status: bool, region_id: int}> */
             'municipalities' => $municipalities,
             'updated_count' => $updatedCount
         ]);

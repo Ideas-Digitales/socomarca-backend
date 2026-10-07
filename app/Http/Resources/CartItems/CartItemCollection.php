@@ -24,7 +24,13 @@ class CartItemCollection extends ResourceCollection
         ->sum('subtotal');
 
         return [
+            /** @var list<CartItemResource> */
             'items' => $items,
+            /**
+             * Sum of the items' subtotals.
+             *
+             * @var float
+             */
             'total' => $total,
         ];
 

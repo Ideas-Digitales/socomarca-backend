@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Favorites;
 
+use Dedoc\Scramble\Attributes\SchemaName;
 use Illuminate\Foundation\Http\FormRequest;
 
+#[SchemaName('FavoriteStoreRequest')]
 class StoreRequest extends FormRequest
 {
     /**
@@ -23,8 +25,14 @@ class StoreRequest extends FormRequest
     {
         return
         [
+            /**
+             * Favorite list of the authenticated user.
+             *
+             * @var int
+             */
             'favorite_list_id' => 'required',
             'product_id' => 'required|exists:products,id',
+            /** Sale unit of the product; the product must have a price for it. */
             'unit' => [
                 'required',
                 'string',

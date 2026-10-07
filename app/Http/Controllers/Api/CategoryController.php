@@ -7,9 +7,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\Categories\CategoryListResource;
 use App\Http\Resources\Categories\SuperCategoryResource;
 use App\Models\Category;
+use Dedoc\Scramble\Attributes\BodyParameter;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
+#[Group('Categories', 'Browse the product category tree synced from Random ERP: supercategories, categories and subcategories.', weight: 5)]
 class CategoryController extends Controller
 {
     /**
@@ -31,22 +36,22 @@ class CategoryController extends Controller
     }
 
     /**
-     * List categories, nested by default or flat when asked for.
+     * List categories
      *
-     * 'structure=nested' (the default) returns the enabled supercategories that have
-     * products visible to the current user, each with its enabled children and
-     * subcategories filtered the same way, plus their product counts. It is what the
-     * storefront sidebar consumes.
+     * With `structure=nested` (the default) returns the storefront tree: the enabled supercategories that
+     * have active products with a price visible to the user (customers only see their price lists), each
+     * with its categories and subcategories filtered the same way, and the count of those products.
      *
-     * 'structure=flat' returns every category as its own row, one per level. See
-     * flatIndex() for why the admin table needs it.
-     *
-     * @param Request $request Accepts optional 'structure', 'sort' and 'sort_direction' inputs
-     * @return \Illuminate\Http\JsonResponse
+     * With `structure=flat` returns every category of the three levels as its own row, including disabled
+     * ones and those without products, for the administration. It also requires the `read-all-reports`
+     * permission (403 otherwise).
      */
+    #[QueryParameter('sort', 'Field to sort by. In the nested tree it sorts the supercategories only. Unknown fields are ignored.', type: "'id'|'name'|'description'|'code'|'level'|'created_at'|'updated_at'")]
+    #[QueryParameter('sort_direction', type: "'asc'|'desc'", default: 'asc')]
     public function index(Request $request)
     {
         $request->validate([
+            /** `nested` returns the storefront tree, `flat` one row per category. */
             'structure' => 'sometimes|string|in:nested,flat',
         ]);
 
@@ -119,10 +124,11 @@ class CategoryController extends Controller
     }
 
     /**
-     * Show a single category.
+     * Show a category
      *
-     * @param int|string $id The category identifier
-     * @return \Illuminate\Http\JsonResponse 404 when the category does not exist
+     * Returns the category of any level, without its children.
+     *
+     * @param int $id The category ID.
      */
     public function show($id)
     {
@@ -143,15 +149,14 @@ class CategoryController extends Controller
     }
 
     /**
-     * Search categories by filters.
+     * Search categories
      *
-     * Same visibility rules as index(): only enabled categories holding products with a
-     * price visible to the current user are returned.
-     *
-     * @param Request $request Accepts optional 'filters', 'sort' and 'sort_direction' inputs
-     *
-     * @return \Illuminate\Http\JsonResponse
+     * Returns the same tree as the nested category list, keeping only the supercategories that match
+     * `filters`. Product counts are not computed here: use the category list for them.
      */
+    #[BodyParameter('filters', 'Conditions on the supercategories, all of which must match. `field` is `name` or `description` (operators `=`, `!=`, `LIKE`, `ILIKE`, `NOT LIKE` and `fulltext`, a trigram similarity search that also orders by similarity), `code` (the same except `fulltext`), `level` (`=`, `!=`, `>`, `<`, `>=`, `<=`) or `enabled` (`=`, `!=`). Unknown fields and operators are ignored. The optional `sort` (`ASC` or `DESC`) also orders by the field.', type: 'list<array{field: string, operator: string, value: mixed, sort?: string}>', example: [['field' => 'name', 'operator' => 'ILIKE', 'value' => '%bebida%']])]
+    #[BodyParameter('sort', 'Field to sort the supercategories by. Unknown fields are ignored.', type: "'id'|'name'|'description'|'code'|'level'|'created_at'|'updated_at'")]
+    #[BodyParameter('sort_direction', type: "'asc'|'desc'", default: 'asc')]
     public function search(Request $request)
     {
         $filters = $request->input('filters', []);
@@ -185,6 +190,17 @@ class CategoryController extends Controller
         );
     }
 
+    /**
+     * Export categories
+     *
+     * Downloads an Excel file with every category of the three levels, including disabled ones and those
+     * without products.
+     *
+     * @response \Symfony\Component\HttpFoundation\BinaryFileResponse<string, 200, array{"Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}, null>
+     */
+    #[QueryParameter('sort', 'Currently ignored: rows follow the database order.', type: 'string', default: 'name')]
+    #[QueryParameter('sort_direction', 'Currently ignored.', type: 'string', default: 'asc')]
+    #[Response(200, 'Excel file', mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', type: 'string', format: 'binary')]
     public function export(Request $request)
     {
         $sort = $request->input('sort', 'name');

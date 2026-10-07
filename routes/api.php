@@ -40,9 +40,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/restore', [PasswordResetController::class, 'forgotPassword'])->name('auth.password.restore');
     });
     Route::middleware(['auth:sanctum','abilities:api-access'])->group(function () {
-        Route::get('/check-token', function () {
-            return response()->json(['valid' => true]);
-        })->name('auth.check.token');
+        Route::get('/check-token', [AuthController::class, 'checkToken'])->name('auth.check.token');
         Route::delete('/token', [AuthController::class, 'destroy'])->name('auth.token.destroy');
         Route::prefix('/password')->group(function () {
             Route::put('', [PasswordResetController::class, 'changePassword'])->name('password.update');

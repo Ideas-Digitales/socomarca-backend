@@ -4,17 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
+use Dedoc\Scramble\Attributes\Group;
 
+#[Group('Brands', 'List the product brands synced from Random ERP.', weight: 6)]
 class BrandController extends Controller
 {
     /**
-     * List the brands that hold at least one product with a price visible to the
-     * current user, sorted alphabetically.
+     * List brands
      *
-     * "Visible" means in stock and, unless config('random.show_product_zero_price'),
-     * priced above zero, on a price list the user may read. The rule lives in
-     * Price::visibleTo() so brands, the category tree and the product listing can
-     * never disagree about what is on offer.
+     * Lists, sorted by name, the brands with at least one active product that has a visible price: active,
+     * in stock, above zero (unless zero prices are enabled in the configuration) and, for customers, on one
+     * of their price lists. Not paginated.
      *
      * @see \App\Models\Price::visibleTo()
      * @return \Illuminate\Database\Eloquent\Collection<int, Brand>

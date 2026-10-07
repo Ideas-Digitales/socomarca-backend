@@ -43,13 +43,38 @@ class UpdateRequest extends FormRequest
         }
 
         return [
+            /** Prohibited for users synced from Random ERP. */
             'name' => $required . '|string|max:255',
+            /**
+             * Stored lowercase; must not belong to another user. Prohibited for users synced from Random ERP.
+             *
+             * @example juan.perez@socomarca.cl
+             */
             'email' => $required . '|email|unique:users,email,' . $user->id,
+            /**
+             * Prohibited for users synced from Random ERP.
+             *
+             * @var string|null
+             */
             'phone' => $required . '|nullable|string|max:20',
+            /** Inactive users cannot log in; deactivating a user revokes its tokens. */
             'is_active' => $required . '|boolean',
+            /**
+             * New password: at least 8 characters with letters. Send it again as `password_confirmation`.
+             * Prohibited for users synced from Random ERP.
+             */
             'password' => [$required, 'bail', 'confirmed', Password::min(8)->letters()],
+            /**
+             * Role names, replacing the current ones (an empty list keeps them). Prohibited for users synced
+             * from Random ERP.
+             *
+             * @var list<string>
+             * @example ["supervisor"]
+             */
             'roles' => "bail|$required|array",
+            /** Existing role name other than `customer`. */
             'roles.*' => ['bail', 'string', 'exists:roles,name', Rule::notIn(['customer'])],
+            /** Firebase Cloud Messaging token of the user's device. */
             'fcm_token' => ['nullable','string','max:1000'],
         ];
     }

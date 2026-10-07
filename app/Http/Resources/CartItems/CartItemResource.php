@@ -24,7 +24,9 @@ class CartItemResource extends JsonResource
         $totalPrice = $price * $this->quantity;
 
         return [
+            /** Product ID. */
             "id" => $product->id,
+            /** Product name. */
             "name" => $product->name,
             "category" => $product->category ? [
                 "id" => $product->category->id,
@@ -40,11 +42,20 @@ class CartItemResource extends JsonResource
             ] : null,
             "quantity" => (int)$this->quantity,
             "unit" => $unit,
+            /** Unit price from the user's price lists; 0 when the user has no active price for the unit. */
             "price" => (int)$price,
+            /** Stock of the price's unit; 0 when there is no price. */
             "stock" => (int)$stock,
+            /** Product image URL; empty string when the product has no image. */
             "image" => $product->image !== null ? Storage::url($product->image) : "",
             "sku" => $product->sku ?? null,
+            /**
+             * Unit price × quantity.
+             *
+             * @var float
+             */
             "subtotal" => $totalPrice,
+            /** Always `false` in the cart. */
             "is_favorite" => false,
 
         ];
