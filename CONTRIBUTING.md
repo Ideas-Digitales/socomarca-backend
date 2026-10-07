@@ -32,17 +32,17 @@ Sanctum::actingAs($user, ['api-access']);
 **Before picking an ability, check the route's actual middleware** — don't cargo-cult `['api-access']` everywhere:
 
 - Routes inside `Route::middleware('auth:sanctum')->middleware('abilities:api-access')->group(...)` in `routes/api.php` need `['api-access']`.
-- A few endpoints require a narrower, purpose-specific ability instead — e.g. `/credentials` requires `['credentials-restore']`, the ability issued specifically by the password-recovery flow. Grep the route definition for `abilities:` before assuming.
+- An endpoint may require a narrower, purpose-specific ability instead. Grep the route definition for `abilities:` before assuming.
 - Many routes only apply `permission:<name>` (Spatie) on top of `auth:sanctum`, with **no** `abilities:` middleware at all (most of `Siteinfo`, `Webpay config`, `Firebase config`). For these, the ability array passed to `Sanctum::actingAs()` doesn't gate anything — passing `['api-access']` is harmless and kept only for consistency, not because it's required.
 - A handful of routes (e.g. `webpay.return`) are intentionally public and never call `$request->user()`. Don't add `actingAs()` calls there just for consistency — it's dead weight and can mask the fact that the endpoint is unauthenticated by design.
 
 When a test needs a **real** access-token row (not `Sanctum::actingAs()`'s Mockery-backed fake token), e.g. because the controller reads `$request->user()->currentAccessToken()->id`, create one for real and authenticate via header:
 
 ```php
-$token = $user->createToken('device', ['credentials-restore']);
+$token = $user->createToken('device', ['api-access']);
 
 withHeaders(['Authorization' => 'Bearer ' . $token->plainTextToken])
-    ->patchJson(route('credentials.update'), [...]);
+    ->putJson(route('password.update'), [..., 'revoke_all_tokens' => true]);
 ```
 
 ### 2. Use native Pest functions, not `$this->`
@@ -127,7 +127,7 @@ If you find these in a file you're touching, remove them.
 A failing test after this migration is one of three things — diagnose which before touching anything:
 
 1. **Just the auth mechanism.** `Sanctum::actingAs()` wasn't used, or was called with the wrong ability. Fix per section 1.
-2. **The test encodes stale behavior.** The source was intentionally changed (check `git log -p` on the controller/service) and the test wasn't updated to match. In this codebase, several endpoints have been reimplemented (e.g. `CredentialController::update`, `RandomApiService::makeRequest`) without a matching test update — commit messages sometimes say so explicitly ("MISSING FULL TEST SUITE UPDATE!!!"). **Source is the ground truth in this scenario** — rewrite the test to match current behavior, don't change the controller to satisfy an old test.
+2. **The test encodes stale behavior.** The source was intentionally changed (check `git log -p` on the controller/service) and the test wasn't updated to match. In this codebase, several endpoints have been reimplemented (e.g. `RandomApiService::makeRequest`) without a matching test update — commit messages sometimes say so explicitly ("MISSING FULL TEST SUITE UPDATE!!!"). **Source is the ground truth in this scenario** — rewrite the test to match current behavior, don't change the controller to satisfy an old test.
 3. **A real, separate bug.** The test's premise is still correct, but something is legitimately broken (a copy-paste typo, a missing auth call, a dropped fake). Fix the test/source directly, and call it out explicitly rather than silently patching around it.
 
 Cases actually found doing this migration, as a reference for what each looks like:

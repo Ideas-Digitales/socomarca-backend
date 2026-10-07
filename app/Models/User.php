@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\BranchType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -152,6 +154,64 @@ class User extends Authenticatable
         $email = mb_strtolower(trim((string) $email));
 
         return $email === '' ? null : $email;
+    }
+
+    /**
+     * Find the active user that can authenticate with the given email.
+     *
+     * Returns null when no active user has the email or when it is assigned to more than one
+     * active user: a shared email does not identify a single user. Inactive users are ignored,
+     * as in the email issues alert of the Random entities sync.
+     *
+     * @param string|null $email
+     * @return User|null
+     */
+    public static function findActiveByLoginEmail(?string $email): ?User
+    {
+        $email = self::normalizeEmail($email);
+
+        if ($email === null) {
+            return null;
+        }
+
+        $users = self::where('is_active', true)
+            ->whereRaw('lower(trim(email)) = ?', [$email])
+            ->limit(2)
+            ->get();
+
+        if ($users->count() > 1) {
+            Log::warning('Authentication denied: email assigned to more than one active user', [
+                'user_ids' => $users->pluck('id')->all(),
+            ]);
+        }
+
+        return $users->count() === 1 ? $users->first() : null;
+    }
+
+    /**
+     * Whether the user is synced from a Random entity, so that its data is managed by the sync.
+     */
+    public function isSyncedFromRandom(): bool
+    {
+        return $this->random_entity_id !== null;
+    }
+
+    /**
+     * Secondary branches of the same Random entity (KOEN).
+     */
+    public function secondaryBranches(): HasMany
+    {
+        return $this->hasMany(User::class, 'user_code', 'user_code')
+            ->where('branch_type', BranchType::SECONDARY);
+    }
+
+    /**
+     * Whether the user can place orders for other branches of its Random entity.
+     */
+    public function canOrderForBranches(): bool
+    {
+        return $this->branch_type === BranchType::PRIMARY
+            && $this->secondaryBranches()->where('is_active', true)->exists();
     }
 
     public function addresses()

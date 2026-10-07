@@ -135,6 +135,24 @@ function createUserWithPermissions(array $permissions): User {
     return $user;
 }
 
+/**
+ * Create an active customer synced from a Random entity (primary branch by default).
+ */
+function createSyncedCustomer(array $attributes = []): User
+{
+    static $entityId = 1000;
+
+    $user = User::factory()->create(array_merge([
+        'random_entity_id' => ++$entityId,
+        'user_code' => '77528378',
+        'branch_type' => \App\Enums\BranchType::PRIMARY,
+        'is_active' => true,
+    ], $attributes));
+    $user->assignRole('customer');
+
+    return $user;
+}
+
 function createCustomerWithBranch(): array
 {
     $user = User::factory()->create([

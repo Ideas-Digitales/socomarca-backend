@@ -14,7 +14,8 @@ class CreateUserCommand extends Command
 
     public function handle()
     {
-        $availableRoles = array_keys(config('authorization.roles', []));
+        // The customer role is only assigned by the Random entities sync.
+        $availableRoles = array_values(array_diff(array_keys(config('authorization.roles', [])), ['customer']));
 
         if (empty($availableRoles)) {
             $this->error('No roles found in config/authorization/roles.php');
@@ -22,7 +23,7 @@ class CreateUserCommand extends Command
         }
 
         $name = $this->ask('Name');
-        $email = $this->ask('Email');
+        $email = User::normalizeEmail($this->ask('Email'));
         $rawPassword = $this->secret('Password');
         $phone = $this->ask('Phone', '');
         $rut = $this->ask('RUT');
@@ -39,7 +40,7 @@ class CreateUserCommand extends Command
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
-            'rut' => 'required|string|unique:users,rut',
+            'rut' => 'required|string',
             'role' => 'required|string|in:' . implode(',', $availableRoles),
         ]);
 

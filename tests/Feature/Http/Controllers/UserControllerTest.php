@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
@@ -203,7 +204,40 @@ describe('User creation endpoint', function () {
             ->assertJsonValidationErrors(['email']);
     });
 
+    it('should perform a validation error when using the same email with different case or spaces', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        User::factory()->create(['email' => 'juan@example.cl']);
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+        $userData['email'] = ' Juan@Example.CL ';
+        $userData['roles'] = ['editor'];
+
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+    });
+
     it('should perform a validation error when using an invalid rut', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+        $userData['rut'] = '11111111-2';
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['rut']);
+    });
+
+    it('should allow creating a user with the rut of another user', function () {
+        Notification::fake();
         $permissions = ['create-users'];
         createPermissions($permissions);
         $admin = User::factory()->create();
@@ -212,10 +246,46 @@ describe('User creation endpoint', function () {
         $userData = generateUserData();
         $userData['password_confirmation'] = $userData['password'];
         $userData['rut'] = $existingUser->rut;
+        $userData['roles'] = ['editor'];
+
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
+            ->assertCreated();
+
+        expect(User::where('rut', $existingUser->rut)->count())->toBe(2);
+    });
+
+    it('should deny assigning the customer role', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+        $userData['roles'] = ['editor', 'customer'];
+
         Sanctum::actingAs($admin, ['api-access']);
         postJson('/api/users', $userData)
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['rut']);
+            ->assertJsonValidationErrors(['roles.1']);
+
+        assertDatabaseMissing('users', ['email' => User::normalizeEmail($userData['email'])]);
+    });
+
+    it('should require at least one role', function () {
+        $permissions = ['create-users'];
+        createPermissions($permissions);
+        $admin = User::factory()->create();
+        $admin->givePermissionTo($permissions);
+
+        $userData = generateUserData();
+        $userData['password_confirmation'] = $userData['password'];
+
+        Sanctum::actingAs($admin, ['api-access']);
+        postJson('/api/users', $userData)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['roles']);
     });
 
     it('should deny user creation without \'create-users\' permission', function () {
@@ -316,14 +386,14 @@ describe('User creation endpoint', function () {
 
         $userData = generateUserData();
         $userData['password_confirmation'] = $userData['password'];
-        $userData['roles'] = ['customer'];
+        $userData['roles'] = ['editor'];
 
         Sanctum::actingAs($admin, ['api-access']);
         postJson('/api/users', $userData)
             ->assertCreated();
 
-        $createdUser = User::where('email', $userData['email'])->first();
-        expect($createdUser->hasRole('customer'))->toBeTrue()
+        $createdUser = User::where('email', User::normalizeEmail($userData['email']))->first();
+        expect($createdUser->hasRole('editor'))->toBeTrue()
             ->and($createdUser->name)->toBe($userData['name'])
             ->and($createdUser->rut)->toBe($userData['rut']);
     });
@@ -337,7 +407,7 @@ describe('User update endpoint', function () {
         $admin = User::factory()->create();
         $admin->givePermissionTo($permissions);
         $admin->refresh();
-        $roles = ['superadmin', 'admin', 'supervisor', 'editor', 'customer'];
+        $roles = ['superadmin', 'admin', 'supervisor', 'editor'];
 
         foreach ($roles as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'web']);
@@ -422,6 +492,71 @@ describe('User update endpoint', function () {
         patchJson("/api/users/{$adminUser->id}", $updateData)
             ->assertForbidden();
     });
+
+    it('should deny assigning the customer role to an internal user', function () {
+        $admin = createUserWithPermissions(['update-users', 'read-users', 'read-admin-users']);
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+
+        Sanctum::actingAs($admin, ['api-access']);
+        patchJson("/api/users/{$user->id}", ['roles' => ['customer']])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['roles.0']);
+
+        expect($user->fresh()->getRoleNames()->all())->toBe(['editor']);
+    });
+
+    it('should store the email normalized and reject a duplicate with different case', function () {
+        Notification::fake();
+        $admin = createUserWithPermissions(['update-users', 'read-users', 'read-admin-users']);
+        User::factory()->create(['email' => 'juan@example.cl']);
+        $user = User::factory()->create();
+        $user->assignRole('editor');
+
+        Sanctum::actingAs($admin, ['api-access']);
+        patchJson("/api/users/{$user->id}", ['email' => 'JUAN@example.cl'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['email']);
+
+        patchJson("/api/users/{$user->id}", ['email' => ' Pedro@Example.CL '])
+            ->assertOk();
+
+        expect($user->fresh()->email)->toBe('pedro@example.cl');
+    });
+
+    it('should only allow updating is_active of a user synced from Random', function () {
+        Notification::fake();
+        $admin = createUserWithPermissions(['update-users', 'read-users', 'read-admin-users']);
+        $user = createSyncedCustomer();
+
+        Sanctum::actingAs($admin, ['api-access']);
+        patchJson("/api/users/{$user->id}", ['is_active' => false])
+            ->assertOk()
+            ->assertJsonPath('user.is_active', false)
+            ->assertJsonPath('user.is_synced', true);
+
+        expect($user->fresh()->is_active)->toBeFalse();
+    });
+
+    it('should prohibit updating the Random data of a user synced from Random', function (array $payload) {
+        $admin = createUserWithPermissions(['update-users', 'read-users', 'read-admin-users']);
+        $user = createSyncedCustomer();
+        $original = $user->fresh()->only(['name', 'email', 'phone', 'password']);
+
+        Sanctum::actingAs($admin, ['api-access']);
+        patchJson("/api/users/{$user->id}", $payload + ['is_active' => true])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(array_keys($payload));
+
+        expect($user->fresh()->only(['name', 'email', 'phone', 'password']))->toBe($original)
+            ->and($user->fresh()->getRoleNames()->all())->toBe(['customer']);
+    })->with([
+        'name' => [['name' => 'Otro nombre']],
+        'email' => [['email' => 'otro@example.cl']],
+        'phone' => [['phone' => '123456789']],
+        'password' => [['password' => 'newPassword123']],
+        'roles' => [['roles' => ['editor']]],
+    ]);
 });
 
 describe('User deletion endpoint', function () {

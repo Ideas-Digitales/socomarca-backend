@@ -91,11 +91,6 @@ class RandomApiService
         ]);
     }
 
-    public function fetchAndUpdateUsers()
-    {
-        return $this->makeRequest('get', '/web32/entidades');
-    }
-
     /**
      * Get customer credit
      *

@@ -6,7 +6,7 @@ describe('user:create command', function () {
     it('creates a user with the selected role', function () {
         $this->artisan('user:create')
             ->expectsQuestion('Name', 'John Doe')
-            ->expectsQuestion('Email', 'john@example.com')
+            ->expectsQuestion('Email', ' John@Example.com ')
             ->expectsQuestion('Password', 'secret123')
             ->expectsQuestion('Phone', '+56912345678')
             ->expectsQuestion('RUT', '12345678-9')
@@ -38,7 +38,7 @@ describe('user:create command', function () {
             ->expectsQuestion('Phone', '')
             ->expectsQuestion('RUT', '98765432-1')
             ->expectsQuestion('Business name', 'Jane Doe')
-            ->expectsQuestion('Role', 'customer')
+            ->expectsQuestion('Role', 'editor')
             ->assertExitCode(0);
 
         $user = User::where('email', 'jane@example.com')->first();
@@ -46,6 +46,34 @@ describe('user:create command', function () {
         expect($user)->not->toBeNull()
             ->and($user->business_name)->toBe('Jane Doe')
             ->and($user->phone)->toBe('')
-            ->and($user->hasRole('customer'))->toBeTrue();
+            ->and($user->hasRole('editor'))->toBeTrue();
+    });
+
+    it('allows a rut already assigned to another user', function () {
+        User::factory()->create(['rut' => '12345678-9']);
+
+        $this->artisan('user:create')
+            ->expectsQuestion('Name', 'John Doe')
+            ->expectsQuestion('Email', 'john@example.com')
+            ->expectsQuestion('Password', 'secret123')
+            ->expectsQuestion('Phone', '')
+            ->expectsQuestion('RUT', '12345678-9')
+            ->expectsQuestion('Business name', 'John Doe')
+            ->expectsQuestion('Role', 'admin')
+            ->assertExitCode(0);
+
+        expect(User::where('rut', '12345678-9')->count())->toBe(2);
+    });
+
+    it('does not offer the customer role', function () {
+        $this->artisan('user:create')
+            ->expectsQuestion('Name', 'John Doe')
+            ->expectsQuestion('Email', 'john@example.com')
+            ->expectsQuestion('Password', 'secret123')
+            ->expectsQuestion('Phone', '')
+            ->expectsQuestion('RUT', '12345678-9')
+            ->expectsQuestion('Business name', 'John Doe')
+            ->expectsChoice('Role', 'admin', ['superadmin', 'admin', 'supervisor', 'editor', 'developer'])
+            ->assertExitCode(0);
     });
 });

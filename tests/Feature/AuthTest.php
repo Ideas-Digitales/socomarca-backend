@@ -1,243 +1,271 @@
 <?php
 
 use App\DTOs\Password;
+use App\Enums\BranchType;
 use App\Mail\TemporaryPasswordMail;
 use App\Models\User;
 use App\Services\Security\PasswordGeneratorService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Mockery\MockInterface;
-use Tests\TestCase;
 
 use function Pest\Laravel\assertGuest;
 use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
-use function Pest\Laravel\patchJson;
+use function Pest\Laravel\instance;
 use function Pest\Laravel\postJson;
 
-uses(RefreshDatabase::class);
-
-test('User can perform a successful login using valid credentials', function () {
-    // Arrange
-    User::factory()->create([
-        'rut' => '17260847-7',
-        'password' => Hash::make('password123'),
-        'is_active' => true,
-    ]);
-
-    // Act
-    $response = postJson(route('auth.token.store'), [
-        'rut' => '17260847-7',
-        'password' => 'password123',
-        'device_name' => 'test-device',
-    ]);
-
-    // Assert
-    $response->assertStatus(200);
-});
-
-
-test('User can login using formatted RUT', function ($dbRandomRut, $loginRut) {
-    // Case 1:
-    // Arrange
-    User::factory()->create([
-        'rut' => $dbRandomRut,
-        'password' => Hash::make('password123'),
-        'is_active' => true,
-    ]);
-
-    // Act
-    $response = postJson(route('auth.token.store'), [
-        'rut' => $loginRut,
-        'password' => 'password123',
-        'device_name' => 'test-device',
-    ]);
-
-    // Assert
-    $response->assertStatus(200);
-})->with('ValidForLoginRuts');
-
-test('User can\'t perform a successful login when using invalid credentials', function () {
-    // Arrange
-    User::factory()->create([
-        'rut' => '11111111-1',
-        'password' => Hash::make('password123'),
-    ]);
-
-    // Act
-    $response = postJson(route('auth.token.store'), [
-        'rut' => '11111111-1',
-        'password' => 'wrongpassword',
-        'device_name' => 'test-device',
-    ]);
-
-    // Assert
-    $response->assertStatus(401);
-});
-
-test('Inactive user can\'t perform a successful login', function () {
-    // Arrange
-    User::factory()->create([
-        'rut' => '22222222-2',
-        'password' => Hash::make('password123'),
-        'is_active' => false,
-    ]);
-
-    // Act
-    $response = postJson(route('auth.token.store'), [
-        'rut' => '22222222-2',
-        'password' => 'password123',
-        'device_name' => 'test-device',
-    ]);
-
-    // Assert
-    $response->assertStatus(401)
-        ->assertJson([
-            'message' => "Unauthorized",
+describe('login', function () {
+    it('logs in with a valid email and password', function () {
+        $user = User::factory()->create([
+            'email' => 'juan@example.cl',
+            'password' => Hash::make('password123'),
+            'is_active' => true,
         ]);
-    assertGuest();
+
+        postJson(route('auth.token.store'), [
+            'email' => 'juan@example.cl',
+            'password' => 'password123',
+            'device_name' => 'test-device',
+        ])
+            ->assertOk()
+            ->assertJsonStructure([
+                'token',
+                'user' => ['id', 'name', 'rut', 'email', 'branch_type', 'can_order_for_branches', 'roles', 'permissions'],
+                'extra' => ['weak_password'],
+            ])
+            ->assertJsonPath('user.id', $user->id)
+            ->assertJsonMissingPath('extra.missing_email');
+
+        expect($user->fresh()->last_login)->not->toBeNull();
+    });
+
+    it('normalizes the email before looking up the user', function () {
+        User::factory()->create([
+            'email' => 'juan@example.cl',
+            'password' => Hash::make('password123'),
+            'is_active' => true,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => '  Juan@Example.CL ',
+            'password' => 'password123',
+        ])->assertOk();
+    });
+
+    it('requires the email and the password', function () {
+        postJson(route('auth.token.store'), [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email', 'password']);
+    });
+
+    it('responds 401 when the password is wrong', function () {
+        User::factory()->create([
+            'email' => 'juan@example.cl',
+            'password' => Hash::make('password123'),
+            'is_active' => true,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => 'juan@example.cl',
+            'password' => 'wrongpassword',
+        ])->assertUnauthorized();
+    });
+
+    it('responds 401 when the email is not registered', function () {
+        postJson(route('auth.token.store'), [
+            'email' => 'nobody@example.cl',
+            'password' => 'password123',
+        ])
+            ->assertUnauthorized()
+            ->assertJson(['message' => 'Unauthorized']);
+    });
+
+    it('responds 401 when the user is inactive', function () {
+        User::factory()->create([
+            'email' => 'juan@example.cl',
+            'password' => Hash::make('password123'),
+            'is_active' => false,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => 'juan@example.cl',
+            'password' => 'password123',
+        ])
+            ->assertUnauthorized()
+            ->assertJson(['message' => 'Unauthorized']);
+        assertGuest();
+    });
+
+    it('responds 401 when the user has no password', function () {
+        User::factory()->create([
+            'email' => 'juan@example.cl',
+            'password' => null,
+            'is_active' => true,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => 'juan@example.cl',
+            'password' => 'password',
+        ])->assertUnauthorized();
+    });
+
+    it('denies the login when the email is assigned to more than one active user', function () {
+        createSyncedCustomer([
+            'email' => 'compras@example.cl',
+            'password' => Hash::make('password123'),
+            'branch_code' => 'CM',
+        ]);
+        createSyncedCustomer([
+            'email' => 'compras@example.cl',
+            'password' => Hash::make('password123'),
+            'branch_code' => 'LO',
+            'branch_type' => BranchType::SECONDARY,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => 'compras@example.cl',
+            'password' => 'password123',
+        ])->assertUnauthorized();
+    });
+
+    it('ignores inactive users when checking for duplicated emails', function () {
+        $user = createSyncedCustomer([
+            'email' => 'compras@example.cl',
+            'password' => Hash::make('password123'),
+            'branch_code' => 'CM',
+        ]);
+        createSyncedCustomer([
+            'email' => 'compras@example.cl',
+            'password' => Hash::make('password123'),
+            'branch_code' => 'LO',
+            'branch_type' => BranchType::SECONDARY,
+            'is_active' => false,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => 'compras@example.cl',
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.id', $user->id);
+    });
+
+    it('allows secondary branches to log in', function () {
+        createSyncedCustomer(['branch_code' => 'CM']);
+        $secondary = createSyncedCustomer([
+            'email' => 'sucursal@example.cl',
+            'password' => Hash::make('password123'),
+            'branch_code' => 'LO',
+            'branch_type' => BranchType::SECONDARY,
+        ]);
+
+        postJson(route('auth.token.store'), [
+            'email' => 'sucursal@example.cl',
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.id', $secondary->id)
+            ->assertJsonPath('user.branch_type', BranchType::SECONDARY)
+            ->assertJsonPath('user.can_order_for_branches', false);
+    });
+
+    it('lets a primary branch order for its active secondary branches', function (array $secondaries, bool $expected) {
+        createSyncedCustomer([
+            'email' => 'principal@example.cl',
+            'password' => Hash::make('password123'),
+            'branch_code' => 'CM',
+        ]);
+
+        foreach ($secondaries as $index => $attributes) {
+            createSyncedCustomer(array_merge([
+                'branch_code' => "S{$index}",
+                'branch_type' => BranchType::SECONDARY,
+            ], $attributes));
+        }
+
+        postJson(route('auth.token.store'), [
+            'email' => 'principal@example.cl',
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.branch_type', BranchType::PRIMARY)
+            ->assertJsonPath('user.can_order_for_branches', $expected);
+    })->with([
+        'with an active secondary branch' => [[[]], true],
+        'without secondary branches' => [[], false],
+        'with an inactive secondary branch only' => [[['is_active' => false]], false],
+        'with a secondary branch of another entity only' => [[['user_code' => '99999999']], false],
+    ]);
+
+    it('returns a null branch type for internal users', function () {
+        $admin = User::factory()->create([
+            'email' => 'admin@example.cl',
+            'password' => Hash::make('password123'),
+            'is_active' => true,
+        ]);
+        $admin->assignRole('admin');
+
+        postJson(route('auth.token.store'), [
+            'email' => 'admin@example.cl',
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.branch_type', null)
+            ->assertJsonPath('user.can_order_for_branches', false);
+    });
 });
 
 test('User can destroy session', function () {
-    // Arrange
-    $user = User::factory()->create([
-        'rut' => '11111111-1',
-        'password' => Hash::make('password123'),
-    ]);
+    $user = User::factory()->create();
 
     Sanctum::actingAs($user, ['api-access']);
 
-    // Act
-    $response = deleteJson(route('auth.token.destroy'));
-
-    // Assert
-    $response->assertStatus(200);
+    deleteJson(route('auth.token.destroy'))->assertOk();
 });
 
 test('Authenticated user can get its own information', function () {
-    // Arrange
-    $user = User::factory()->create([
-        'rut' => '33333333-3'
-    ]);
+    $user = User::factory()->create();
     $user->assignRole('admin');
     Sanctum::actingAs($user, ['api-access']);
 
-    // Act
-    $response = getJson('/api/users/' . $user->id);
-
-    // Assert
-    $response->assertStatus(200);
+    getJson('/api/users/' . $user->id)->assertOk();
 });
 
-test('allow user to change its credentials when it doesn\'t have an associated email', function ($dbRandomRut, $loginRut) {
-    /** @var TestCase $this */
-
+test('allows a user to log in with the temporary password sent by email', function () {
     Mail::fake();
 
-    $user = User::factory()->create([
-        'email' => null,
+    $user = createSyncedCustomer([
+        'email' => 'juan@example.cl',
         'password' => null,
-        'rut' => $dbRandomRut,
-        'is_active' => true,
     ]);
-    $user->assignRole('customer');
-    $response = postJson(route('auth.password.restore'), [
-        'rut' => $loginRut,
-    ]);
-
-    $provisionalToken = $response->json('data.provisional_token');
-    $provisionalToken = "Bearer {$provisionalToken}";
-    $newUserEmail = fake()->email();
     $newPassword = fake()->password();
-    $newPasswordHash = Hash::make($newPassword);
-    $passwordDto = new Password($newPassword, $newPasswordHash);
-    $this->instance(
+    $passwordDto = new Password($newPassword, Hash::make($newPassword));
+    instance(
         PasswordGeneratorService::class,
         Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
             $mock->expects('generate')->andReturn($passwordDto);
         })
     );
-    // Provisional token must not work for api access, it's just for credentials update
-    getJson(route('products.index'), ['Authorization' => $provisionalToken])->assertForbidden();
-    // Updates credentials using provisional token
-    $response = patchJson(route('credentials.update'), [
-        'email' => $newUserEmail,
-    ], ['Authorization' => $provisionalToken]);
-    $response->assertOk();
 
-    // Tests temporary email sent
-    Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($newUserEmail) {
-        return $mail->hasTo($newUserEmail);
-    });
-
-    auth()->forgetUser(); // IMPORTANT! Reset auth state
-    $user->refresh();
-
-    // Login with new credentials
-    $response = postJson(route('auth.token.store'), [
-        'rut' => $user->rut,
-        'password' => $newPassword,
-    ]);
-    $response->assertOk();
-    $token = $response->json('token');
-    $token = "Bearer {$token}";
-    // Access token must work for api access
-    getJson(
-        route('products.index'),
-        ['Authorization' => $token],
-    )->assertOk();
-
-    expect($user->email == $newUserEmail)->toBeTrue();
-})->with('ValidForLoginRuts');
-
-test('allow user to change its credentials when it has an associated email', function ($dbRandomRut, $loginRut) {
-    /** @var TestCase $this */
-
-    Mail::fake();
-
-    $user = User::factory()->create([
-        'password' => null,
-        'rut' => $dbRandomRut,
-        'is_active' => true,
-    ]);
-    $user->assignRole('customer');
-    $user->save();
-    $newPassword = fake()->password();
-    $newPasswordHash = Hash::make($newPassword);
-    $passwordDto = new Password($newPassword, $newPasswordHash);
-    $this->instance(
-        PasswordGeneratorService::class,
-        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
-            $mock->expects('generate')->andReturn($passwordDto);
-        })
-    );
     postJson(route('auth.password.restore'), [
-        'rut' => $loginRut,
+        'email' => 'Juan@Example.cl',
     ])
-        ->assertJsonFragment(['message' => __('auth.password_reset', ['email' => Str::maskEmail($user->email)])]);
+        ->assertOk()
+        ->assertJsonPath('data.email', Str::maskEmail('juan@example.cl'));
 
-    // Tests temporary email sent
-    Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($user) {
-        return $mail->hasTo($user->email);
-    });
+    Mail::assertQueued(TemporaryPasswordMail::class, fn ($mail) => $mail->hasTo($user->email));
 
-    auth()->forgetUser(); // IMPORTANT! Reset auth state
-    $user->refresh();
-
-    // Login with new credentials
     $response = postJson(route('auth.token.store'), [
-        'rut' => $user->rut,
+        'email' => 'juan@example.cl',
         'password' => $newPassword,
     ]);
     $response->assertOk();
-    $token = $response->json('token');
-    $token = "Bearer {$token}";
-    // Access token must work for api access
-    getJson(
-        route('products.index'),
-        ['Authorization' => $token],
-    )->assertOk();
-})->with('ValidForLoginRuts');
+
+    auth()->forgetUser(); // IMPORTANT! Reset auth state
+
+    getJson(route('products.index'), ['Authorization' => 'Bearer ' . $response->json('token')])
+        ->assertOk();
+});
