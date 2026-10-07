@@ -16,6 +16,7 @@ class ProfileScenario
         'municipality_name',
         'region_name',
         'alias',
+        'is_synced',
     ];
 
     public array $profileStructure;
@@ -29,6 +30,8 @@ class ProfileScenario
             'email',
             'phone',
             'is_active',
+            'branch_type',
+            'can_order_for_branches',
             'billing_address' => $this->addressStructure,
             'default_shipping_address' => $this->addressStructure,
         ];

@@ -9,14 +9,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ProfileResource extends JsonResource
 {
     /**
+     * Redeclared so that disabling the wrapping does not affect the other resources.
+     *
+     * @var string|null
+     */
+    public static $wrap = null;
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        self::withoutWrapping();
-
         $billingAddress = $this->billing_address ?
             $this->billing_address->toResource(AddressResource::class) : null;
         $defaultShippingAddress = $this->default_shipping_address ?
@@ -35,6 +40,19 @@ class ProfileResource extends JsonResource
             'phone'=> $this->phone,
             /** @var bool */
             'is_active'=> $this->is_active,
+            /**
+             * Random ERP branch type: `P` primary, `S` secondary. `null` for internal users.
+             *
+             * @var 'P'|'S'|null
+             */
+            'branch_type' => $this->branch_type,
+            /**
+             * Whether the user can place orders for other branches (`GET /branches`): a primary branch with
+             * at least one active secondary branch. Same value as in the login response.
+             *
+             * @var bool
+             */
+            'can_order_for_branches' => $this->canOrderForBranches(),
             /** @var AddressResource|null */
             'billing_address' => $billingAddress,
             /**

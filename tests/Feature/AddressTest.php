@@ -39,6 +39,20 @@ describe('Addresses list endpoint', function () {
             ->assertJsonCount($addressCount, 'data');
     });
 
+    it('flags the addresses managed by the Random sync', function () {
+        Address::truncate();
+        $user = User::factory()->create();
+        $user->givePermissionTo(['read-own-addresses']);
+        $synced = Address::factory()->create(['user_id' => $user->id, 'is_synced' => true]);
+        $manual = Address::factory()->create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        $addresses = collect(getJson(route('addresses.index'))->assertOk()->json('data'))->keyBy('id');
+
+        expect($addresses[$synced->id]['is_synced'])->toBeTrue()
+            ->and($addresses[$manual->id]['is_synced'])->toBeFalse();
+    });
+
     it('shouldn\'t read other users addresses when having "read-own-addresses" only', function () {
         $addressCount = random_int(1, 5);
         Address::truncate();

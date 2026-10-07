@@ -30,6 +30,11 @@ class AddressResource extends JsonResource
             'municipality_name' => $this->municipality->name,    
             'region_name' => $this->municipality->region->name,
             'alias' => $this->alias,
+            /**
+             * Whether the address is managed by the Random ERP sync. Synced addresses cannot be updated or
+             * deleted (`403`).
+             */
+            'is_synced' => (bool) $this->is_synced,
         ];
     }
 }
