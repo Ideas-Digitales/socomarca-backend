@@ -24,6 +24,8 @@ class UserResource extends JsonResource
             'rut' => $this->rut,
             'business_name' => $this->business_name,
             'is_active' => $this->is_active,
+            'is_synced' => $this->isSyncedFromRandom(),
+            'branch_type' => $this->branch_type,
             'last_login' => $this->last_login,
             'password_changed_at' => $this->password_changed_at,
             'billing_address' => $this->billing_address,

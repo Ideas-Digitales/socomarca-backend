@@ -12,7 +12,7 @@ class AuthController extends Controller
 {
 
     /**
-     * Obtener token de acceso con RUT y contraseña
+     * Obtener token de acceso con email y contraseña
      * @param AuthRequest $request
      *
      * @return \Illuminate\Http\JsonResponse
@@ -41,19 +41,16 @@ class AuthController extends Controller
                 'name' => $user->name,
                 'rut' => $user->rut,
                 'email' => $user->email,
+                'branch_type' => $user->branch_type,
+                'can_order_for_branches' => $user->canOrderForBranches(),
                 'roles' => $roles,
                 'permissions' => $permissions,
             ]
         ];
 
         $response['extra'] = [
-            'missing_email' => false,
             'weak_password' => false,
         ];
-
-        if ($user->email == null) {
-            $response['extra']['missing_email'] = true;
-        }
 
         if (Hash::check('password', $user->password)) {
             $response['extra']['weak_password'] = true;

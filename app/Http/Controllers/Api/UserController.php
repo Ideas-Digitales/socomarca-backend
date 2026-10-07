@@ -63,13 +63,7 @@ class UserController extends Controller
             $user->is_active = $data['is_active'];
             $user->save();
 
-            // Asignar roles si se proporcionan
-            if (isset($data['roles']) && is_array($data['roles'])) {
-                $user->assignRole($data['roles']);
-            } else {
-                // Asignar rol por defecto 'cliente' si no se especifica
-                $user->assignRole('cliente');
-            }
+            $user->assignRole($data['roles']);
 
             DB::commit();
             $event = new UserSaved(user: $user, password: $password, action: 'created');

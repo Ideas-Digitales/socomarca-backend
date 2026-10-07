@@ -2,20 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Requests\PasswordRequest;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Auth\Events\PasswordReset;
 use App\Mail\TemporaryPasswordMail;
 use Illuminate\Support\Facades\Mail;
-use App\Rules\ValidateRut;
 use App\Services\Security\PasswordGeneratorService;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
+use App\Models\User;
+use Illuminate\Support\Str;
 
 class PasswordResetController extends Controller
 {
@@ -23,40 +18,36 @@ class PasswordResetController extends Controller
         public PasswordGeneratorService $passwordService
     ) {}
 
+    /**
+     * Enviar una contraseña temporal al email, solo si corresponde a exactamente un usuario activo.
+     *
+     * La respuesta es la misma en todos los casos (con el email solicitado enmascarado), para no
+     * revelar si el email está registrado.
+     */
     public function forgotPassword(PasswordRequest $request)
     {
         $user = $request->user;
 
-        if ($user->email == null) {
-            $tokenName = $request->device_name ?? 'unknown-device';
-            $token = $user->createToken($tokenName, ['credentials-restore'])->plainTextToken;
+        if ($user !== null) {
+            // Generar contraseña temporal alfanumérica de 8 caracteres
+            $passwordDto = $this->passwordService->generate();
+            $temporaryPassword = $passwordDto->password;
 
-            return response()->json([
-                'message' => __('auth.missing_email'),
-                'data' => [
-                    'email' => null,
-                    'missing_email' => true,
-                    'provisional_token' => $token,
-                ]
-            ]);
+            // Actualizar la contraseña del usuario en la base de datos
+            $user->password = $passwordDto->passwordHash;
+            $user->password_changed_at = null; // Para forzar el cambio de contraseña en el próximo login
+            $user->save();
+
+            Mail::to($user->email)->send(new TemporaryPasswordMail($user, $temporaryPassword));
         }
 
-        // Generar contraseña temporal alfanumérica de 8 caracteres
-        $passwordDto = $this->passwordService->generate();
-        $temporaryPassword = $passwordDto->password;
-
-        // Actualizar la contraseña del usuario en la base de datos
-        $user->password = $passwordDto->passwordHash;
-        $user->password_changed_at = null; // Para forzar el cambio de contraseña en el próximo login
-        $user->save();
-
-        Mail::to($user->email)->send(new TemporaryPasswordMail($user, $temporaryPassword));
+        $maskedEmail = Str::maskEmail(User::normalizeEmail($request->input('email')) ?? '');
 
         return response()->json([
-            'message' => __('auth.password_reset', ['email' => Str::maskEmail($user->email)]),
+            'message' => __('auth.password_reset', ['email' => $maskedEmail]),
             'data' => [
-                'email' => Str::maskEmail($user->email),
-            ]
+                'email' => $maskedEmail,
+            ],
         ]);
     }
 
@@ -120,120 +111,5 @@ class PasswordResetController extends Controller
                 'needs_password_change' => $needsChange
             ]
         ]);
-    }
-
-
-    /**
-     * Verificar token por RUT en lugar de email
-     */
-    public function verifyTokenByRut(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'token' => 'required',
-            'rut' => ['required|exists:users,rut', new ValidateRut()],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Error de validación',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        // Buscar al usuario por RUT para obtener su email
-        $user = User::where('rut', $request->rut)->first();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'No se encontró un usuario con ese RUT',
-                'errors' => ['rut' => ['Usuario no encontrado']]
-            ], 404);
-        }
-
-        // Verificar si existe una entrada en la tabla password_reset_tokens
-        $tokenData = DB::table('password_reset_tokens')
-            ->where('email', $user->email)
-            ->first();
-
-        if (!$tokenData) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Token inválido o expirado',
-                'valid' => false
-            ], 400);
-        }
-
-        // Verificar si el token es válido
-        $valid = Hash::check($request->token, $tokenData->token);
-
-        return response()->json([
-            'status' => true,
-            'message' => $valid ? 'Token válido' : 'Token inválido',
-            'valid' => $valid
-        ]);
-    }
-
-    /**
-     * Restablecer la contraseña por RUT
-     */
-    public function resetPasswordByRut(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'token' => 'required',
-            'rut' => ['required|exists:users,rut', new ValidateRut()],
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Error de validación',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        // Buscar al usuario por RUT para obtener su email
-        $user = User::where('rut', $request->rut)->first();
-
-        if (!$user) {
-            return response()->json([
-                'status' => false,
-                'message' => 'No se encontró un usuario con ese RUT',
-                'errors' => ['rut' => ['Usuario no encontrado']]
-            ], 404);
-        }
-
-        // Restablecer la contraseña usando el email asociado al RUT
-        $status = Password::reset(
-            [
-                'email' => $user->email,
-                'password' => $request->password,
-                'password_confirmation' => $request->password_confirmation,
-                'token' => $request->token
-            ],
-            function (User $resetUser, string $password) {
-                $resetUser->forceFill([
-                    'password' => Hash::make($password),
-                    'remember_token' => Str::random(60),
-                ])->save();
-
-                event(new PasswordReset($resetUser));
-            }
-        );
-
-        if ($status === Password::PASSWORD_RESET) {
-            return response()->json([
-                'status' => true,
-                'message' => 'Contraseña restablecida correctamente'
-            ]);
-        }
-
-        return response()->json([
-            'status' => false,
-            'message' => 'No se pudo restablecer la contraseña',
-            'errors' => ['rut' => [trans($status)]]
-        ], 400);
     }
 }
