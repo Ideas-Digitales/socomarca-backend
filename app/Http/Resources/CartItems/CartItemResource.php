@@ -16,7 +16,7 @@ class CartItemResource extends JsonResource
     public function toArray(Request $request): array
     {
         $product = $this->product;
-        $priceObj = $this->activePrices->firstWhere('unit', $this->unit);
+        $priceObj = $this->resolvedPrice;
 
         $price = $priceObj->price ?? 0;
         $unit = $priceObj->unit ?? $this->unit;

@@ -22,7 +22,7 @@ use App\Models\Brand;
 use App\Models\Price;
 use App\Services\Random\RandomDocumentService;
 use App\Services\Random\RandomDocumentPayloadBuilder;
-use App\Services\CustomerPriceResolver;
+use App\Services\CartPriceResolver;
 use App\Services\PaymentService;
 use App\Services\VatService;
 use Dedoc\Scramble\Attributes\Group;
@@ -47,7 +47,7 @@ class OrderController extends Controller
 
     protected VatService $vatService;
 
-    protected CustomerPriceResolver $priceResolver;
+    protected CartPriceResolver $priceResolver;
 
     public function __construct(
         WebpayService $webpayService,
@@ -55,7 +55,7 @@ class OrderController extends Controller
         RandomDocumentPayloadBuilder $payloadBuilder,
         PaymentService $paymentService,
         VatService $vatService,
-        CustomerPriceResolver $priceResolver,
+        CartPriceResolver $priceResolver,
     ) {
         $this->webpayService = $webpayService;
         $this->documentService = $randomDocumentService;
@@ -110,15 +110,16 @@ class OrderController extends Controller
      * is charged is what was in force at checkout time, no matter what the price
      * list or the VAT setting do afterwards.
      *
-     * Items are priced with the price lists of the customer, since Random prices the
-     * sales document with them; the price list of every item is stored on it.
+     * Items are priced with the price lists of the authenticated user, since the sales
+     * document is issued for it (also when the order ships to one of its secondary
+     * branches); the price list of every item is stored on it.
      *
      * @param int $addressId Address of the customer, stored in the order metadata
-     * @param User $customer User the order is placed for (the authenticated user or one of its secondary branches)
+     * @param User $customer User the order ships to (the authenticated user or one of its secondary branches)
      * @param string|null $notes Free text notes, forwarded to the ERP document
      *
      * @return \App\Models\Order|\Illuminate\Http\JsonResponse The created order, a 400 response when the cart is empty,
-     *                                                         or a 422 response listing the products the customer has no price for
+     *                                                         or a 422 response listing the products the user has no price for
      */
     public function createFromCart(
         int $addressId,
@@ -126,8 +127,9 @@ class OrderController extends Controller
         ?string $notes = null,
     ) {
         //$this->createCart();
+        $user = User::find(Auth::user()->id);
         $carts = CartItem::with("product")
-            ->where("user_id", Auth::user()->id)
+            ->where("user_id", $user->id)
             ->orderBy("id")
             ->get();
 
@@ -138,13 +140,13 @@ class OrderController extends Controller
             );
         }
 
-        $prices = $this->priceResolver->resolve($customer, $carts);
+        $prices = $this->priceResolver->resolve($user, $carts);
         $unpriced = $carts->filter(fn (CartItem $cart) => $prices->get($cart->id) === null);
 
         if ($unpriced->isNotEmpty()) {
             return response()->json(
                 [
-                    "message" => "Algunos productos del carrito no tienen precio para el cliente del pedido",
+                    "message" => "Algunos productos del carrito no tienen precio vigente",
                     "products" => $unpriced->map(fn (CartItem $cart) => [
                         "id" => $cart->product_id,
                         "name" => $cart->product?->name,
@@ -176,7 +178,6 @@ class OrderController extends Controller
                 : (int) config("random.fixed_shipping_cost");
             $amount = $total + $shippingCost;
 
-            $user = User::find(Auth::user()->id);
             $address = $customer->addresses()->where("id", $addressId)->first();
 
             $order_meta = [
@@ -230,26 +231,30 @@ class OrderController extends Controller
     /**
      * Pay the cart
      *
-     * Creates an order out of the authenticated user's cart and starts its payment. The order is placed
-     * for `customer_id` (the user itself by default): a primary branch can also order for the active
-     * secondary branches of its entity. Items are priced with the customer's price lists (the first list,
-     * in the customer's order, that prices the product and unit), and the prices, VAT and shipping cost
-     * are frozen on the order. Shipping is free from a net subtotal of 70,000.
+     * Creates an order out of the authenticated user's cart and starts its payment. The order ships to
+     * `customer_id` (the user itself by default): a primary branch can also order for the active
+     * secondary branches of its entity. The authenticated user always pays and is billed: items are
+     * priced with its price lists (the first list, in the user's order, that prices the product and
+     * unit), as in the cart, and the prices, VAT and shipping cost are frozen on the order. Shipping is
+     * free from a net subtotal of 70,000.
+     *
+     * The order is sent to Random ERP as a sales note (NVV) issued for the authenticated user's entity
+     * and branch, with the branch of `customer_id` as the shipping branch.
      *
      * `payment_method` decides how the order is paid:
      *
-     * - `random_credit`: the amount is charged to the customer's Random ERP credit line and the order is
-     *   sent to Random ERP right away as a sales note (NVV) issued with the customer's entity and branch
-     *   codes. Failures also respond 200, with `success: false` and one of these messages:
-     *   - `Línea de crédito bloqueada`: a previous credit order of the customer is not invoiced in
-     *     Random ERP yet. The order is left pending.
+     * - `random_credit`: the amount is charged to the authenticated user's Random ERP credit line and the
+     *   sales note is created right away. Failures also respond 200, with `success: false` and one of
+     *   these messages:
+     *   - `Línea de crédito bloqueada`: a previous credit order of the user is not invoiced in Random
+     *     ERP yet. The order is left pending.
      *   - `Crédito insuficiente`: the available credit does not cover the amount; `data.credit_status`
      *     has the credit summary from Random ERP. The order is left pending.
      *   - `Creación de nota de venta fallida`: Random ERP rejected the sales note. The order and its
      *     payment are marked failed.
      *
      *   On success the order is completed with its `random_document_number`, the cart is emptied and the
-     *   customer's credit line is blocked until Random ERP invoices the sales note.
+     *   user's credit line is blocked until Random ERP invoices the sales note.
      * - Any other method pays with Webpay: the response has the pending order and the Transbank
      *   `payment_url` and `token`. Send the buyer to `payment_url` posting the token as `token_ws`;
      *   Transbank sends the buyer back to the configured return URL with `token_ws`, which must be passed
@@ -267,9 +272,9 @@ class OrderController extends Controller
     #[Response(400, 'The cart is empty')]
     #[Response(
         422,
-        'Validation error, or some cart products have no price in the customer\'s price lists (`products`)',
+        'Validation error, or some cart products have no active price in the user\'s price lists (`products`)',
         type: 'array{message: string, errors: array<string, list<string>>}'
-            . '|array{message: "Algunos productos del carrito no tienen precio para el cliente del pedido", products: list<array{id: int, name: string|null, sku: string|null, unit: string}>}',
+            . '|array{message: "Algunos productos del carrito no tienen precio vigente", products: list<array{id: int, name: string|null, sku: string|null, unit: string}>}',
     )]
     #[Response(500, 'The Webpay transaction could not be created (the order is left pending), or the credit payment failed unexpectedly')]
     public function payOrder(PayOrderRequest $request)
@@ -287,7 +292,7 @@ class OrderController extends Controller
                     400,
                 );
             }
-            $order = Order::with("customer")->find($orderInfo->id);
+            $order = Order::with(["user", "customer"])->find($orderInfo->id);
 
             if ($request->payment_method === "random_credit") {
                 return $this->processRandomCreditPayment(
@@ -347,16 +352,17 @@ class OrderController extends Controller
         )->firstOrFail();
 
         $randomApiService = app(\App\Services\RandomApiService::class);
-        // The credit line is the one of the customer the document is issued for.
-        $customer = $order->customer;
+        // The credit line is the one of the user the document is issued for, even when
+        // the order ships to one of its secondary branches.
+        $buyer = $order->user;
 
         if (
-            $customer?->branch_code === null ||
-            $customer?->rut === null ||
-            $customer?->user_code === null
+            $buyer?->branch_code === null ||
+            $buyer?->rut === null ||
+            $buyer?->user_code === null
         ) {
             Log::error("RandomCredit Error: Customer missing required attributes", [
-                "customer" => $customer,
+                "customer" => $buyer,
             ]);
             // TODO Handle with a custom exception
             throw new \Exception(
@@ -366,8 +372,8 @@ class OrderController extends Controller
 
         $creditLine = \App\Models\CreditLine::firstOrCreate(
             [
-                "user_id" => $customer->id,
-                "branch_code" => $customer->branch_code,
+                "user_id" => $buyer->id,
+                "branch_code" => $buyer->branch_code,
             ],
             [
                 "is_blocked" => false,
@@ -385,8 +391,8 @@ class OrderController extends Controller
         }
 
         $creditLineResponse = $randomApiService->getCreditLine(
-            $customer->user_code,
-            $customer->branch_code,
+            $buyer->user_code,
+            $buyer->branch_code,
         );
 
         $creditLineInfo = $creditLineResponse->json();

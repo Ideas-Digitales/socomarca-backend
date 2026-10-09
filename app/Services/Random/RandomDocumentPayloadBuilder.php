@@ -11,6 +11,11 @@ class RandomDocumentPayloadBuilder
     /**
      * Build the Random ERP "documento" (NVV) payload for an order.
      *
+     * The document is issued for the entity branch of the user who placed the order, so
+     * Random prices it and charges its credit with that branch; the branch the order ships
+     * to (its customer, which can be one of the user's secondary branches) is the
+     * shipping branch.
+     *
      * @param Order $order
      * @param string $generateRandomDocType Payment document type chosen by the customer
      *      (PaymentDocumentType::INVOICE|RECEIPT). Drives both the human-readable label
@@ -35,14 +40,14 @@ class RandomDocumentPayloadBuilder
             ->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
-        $customer = $order->customer;
+        $buyer = $order->user;
 
         return [
             "datos" => [
                 "empresa" => config("random.business_code"),
-                "codigoEntidad" => $customer->user_code,
-                "sucursalEntidad" => $customer->branch_code,
-                "sucursalEntidadDespacho" => $customer->branch_code,
+                "codigoEntidad" => $buyer->user_code,
+                "sucursalEntidad" => $buyer->branch_code,
+                "sucursalEntidadDespacho" => $order->customer->branch_code,
                 "flujoVenta" => PaymentDocumentType::getSaleFlowOption(
                     $generateRandomDocType,
                 ),
@@ -52,7 +57,7 @@ class RandomDocumentPayloadBuilder
                 "funcionario" => config("random.functionary"),
                 "lineas" => $lines,
                 "texto1" => "{$paymentLabel}. Orden de compra: #{$order->id}",
-                "texto2" => "{$customer->rut} - {$randomDocType}",
+                "texto2" => "{$buyer->rut} - {$randomDocType}",
                 "texto3" => "Origen: Compra rápida",
                 "observacion" => $order->notes,
             ],

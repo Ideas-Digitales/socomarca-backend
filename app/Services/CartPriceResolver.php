@@ -8,27 +8,28 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * Resolution of the price charged to a customer for each cart item.
+ * Resolution of the price of each cart item in the price lists of a user.
  *
- * Random prices the sales document with the price lists of the entity it is issued
- * for, so the order must be priced with the lists of the customer (the branch the
- * order is placed for), not with those of the user who places it.
+ * Random prices the sales document with the price lists of the entity branch it is
+ * issued for, which is the user who places the order (also when it orders for one of
+ * its secondary branches). The cart and the order are priced the same way, so the
+ * total shown in the cart is the one charged.
  *
- * When a product has a price in more than one list of the customer, the first list
- * in the order of users.prices_lists (KOLTVEN) wins.
+ * When a product has a price in more than one list of the user, the first list in
+ * the order of users.prices_lists (KOLTVEN) wins.
  */
-class CustomerPriceResolver
+class CartPriceResolver
 {
     /**
-     * Resolve the active price of every item, in the customer's price lists.
+     * Resolve the active price of every item, in the user's price lists.
      *
-     * @param  User  $customer  User the order is placed for
+     * @param  User  $user  User whose price lists apply
      * @param  Collection<int, CartItem>  $items  Cart items (product and unit)
-     * @return Collection<int, Price|null> Price by cart item ID; null when the customer has no price for the item
+     * @return Collection<int, Price|null> Price by cart item ID; null when the user has no price for the item
      */
-    public function resolve(User $customer, Collection $items): Collection
+    public function resolve(User $user, Collection $items): Collection
     {
-        $priceLists = array_values($customer->prices_lists ?? []);
+        $priceLists = array_values($user->prices_lists ?? []);
 
         $prices = $priceLists === [] || $items->isEmpty()
             ? collect()

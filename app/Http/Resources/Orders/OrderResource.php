@@ -59,7 +59,7 @@ class OrderResource extends JsonResource
             "payments" => PaymentResource::collection(
                 $this->whenLoaded('payments')
             ),
-            /** User (Random ERP branch) the order is placed for. */
+            /** User (Random ERP branch) the order ships to; `user_id` placed, paid and is billed for it. */
             "customer" => $this->whenLoaded('customer', fn () => [
                 "id" => $this->customer->id,
                 "name" => $this->customer->name,
