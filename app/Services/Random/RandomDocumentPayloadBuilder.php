@@ -11,10 +11,9 @@ class RandomDocumentPayloadBuilder
     /**
      * Build the Random ERP "documento" (NVV) payload for an order.
      *
-     * The document is issued for the entity branch of the user who placed the order, so
-     * Random prices it and charges its credit with that branch; the branch the order ships
-     * to (its customer, which can be one of the user's secondary branches) is the
-     * shipping branch.
+     * The entity code (KOEN) is the one of the user who placed the order and the branch
+     * (SUEN) is the one of the customer the order is placed for, which can be one of the
+     * user's secondary branches.
      *
      * @param Order $order
      * @param string $generateRandomDocType Payment document type chosen by the customer
@@ -46,8 +45,7 @@ class RandomDocumentPayloadBuilder
             "datos" => [
                 "empresa" => config("random.business_code"),
                 "codigoEntidad" => $buyer->user_code,
-                "sucursalEntidad" => $buyer->branch_code,
-                "sucursalEntidadDespacho" => $order->customer->branch_code,
+                "sucursalEntidad" => $order->customer->branch_code,
                 "flujoVenta" => PaymentDocumentType::getSaleFlowOption(
                     $generateRandomDocType,
                 ),

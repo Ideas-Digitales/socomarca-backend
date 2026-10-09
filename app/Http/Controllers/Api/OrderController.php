@@ -238,8 +238,8 @@ class OrderController extends Controller
      * unit), as in the cart, and the prices, VAT and shipping cost are frozen on the order. Shipping is
      * free from a net subtotal of 70,000.
      *
-     * The order is sent to Random ERP as a sales note (NVV) issued for the authenticated user's entity
-     * and branch, with the branch of `customer_id` as the shipping branch.
+     * The order is sent to Random ERP as a sales note (NVV) with the authenticated user's entity code and
+     * the branch code of `customer_id`.
      *
      * `payment_method` decides how the order is paid:
      *

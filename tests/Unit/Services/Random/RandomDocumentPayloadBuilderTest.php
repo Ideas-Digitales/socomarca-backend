@@ -45,7 +45,7 @@ test(
 
         expect($payload["datos"]["codigoEntidad"])->toBe("11111111-1");
         expect($payload["datos"]["sucursalEntidad"])->toBe("CM");
-        expect($payload["datos"]["sucursalEntidadDespacho"])->toBe("CM");
+        expect($payload["datos"])->not->toHaveKey("sucursalEntidadDespacho");
         expect($payload["datos"]["flujoVenta"])->toBe("NVVBLV");
         expect($payload["datos"]["tido"])->toBe("NVV");
         expect($payload["datos"]["lineas"])->toBe([
@@ -76,7 +76,7 @@ test(
 );
 
 test(
-    "issues the document for the buyer and ships it to the customer the order is placed for",
+    "issues the document with the buyer entity code and the branch of the customer",
     function () {
         [$order] = buildOrderWithItems();
         $branch = User::factory()->create([
@@ -93,8 +93,7 @@ test(
         );
 
         expect($payload["datos"]["codigoEntidad"])->toBe("11111111-1");
-        expect($payload["datos"]["sucursalEntidad"])->toBe("CM");
-        expect($payload["datos"]["sucursalEntidadDespacho"])->toBe("LO");
+        expect($payload["datos"]["sucursalEntidad"])->toBe("LO");
         expect($payload["datos"]["texto2"])->toBe("11111111-1 - Boleta");
     },
 );

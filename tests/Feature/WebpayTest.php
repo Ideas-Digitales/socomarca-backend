@@ -158,8 +158,8 @@ it('creates the random document for the secondary branch the order is placed for
 
         return isset($payload['datos']) &&
             $payload['datos']['codigoEntidad'] === $scenario->user->user_code &&
-            $payload['datos']['sucursalEntidad'] === 'CM' &&
-            $payload['datos']['sucursalEntidadDespacho'] === 'LO' &&
+            $payload['datos']['sucursalEntidad'] === 'LO' &&
+            !array_key_exists('sucursalEntidadDespacho', $payload['datos']) &&
             $payload['datos']['tido'] === 'NVV' &&
             count($payload['datos']['lineas']) === 1 &&
             $payload['datos']['lineas'][0]['codigoProducto'] === $scenario->product->sku &&
