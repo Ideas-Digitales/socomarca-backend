@@ -142,7 +142,6 @@ test(
                 "empresa" => config("random.business_code"),
                 "codigoEntidad" => $user->user_code,
                 "sucursalEntidad" => $user->branch_code,
-                "sucursalEntidadDespacho" => $user->branch_code,
                 "flujoVenta" => "NVVBLV",
                 "tido" => "NVV",
                 "moneda" => "CLP",
@@ -562,8 +561,8 @@ test(
 
             return isset($payload["datos"]) &&
                 $payload["datos"]["codigoEntidad"] === "12345678-9" &&
-                $payload["datos"]["sucursalEntidad"] === "CM" &&
-                $payload["datos"]["sucursalEntidadDespacho"] === "LO" &&
+                $payload["datos"]["sucursalEntidad"] === "LO" &&
+                !array_key_exists("sucursalEntidadDespacho", $payload["datos"]) &&
                 $payload["datos"]["tido"] === "NVV" &&
                 count($payload["datos"]["lineas"]) === 1 &&
                 $payload["datos"]["lineas"][0]["codigoProducto"] ===
