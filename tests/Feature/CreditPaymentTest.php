@@ -423,7 +423,7 @@ test("it can process a credit line payment successfully", function () {
 });
 
 test(
-    "it charges the credit line of the secondary branch the order is placed for",
+    "it charges the credit line of the buyer when the order ships to a secondary branch",
     function () {
         /** @var TestCase $this */
 
@@ -462,10 +462,10 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
-            "{$baseUrl}/gestion/credito/resumen/12345678-9/LO" => Http::response(
+            "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
                 [
                     "KOEN" => "12345678-9",
-                    "SUEN" => "LO",
+                    "SUEN" => "CM",
                     "CRSD" => 50092358399999.99,
                     "CRSDVU" => 5915690,
                     "CRSDVV" => 705736,
@@ -538,14 +538,14 @@ test(
 
         expect(CartItem::where("user_id", $user->id)->count())->toBe(0);
 
-        expect(\App\Models\CreditLine::where("user_id", $user->id)->exists())
+        expect(\App\Models\CreditLine::where("user_id", $branch->id)->exists())
             ->toBeFalse();
         $creditLine = \App\Models\CreditLine::where(
             "user_id",
-            $branch->id,
+            $user->id,
         )->first();
         expect($creditLine)->not->toBeNull();
-        expect($creditLine->branch_code)->toBe("LO");
+        expect($creditLine->branch_code)->toBe("CM");
         expect($creditLine->isBlocked())->toBeTrue();
         expect($creditLine->state["CRSDVU"] == $CRSDVU)->toBeTrue();
 
@@ -562,7 +562,7 @@ test(
 
             return isset($payload["datos"]) &&
                 $payload["datos"]["codigoEntidad"] === "12345678-9" &&
-                $payload["datos"]["sucursalEntidad"] === "LO" &&
+                $payload["datos"]["sucursalEntidad"] === "CM" &&
                 $payload["datos"]["sucursalEntidadDespacho"] === "LO" &&
                 $payload["datos"]["tido"] === "NVV" &&
                 count($payload["datos"]["lineas"]) === 1 &&

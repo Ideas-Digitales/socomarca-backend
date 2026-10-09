@@ -21,6 +21,9 @@ Access is granted by role permissions (roles: `superadmin`, `admin`, `supervisor
 - A primary branch can place orders for itself and for the active secondary branches of its entity:
   `GET /branches` lists them and `POST /orders/pay` receives the chosen one as `customer_id`. A secondary
   branch can only order for itself.
+- The user who places an order always pays and is billed: catalog, cart and order use its price lists,
+  credit payments use its credit line and the Random ERP sales note is issued for its branch. The branch
+  in `customer_id` is the shipping branch: the order ships to one of its addresses.
 - Customers log in with their commercial email (Random ERP `EMAILCOMER`). Their data is managed by the
   sync, so the administration can only activate or deactivate them.
 

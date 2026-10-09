@@ -20,9 +20,9 @@ class PayOrderRequest extends FormRequest
     {
         return [
             /**
-             * User (Random ERP branch) the order is placed for: the authenticated user, or one of the active
+             * User (Random ERP branch) the order ships to: the authenticated user, or one of the active
              * secondary branches of its entity when the authenticated user is a primary branch. Defaults to
-             * the authenticated user.
+             * the authenticated user. The authenticated user pays and is billed either way.
              */
             'customer_id' => [
                 'sometimes',
@@ -50,7 +50,7 @@ class PayOrderRequest extends FormRequest
                 },
             ],
             /**
-             * Payment method `code`: `random_credit` charges the customer's Random ERP credit line; any other
+             * Payment method `code`: `random_credit` charges the authenticated user's Random ERP credit line; any other
              * method pays with Webpay.
              *
              * @example transbank
@@ -75,7 +75,7 @@ class PayOrderRequest extends FormRequest
     }
 
     /**
-     * User the order is placed for: the requested customer, or the authenticated user.
+     * User the order ships to: the requested customer, or the authenticated user.
      */
     public function customer(): User
     {

@@ -7,6 +7,8 @@ use App\Http\Requests\CartItems\AddOrderToCartRequest;
 use App\Http\Resources\CartItems\CartItemCollection;
 use App\Models\CartItem;
 use App\Models\Order;
+use App\Models\User;
+use App\Services\CartPriceResolver;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Support\Facades\Auth;
@@ -15,11 +17,15 @@ use Illuminate\Support\Facades\DB;
 #[Group('Cart', 'Shopping cart of the authenticated user, priced with the user\'s price lists.', weight: 10)]
 class CartController extends Controller
 {
+    public function __construct(private CartPriceResolver $priceResolver) {}
+
     /**
      * Show the cart
      *
      * Lists the authenticated user's cart items with the active price of their unit in the user's price
-     * lists, and the cart total. Items without such a price show a price and subtotal of 0.
+     * lists, and the cart total. Prices are resolved as Pay the cart does (the first list, in the user's
+     * order, that prices the product and unit), so the total is the one charged. Items without such a
+     * price show a price and subtotal of 0, and Pay the cart rejects them.
      *
      * @return CartItemCollection
      */
@@ -29,12 +35,12 @@ class CartController extends Controller
     }
 
     /**
-     * Carga los ítems del carrito de un usuario con su producto y el precio
-     * correspondiente a las listas de precio a las que tiene acceso.
+     * Carga los ítems del carrito de un usuario con su producto y el precio que
+     * le corresponde en sus listas de precios.
      *
      * @return CartItemCollection
      */
-    private function getCartItemsCollection($user): CartItemCollection
+    private function getCartItemsCollection(User $user): CartItemCollection
     {
         $items = CartItem::where('user_id', $user->id)
             ->orderBy('id', 'ASC')
@@ -42,9 +48,11 @@ class CartController extends Controller
                 'product.category',
                 'product.subcategory',
                 'product.brand',
-                'activePrices' => fn ($query) => $query->whereIn('price_list_id', $user->prices_lists),
             ])
             ->get();
+
+        $prices = $this->priceResolver->resolve($user, $items);
+        $items->each(fn (CartItem $item) => $item->setRelation('resolvedPrice', $prices->get($item->id)));
 
         return new CartItemCollection($items);
     }
@@ -54,7 +62,7 @@ class CartController extends Controller
      *
      * Re-adds the products of a previous order to the authenticated user's cart, with the order's
      * quantities and units. Products already in the cart with the same unit get their quantity increased.
-     * Prices are not taken from the order: the returned cart is priced with the current user's price lists.
+     * Prices are not taken from the order: the returned cart is priced as Show the cart.
      *
      * Allowed for orders the user placed or orders placed for the user (as customer); other orders respond 403.
      */

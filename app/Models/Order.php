@@ -54,8 +54,10 @@ class Order extends Model
     }
 
     /**
-     * User (Random entity + branch) the order is placed for. It may differ from the user
-     * who placed it: a primary branch can order for its secondary branches.
+     * User (Random entity + branch) the order ships to. It may differ from the user who
+     * placed it (a primary branch can order for its secondary branches), but the placing
+     * user always pays and is billed: its price lists, credit line and branch in the
+     * Random sales document.
      */
     public function customer()
     {

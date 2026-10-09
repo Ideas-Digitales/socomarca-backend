@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\CartItems\DestroyRequest;
 use App\Http\Requests\CartItems\StoreRequest;
 use App\Models\CartItem;
+use App\Services\CartPriceResolver;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,7 +22,7 @@ class CartItemController extends Controller
      * product with the same unit, its quantity is increased instead. The product must have an active price
      * for the unit.
      */
-    public function store(StoreRequest $storeRequest)
+    public function store(StoreRequest $storeRequest, CartPriceResolver $priceResolver)
     {
         $data = $storeRequest->validated();
         $item = CartItem::where('user_id', Auth::user()->id)
@@ -44,14 +45,11 @@ class CartItemController extends Controller
         // Cargar la relación del producto
         $item->load('product');
 
-        $price = 0;
-        if ($item->product) {
-            $price = $item->product->prices()
-                ->where('unit', $item->unit)
-                ->where('is_active', true)
-                ->whereIn('price_list_id', Auth::user()->prices_lists)
-                ->value('price') ?? 0;
-        }
+        $price = $priceResolver
+            ->resolve(Auth::user(), collect([$item]))
+            ->get($item->id)
+            ?->price ?? 0;
+
         return response()->json([
             'product' => [
                 'id' => $item->product->id,
