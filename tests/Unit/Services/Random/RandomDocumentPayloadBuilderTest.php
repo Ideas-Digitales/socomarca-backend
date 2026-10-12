@@ -27,6 +27,10 @@ function buildOrderWithItems(): array
         "order_id" => $order->id,
         "product_id" => $product->id,
         "quantity" => 3,
+        "price" => 831.09,
+        "subtotal" => 2493.27,
+        "vat" => 19,
+        "total" => 2966.99,
     ]);
 
     return [$order, $product];
@@ -37,7 +41,7 @@ test(
     function () {
         [$order, $product] = buildOrderWithItems();
 
-        $payload = (new RandomDocumentPayloadBuilder())->build(
+        $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::RECEIPT,
             "Pago por Webpay",
@@ -49,7 +53,16 @@ test(
         expect($payload["datos"]["flujoVenta"])->toBe("NVVBLV");
         expect($payload["datos"]["tido"])->toBe("NVV");
         expect($payload["datos"]["lineas"])->toBe([
-            ["cantidad" => 3, "codigoProducto" => $product->sku],
+            [
+                "cantidad" => 3,
+                "codigoProducto" => $product->sku,
+                "idUnidad" => 1,
+                "precioNetoUnitario" => 831.09,
+                "precioBrutoUnitario" => 989.0,
+                "valorNetoLinea" => 2493.27,
+                "valorBrutoLinea" => 2966.99,
+                "despacho" => true,
+            ],
         ]);
         expect($payload["datos"]["texto1"])->toBe(
             "Pago por Webpay. Orden de compra: #{$order->id}",
@@ -60,11 +73,36 @@ test(
 );
 
 test(
+    "rounds the gross unit price with the VAT rate stored in the order item",
+    function () {
+        [$order] = buildOrderWithItems();
+        OrderItem::where("order_id", $order->id)->update([
+            "price" => 1000,
+            "subtotal" => 3000,
+            "vat" => 10.5,
+            "total" => 3315,
+        ]);
+
+        $payload = app(RandomDocumentPayloadBuilder::class)->build(
+            $order,
+            PaymentDocumentType::RECEIPT,
+            "Pago por Webpay",
+        );
+
+        $line = $payload["datos"]["lineas"][0];
+        expect($line["precioNetoUnitario"])->toBe(1000.0);
+        expect($line["precioBrutoUnitario"])->toBe(1105.0);
+        expect($line["valorNetoLinea"])->toBe(3000.0);
+        expect($line["valorBrutoLinea"])->toBe(3315.0);
+    },
+);
+
+test(
     "builds the invoice payload with the invoice sale flow option",
     function () {
         [$order] = buildOrderWithItems();
 
-        $payload = (new RandomDocumentPayloadBuilder())->build(
+        $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::INVOICE,
             "Pago por Webpay",
@@ -86,7 +124,7 @@ test(
         ]);
         $order->update(["customer_id" => $branch->id]);
 
-        $payload = (new RandomDocumentPayloadBuilder())->build(
+        $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order->fresh(),
             PaymentDocumentType::RECEIPT,
             "Pago por Webpay",
@@ -103,12 +141,12 @@ test(
     function () {
         [$order] = buildOrderWithItems();
 
-        $receiptPayload = (new RandomDocumentPayloadBuilder())->build(
+        $receiptPayload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::RECEIPT,
             "Pago a crédito",
         );
-        $invoicePayload = (new RandomDocumentPayloadBuilder())->build(
+        $invoicePayload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::INVOICE,
             "Pago a crédito",

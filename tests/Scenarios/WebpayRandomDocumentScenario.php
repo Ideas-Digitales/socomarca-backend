@@ -55,7 +55,7 @@ class WebpayRandomDocumentScenario
     public static function makeListener(): CreateWebpayRandomDocument
     {
         return new CreateWebpayRandomDocument(
-            new RandomDocumentPayloadBuilder(),
+            app(RandomDocumentPayloadBuilder::class),
             app(RandomDocumentService::class),
             new PaymentService(),
         );
