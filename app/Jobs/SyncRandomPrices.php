@@ -40,12 +40,25 @@ class SyncRandomPrices implements ShouldQueue
 
                 $page = 1;
                 $size = 100;
+                $priceListName = $priceListCode;
+                $syncedKeys = [];
 
                 do {
                     $response = $randomApi->getPricesLists($priceListCode, $size, $page);
 
-                    if (!isset($response['datos']) || empty($response['datos'])) {
+                    // Random answers errors with a "message" and no "datos" key, so only an empty
+                    // "datos" means the whole list was read and the missing prices can be deactivated.
+                    if (!isset($response['datos'])) {
+                        $message = $response['message'] ?? 'no datos in response';
+                        Log::warning("Price list {$priceListCode} sync stopped at page {$page}: {$message}");
+                        break;
+                    }
+
+                    $priceListName = $response['nombre'] ?? $priceListName;
+
+                    if (empty($response['datos'])) {
                         Log::debug("No more data for price list {$priceListCode} at page {$page}");
+                        $this->deactivateStalePrices($priceListName, $syncedKeys);
                         break;
                     }
 
@@ -56,35 +69,39 @@ class SyncRandomPrices implements ShouldQueue
                     $pricesToUpsert = [];
 
                     foreach ($response['datos'] as $price) {
-                        $principalUnit = $price['venderen'] ?? 0;
-                        $priceListName = $response['nombre'] ?? $priceListCode;
+                        $units = $price['unidades'] ?? [];
 
-                        foreach ($price['unidades'] ?? [] as $index => $unit) {
-                            if ($principalUnit == 1 && $index != 0) {
-                                continue;
-                            }
-                            if ($principalUnit == 2 && $index != 1) {
-                                continue;
-                            }
-
-                            $product = Product::where('random_product_id', $price['kopr'])->first();
-
-                            if (!$product) {
-                                Log::warning("Product with random_product_id {$price['kopr']} not found");
-                                continue;
-                            }
-
-                            $pricesToUpsert[] = [
-                                'product_id' => $product->id,
-                                'random_product_id' => $price['kopr'],
-                                'price_list_id' => $priceListName,
-                                'unit' => $unit['nombre'],
-                                'price' => $unit['prunneto'][0]['f'] ?? 0,
-                                'valid_from' => null,
-                                'valid_to' => null,
-                                'is_active' => true,
-                            ];
+                        if (empty($units)) {
+                            continue;
                         }
+
+                        // "venderen" is the 1-based position of the unit the product is sold in.
+                        $sellUnit = (int) ($price['venderen'] ?? 1);
+                        $unit = $units[$sellUnit - 1] ?? null;
+
+                        if ($unit === null) {
+                            Log::warning("Unit {$sellUnit} not found for random_product_id {$price['kopr']} in price list {$priceListCode}, using the first unit");
+                            $unit = $units[0];
+                        }
+
+                        $product = Product::where('random_product_id', $price['kopr'])->first();
+
+                        if (!$product) {
+                            Log::warning("Product with random_product_id {$price['kopr']} not found");
+                            continue;
+                        }
+
+                        $pricesToUpsert[] = [
+                            'product_id' => $product->id,
+                            'random_product_id' => $price['kopr'],
+                            'price_list_id' => $priceListName,
+                            'unit' => $unit['nombre'],
+                            'price' => $unit['prunneto'][0]['f'] ?? 0,
+                            'valid_from' => null,
+                            'valid_to' => null,
+                            'is_active' => true,
+                        ];
+                        $syncedKeys["{$price['kopr']}|{$unit['nombre']}"] = true;
                     }
 
                     if (!empty($pricesToUpsert)) {
@@ -105,6 +122,30 @@ class SyncRandomPrices implements ShouldQueue
         } catch (\Exception $e) {
             Log::error('Error sincronizando precios: ' . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * Deactivate the prices of a list that Random no longer returns, e.g. products removed
+     * from the list or whose sale unit changed.
+     *
+     * @param string $priceListName Value stored in prices.price_list_id
+     * @param array<string, true> $syncedKeys "random_product_id|unit" keys returned by Random
+     */
+    private function deactivateStalePrices(string $priceListName, array $syncedKeys): void
+    {
+        $staleIds = Price::where('price_list_id', $priceListName)
+            ->where('is_active', true)
+            ->get(['id', 'random_product_id', 'unit'])
+            ->reject(fn (Price $price) => isset($syncedKeys["{$price->random_product_id}|{$price->unit}"]))
+            ->pluck('id');
+
+        foreach ($staleIds->chunk(1000) as $ids) {
+            Price::whereIn('id', $ids)->update(['is_active' => false]);
+        }
+
+        if ($staleIds->isNotEmpty()) {
+            Log::info("Deactivated {$staleIds->count()} prices no longer returned for price list {$priceListName}");
         }
     }
 }

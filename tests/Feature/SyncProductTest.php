@@ -176,7 +176,7 @@ describe('Product Sync Basic', function () {
             'datos' => [
                 [
                     'kopr' => 'PROD001',
-                    'venderen' => 0,
+                    'venderen' => 1,
                     'unidades' => [
                         [
                             'nombre' => 'UN',
@@ -216,7 +216,7 @@ describe('Product Sync Basic', function () {
         $job->handle($mockApiService);
 
         // Verify the prices were created
-        expect(Price::count())->toBe(2);
+        expect(Price::count())->toBe(1);
 
         $priceUN = Price::where('random_product_id', 'PROD001')
             ->where('unit', 'UN')
@@ -225,12 +225,6 @@ describe('Product Sync Basic', function () {
         expect((float)$priceUN->price)->toBe(1500.0);
         expect($priceUN->product_id)->toBe($product->id);
         expect($priceUN->is_active)->toBe(true);
-
-        $priceKG = Price::where('random_product_id', 'PROD001')
-            ->where('unit', 'KG')
-            ->first();
-        expect($priceKG)->not->toBeNull();
-        expect((float)$priceKG->price)->toBe(2000.0);
     });
 
     it('updates existing prices when syncing stock', function () {

@@ -142,7 +142,7 @@ describe('Product Sync Monitoring', function () {
             'datos' => [
                 [
                     'kopr' => 'PROD999', // Producto que no existe
-                    'venderen' => 0,
+                    'venderen' => 1,
                     'unidades' => [
                         [
                             'nombre' => 'UN',
