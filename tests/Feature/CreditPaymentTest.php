@@ -134,6 +134,12 @@ test(
                 return [
                     "cantidad" => $item->quantity,
                     "codigoProducto" => $item->product->sku,
+                    "idUnidad" => 1,
+                    "precioNetoUnitario" => (float) $item->price,
+                    "precioBrutoUnitario" => round($item->price * (1 + $item->vat / 100), 2),
+                    "valorNetoLinea" => (float) $item->subtotal,
+                    "valorBrutoLinea" => (float) $item->total,
+                    "despacho" => true,
                 ];
             })
             ->toArray();

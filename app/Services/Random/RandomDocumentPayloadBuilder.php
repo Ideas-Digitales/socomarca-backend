@@ -5,9 +5,12 @@ namespace App\Services\Random;
 use App\Enums\PaymentDocumentType;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Services\VatService;
 
 class RandomDocumentPayloadBuilder
 {
+    public function __construct(private VatService $vatService) {}
+
     /**
      * Build the Random ERP "documento" (NVV) payload for an order.
      *
@@ -30,12 +33,22 @@ class RandomDocumentPayloadBuilder
             ->with("product")
             ->get();
         $lines = $orderItems
-            ->map(function (OrderItem $item) {
-                return [
+            ->map(
+                fn(OrderItem $item) => [
                     "cantidad" => $item->quantity,
                     "codigoProducto" => $item->product->sku,
-                ];
-            })
+                    "idUnidad" => 1,
+                    "precioNetoUnitario" => (float) $item->price,
+                    "precioBrutoUnitario" => $this->vatService->applyTo(
+                        (float) $item->price,
+                        $item->vat,
+                    ),
+                    // Same amounts that were charged when the order was placed.
+                    "valorNetoLinea" => (float) $item->subtotal,
+                    "valorBrutoLinea" => (float) $item->total,
+                    "despacho" => true,
+                ],
+            )
             ->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
