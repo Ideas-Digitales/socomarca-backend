@@ -87,7 +87,8 @@ class RandomApiService
             'modalidad' => config('random.modality'),
             'size' => $size,
             'page' => $page,
-            'fields' => 'IDMAEEN,KOEN,SUEN,TIPOSUC,TIEN,RTEN,NOKOEN,SIEN,EMAIL,EMAILCOMER,FOEN,DIEN,CIEN,CMEN,CPOSTAL',
+            // Important! Include "LVEN" parameter to get the right pricing list
+            'fields' => 'IDMAEEN,KOEN,SUEN,TIPOSUC,TIEN,RTEN,NOKOEN,SIEN,EMAIL,EMAILCOMER,FOEN,DIEN,CIEN,CMEN,CPOSTAL,LVEN',
         ]);
     }
 

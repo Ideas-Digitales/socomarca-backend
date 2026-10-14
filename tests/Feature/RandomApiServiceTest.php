@@ -43,7 +43,12 @@ it('throws an error when trace request fails', function () {
         ->toThrow(RandomApiServiceErrorException::class);
 });
 
-it('requests IDMAEEN explicitly when fetching customer entities', function () {
+it('sends every expected query parameter when fetching customer entities', function () {
+    config([
+        'random.business_code' => '01',
+        'random.modality' => 'CASAM',
+    ]);
+
     Http::fake([
         '*/web32/entidades*' => Http::response([['IDMAEEN' => 2475, 'KOEN' => '77528378']], 200),
     ]);
@@ -52,17 +57,50 @@ it('requests IDMAEEN explicitly when fetching customer entities', function () {
 
     expect($entities)->toBe([['IDMAEEN' => 2475, 'KOEN' => '77528378']]);
 
+    Http::assertSentCount(1);
+
+    $request = Http::recorded()->first()[0];
+    parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
+
+    expect($request->method())->toBe('GET')
+        ->and(parse_url($request->url(), PHP_URL_PATH))->toEndWith('/web32/entidades')
+        ->and($query)->toHaveKeys(['empresa', 'modalidad', 'size', 'page', 'fields'])
+        ->and($query['empresa'])->toBe('01')
+        ->and($query['modalidad'])->toBe('CASAM')
+        ->and($query['size'])->toBe('100')
+        ->and($query['page'])->toBe('2')
+        ->and(explode(',', $query['fields']))->toEqualCanonicalizing([
+            'IDMAEEN', 'KOEN', 'SUEN', 'TIPOSUC', 'TIEN', 'RTEN', 'NOKOEN', 'SIEN', 'EMAIL',
+            'EMAILCOMER', 'FOEN', 'DIEN', 'CIEN', 'CMEN', 'CPOSTAL', 'LVEN',
+        ]);
+});
+
+it('requests the LVEN field so Random returns the customer pricing list', function () {
+    Http::fake([
+        '*/web32/entidades*' => Http::response([], 200),
+    ]);
+
+    (new RandomApiService())->getEntidadesUsuarios();
+
     Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
         parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
-        $fields = explode(',', $query['fields'] ?? '');
 
         return str_contains($request->url(), '/web32/entidades')
-            && $query['size'] === '100'
-            && $query['page'] === '2'
-            && empty(array_diff(
-                ['IDMAEEN', 'KOEN', 'SUEN', 'TIPOSUC', 'TIEN', 'RTEN', 'NOKOEN', 'SIEN', 'EMAIL', 'EMAILCOMER', 'FOEN', 'DIEN', 'CIEN', 'CMEN', 'CPOSTAL'],
-                $fields
-            ));
+            && in_array('LVEN', explode(',', $query['fields'] ?? ''), true);
+    });
+});
+
+it('uses the default page size and page when fetching customer entities', function () {
+    Http::fake([
+        '*/web32/entidades*' => Http::response([], 200),
+    ]);
+
+    (new RandomApiService())->getEntidadesUsuarios();
+
+    Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+        parse_str(parse_url($request->url(), PHP_URL_QUERY), $query);
+
+        return $query['size'] === '15' && $query['page'] === '1';
     });
 });
 
