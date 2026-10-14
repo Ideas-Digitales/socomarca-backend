@@ -287,3 +287,10 @@ Para facilitar el desarrollo y las pruebas (QA) sin depender de la API real de R
 
 - `RANDOM_ERP_BUSINESS_FUNCTIONARY`: Funcionario
 - `RANDOM_ERP_DOCUMENTS_DRY_RUN`: Habilita el modo dryRun para la inserción de documentos
+
+### Sincronización de usuarios
+
+- `RANDOM_EXCLUDED_EMAIL_DOMAINS`: Dominios de correo separados por comas (por defecto `sii.cl`). Un `EMAILCOMER` de
+  esos dominios se sincroniza como `null`, por lo que el cliente debe solicitar un correo comercial válido antes de
+  ingresar al sistema. El `EMAIL` (facturación) se sincroniza tal cual, pero ningún correo de esos dominios recibe
+  notificaciones de compra

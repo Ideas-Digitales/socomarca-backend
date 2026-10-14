@@ -172,6 +172,58 @@ describe('users', function () {
         expect(User::where('random_entity_id', 2475)->firstOrFail()->email)->toBeNull();
     });
 
+    it('stores a null email when EMAILCOMER belongs to an excluded domain', function () {
+        mockRandomEntities([randomEntity(['EMAILCOMER' => ' FacturacionMIPYME@SII.cl '])]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->firstOrFail()->email)->toBeNull();
+    });
+
+    it('keeps the billing email when it belongs to an excluded domain', function () {
+        mockRandomEntities([randomEntity([
+            'EMAILCOMER' => 'contabilidad@packer.cl',
+            'EMAIL'      => 'FacturacionMIPYME@sii.cl',
+        ])]);
+
+        runUsersSync();
+
+        $user = User::where('random_entity_id', 2475)->firstOrFail();
+        expect($user->email)->toBe('contabilidad@packer.cl')
+            ->and($user->billing_email)->toBe('facturacionmipyme@sii.cl');
+    });
+
+    it('excludes the domains configured in RANDOM_EXCLUDED_EMAIL_DOMAINS', function () {
+        config(['random.excluded_email_domains' => ['grupomilsabores.com']]);
+        mockRandomEntities([randomEntity(['EMAILCOMER' => 'dbustos@grupomilsabores.com'])]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->firstOrFail()->email)->toBeNull();
+    });
+
+    it('does not exclude subdomains or similar domains', function (string $email) {
+        mockRandomEntities([randomEntity(['EMAILCOMER' => $email])]);
+
+        runUsersSync();
+
+        expect(User::where('random_entity_id', 2475)->firstOrFail()->email)->toBe($email);
+    })->with([
+        'subdomain' => ['compras@mail.sii.cl'],
+        'similar domain' => ['compras@notsii.cl'],
+    ]);
+
+    it('reports the users whose EMAILCOMER was excluded as missing emails', function () {
+        Event::fake([EntityEmailIssuesDetected::class]);
+        mockRandomEntities([randomEntity(['EMAILCOMER' => 'facturacionmipyme@sii.cl'])]);
+
+        runUsersSync();
+
+        Event::assertDispatched(EntityEmailIssuesDetected::class, function (EntityEmailIssuesDetected $event) {
+            return array_column($event->missingEmails, 'IDMAEEN') === [2475];
+        });
+    });
+
     it('syncs entities sharing the same EMAILCOMER', function () {
         mockRandomEntities([
             randomEntity(['IDMAEEN' => 2475, 'SUEN' => 'CM', 'EMAILCOMER' => 'compartido@example.com']),

@@ -157,6 +157,26 @@ class User extends Authenticatable
     }
 
     /**
+     * Whether the email belongs to a domain of config('random.excluded_email_domains'), such as
+     * the SII generic billing mailboxes, which must not be used to log in nor to notify.
+     *
+     * @param string|null $email
+     * @return bool
+     */
+    public static function hasExcludedEmailDomain(?string $email): bool
+    {
+        $email = self::normalizeEmail($email);
+
+        if ($email === null || !str_contains($email, '@')) {
+            return false;
+        }
+
+        $domain = substr($email, strrpos($email, '@') + 1);
+
+        return in_array($domain, config('random.excluded_email_domains', []), true);
+    }
+
+    /**
      * Find the active user that can authenticate with the given email.
      *
      * Returns null when no active user has the email or when it is assigned to more than one
