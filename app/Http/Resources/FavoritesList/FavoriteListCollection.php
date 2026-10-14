@@ -16,8 +16,11 @@ class FavoriteListCollection extends ResourceCollection
     {
         return $this->collection->map(function ($favoriteList) {
             return [
+                /** @var int */
                 'id' => $favoriteList->id,
+                /** @var string */
                 'name' => $favoriteList->name,
+                /** @var int */
                 'user_id' => $favoriteList->user_id,
                 
             ];

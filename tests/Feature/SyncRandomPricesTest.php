@@ -382,10 +382,10 @@ test('job handles venderen=2 and only processes second unit', function () {
     $this->assertDatabaseCount('prices', 1);
 });
 
-test('job handles venderen=0 and processes both units', function () {
+test('job syncs only the venderen unit when both units share the same name', function () {
     User::factory()->create(['prices_lists' => ['LIST1']]);
 
-    $product = Product::create([
+    Product::create([
         'code' => 'PROD1',
         'sku' => 'SKU1',
         'name' => 'Producto 1',
@@ -402,7 +402,96 @@ test('job handles venderen=0 and processes both units', function () {
             'datos' => [
                 [
                     'kopr' => '123',
-                    'venderen' => 0,
+                    'venderen' => 1,
+                    'unidades' => [
+                        ['nombre' => 'UN', 'prunneto' => [['f' => 999]]],
+                        ['nombre' => 'UN', 'prunneto' => [['f' => 0]]]
+                    ]
+                ]
+            ]
+        ]);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 2)
+        ->once()
+        ->andReturn(['datos' => []]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
+
+    $job = new SyncRandomPrices();
+    $job->handle(app(RandomApiService::class));
+
+    $this->assertDatabaseHas('prices', ['unit' => 'UN', 'price' => 999]);
+    $this->assertDatabaseCount('prices', 1);
+});
+
+test('job falls back to the first unit when the venderen unit is missing', function () {
+    User::factory()->create(['prices_lists' => ['LIST1']]);
+
+    Product::create([
+        'code' => 'PROD1',
+        'sku' => 'SKU1',
+        'name' => 'Producto 1',
+        'price' => 1000,
+        'random_product_id' => '123',
+    ]);
+
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 1)
+        ->once()
+        ->andReturn([
+            'nombre' => 'Lista 1',
+            'datos' => [
+                [
+                    'kopr' => '123',
+                    'venderen' => 2,
+                    'unidades' => [
+                        ['nombre' => 'kg', 'prunneto' => [['f' => 999]]]
+                    ]
+                ]
+            ]
+        ]);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 2)
+        ->once()
+        ->andReturn(['datos' => []]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
+    Log::shouldReceive('warning')
+        ->with('Unit 2 not found for random_product_id 123 in price list LIST1, using the first unit')
+        ->once();
+
+    $job = new SyncRandomPrices();
+    $job->handle(app(RandomApiService::class));
+
+    $this->assertDatabaseHas('prices', ['unit' => 'kg', 'price' => 999]);
+    $this->assertDatabaseCount('prices', 1);
+});
+
+test('job uses the first unit when venderen is missing', function () {
+    User::factory()->create(['prices_lists' => ['LIST1']]);
+
+    Product::create([
+        'code' => 'PROD1',
+        'sku' => 'SKU1',
+        'name' => 'Producto 1',
+        'price' => 1000,
+        'random_product_id' => '123',
+    ]);
+
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 1)
+        ->once()
+        ->andReturn([
+            'nombre' => 'Lista 1',
+            'datos' => [
+                [
+                    'kopr' => '123',
                     'unidades' => [
                         ['nombre' => 'kg', 'prunneto' => [['f' => 999]]],
                         ['nombre' => 'gramo', 'prunneto' => [['f' => 10]]]
@@ -423,8 +512,7 @@ test('job handles venderen=0 and processes both units', function () {
     $job->handle(app(RandomApiService::class));
 
     $this->assertDatabaseHas('prices', ['unit' => 'kg', 'price' => 999]);
-    $this->assertDatabaseHas('prices', ['unit' => 'gramo', 'price' => 10]);
-    $this->assertDatabaseCount('prices', 2);
+    $this->assertDatabaseCount('prices', 1);
 });
 
 test('job updates existing prices when syncing again', function () {
@@ -494,11 +582,214 @@ test('job handles missing datos key in API response', function () {
 
     Log::shouldReceive('info')->zeroOrMoreTimes();
     Log::shouldReceive('debug')->zeroOrMoreTimes();
+    Log::shouldReceive('warning')
+        ->with('Price list LIST1 sync stopped at page 1: no datos in response')
+        ->once();
 
     $job = new SyncRandomPrices();
     $job->handle(app(RandomApiService::class));
 
     $this->assertDatabaseCount('prices', 0);
+});
+
+test('job deactivates the prices of the list that Random no longer returns', function () {
+    User::factory()->create(['prices_lists' => ['LIST1']]);
+
+    $product1 = Product::create([
+        'code' => 'PROD1',
+        'sku' => 'SKU1',
+        'name' => 'Producto 1',
+        'price' => 1000,
+        'random_product_id' => '123',
+    ]);
+    $product2 = Product::create([
+        'code' => 'PROD2',
+        'sku' => 'SKU2',
+        'name' => 'Producto 2',
+        'price' => 2000,
+        'random_product_id' => '456',
+    ]);
+
+    // The sale unit of product 123 changed from UN to KG and product 456 left the list.
+    $unitChanged = Price::create([
+        'product_id' => $product1->id,
+        'random_product_id' => '123',
+        'price_list_id' => 'LIST1',
+        'unit' => 'UN',
+        'price' => 500,
+        'is_active' => true,
+    ]);
+    $removed = Price::create([
+        'product_id' => $product2->id,
+        'random_product_id' => '456',
+        'price_list_id' => 'LIST1',
+        'unit' => 'UN',
+        'price' => 700,
+        'is_active' => true,
+    ]);
+    $otherList = Price::create([
+        'product_id' => $product2->id,
+        'random_product_id' => '456',
+        'price_list_id' => 'LIST2',
+        'unit' => 'UN',
+        'price' => 800,
+        'is_active' => true,
+    ]);
+
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 1)
+        ->once()
+        ->andReturn([
+            'nombre' => 'LIST1',
+            'datos' => [
+                [
+                    'kopr' => '123',
+                    'venderen' => 1,
+                    'unidades' => [
+                        ['nombre' => 'KG', 'prunneto' => [['f' => 999]]],
+                        ['nombre' => 'KG', 'prunneto' => [['f' => 0]]]
+                    ]
+                ]
+            ]
+        ]);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 2)
+        ->once()
+        ->andReturn(['nombre' => 'LIST1', 'datos' => []]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
+
+    $job = new SyncRandomPrices();
+    $job->handle(app(RandomApiService::class));
+
+    $this->assertDatabaseHas('prices', [
+        'random_product_id' => '123',
+        'price_list_id' => 'LIST1',
+        'unit' => 'KG',
+        'price' => 999,
+        'is_active' => true,
+    ]);
+    expect($unitChanged->fresh()->is_active)->toBeFalse();
+    expect($removed->fresh()->is_active)->toBeFalse();
+    expect($otherList->fresh()->is_active)->toBeTrue();
+});
+
+test('job keeps the prices of the list when the sync stops with an error response', function () {
+    User::factory()->create(['prices_lists' => ['LIST1']]);
+
+    $product1 = Product::create([
+        'code' => 'PROD1',
+        'sku' => 'SKU1',
+        'name' => 'Producto 1',
+        'price' => 1000,
+        'random_product_id' => '123',
+    ]);
+    $product2 = Product::create([
+        'code' => 'PROD2',
+        'sku' => 'SKU2',
+        'name' => 'Producto 2',
+        'price' => 2000,
+        'random_product_id' => '456',
+    ]);
+
+    $notReached = Price::create([
+        'product_id' => $product2->id,
+        'random_product_id' => '456',
+        'price_list_id' => 'LIST1',
+        'unit' => 'UN',
+        'price' => 700,
+        'is_active' => true,
+    ]);
+
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 1)
+        ->once()
+        ->andReturn([
+            'nombre' => 'LIST1',
+            'datos' => [
+                [
+                    'kopr' => '123',
+                    'venderen' => 1,
+                    'unidades' => [
+                        ['nombre' => 'UN', 'prunneto' => [['f' => 999]]]
+                    ]
+                ]
+            ]
+        ]);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 2)
+        ->once()
+        ->andReturn(['message' => 'Internal error', 'errorId' => 'abc']);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
+    Log::shouldReceive('warning')
+        ->with('Price list LIST1 sync stopped at page 2: Internal error')
+        ->once();
+
+    $job = new SyncRandomPrices();
+    $job->handle(app(RandomApiService::class));
+
+    $this->assertDatabaseHas('prices', ['random_product_id' => '123', 'price' => 999]);
+    expect($notReached->fresh()->is_active)->toBeTrue();
+});
+
+test('job reactivates a deactivated price when Random returns it again', function () {
+    User::factory()->create(['prices_lists' => ['LIST1']]);
+
+    $product = Product::create([
+        'code' => 'PROD1',
+        'sku' => 'SKU1',
+        'name' => 'Producto 1',
+        'price' => 1000,
+        'random_product_id' => '123',
+    ]);
+
+    $price = Price::create([
+        'product_id' => $product->id,
+        'random_product_id' => '123',
+        'price_list_id' => 'LIST1',
+        'unit' => 'UN',
+        'price' => 500,
+        'is_active' => false,
+    ]);
+
+    $mock = Mockery::mock(RandomApiService::class);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 1)
+        ->once()
+        ->andReturn([
+            'nombre' => 'LIST1',
+            'datos' => [
+                [
+                    'kopr' => '123',
+                    'venderen' => 1,
+                    'unidades' => [
+                        ['nombre' => 'UN', 'prunneto' => [['f' => 999]]]
+                    ]
+                ]
+            ]
+        ]);
+    $mock->shouldReceive('getPricesLists')
+        ->with('LIST1', 100, 2)
+        ->once()
+        ->andReturn(['nombre' => 'LIST1', 'datos' => []]);
+    App::instance(RandomApiService::class, $mock);
+
+    Log::shouldReceive('info')->zeroOrMoreTimes();
+    Log::shouldReceive('debug')->zeroOrMoreTimes();
+
+    $job = new SyncRandomPrices();
+    $job->handle(app(RandomApiService::class));
+
+    $price->refresh();
+    expect($price->is_active)->toBeTrue();
+    expect((float) $price->price)->toBe(999.0);
 });
 
 test('job handles API exception and rethrows it', function () {

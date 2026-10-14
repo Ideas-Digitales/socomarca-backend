@@ -4,15 +4,29 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FirebaseConfigRequest;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
+use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+#[Group('Firebase', 'Manage the Firebase service account credentials used to send push notifications.', weight: 16)]
 class FirebaseConfigController extends Controller
 {
 
+    /**
+     * Get the Firebase credentials
+     *
+     * Reads the service account JSON file that the `FIREBASE_CREDENTIALS` environment variable points to.
+     * Relative paths are resolved inside `storage/app`.
+     */
+    #[QueryParameter('full', 'Return the whole `private_key`; otherwise it is truncated to its first 40 characters.', type: 'bool', default: false)]
+    #[Response(404, '`FIREBASE_CREDENTIALS` is not set or the file does not exist')]
+    #[Response(422, 'The credentials file is not valid JSON')]
+    #[Response(500, 'The credentials file cannot be read')]
     public function showConfig(Request $request): JsonResponse
     {
         $envValue = env('FIREBASE_CREDENTIALS');
@@ -78,11 +92,30 @@ class FirebaseConfigController extends Controller
 
         return response()->json([
             'ok' => true,
+            /**
+             * Value of `FIREBASE_CREDENTIALS`.
+             *
+             * @var string
+             */
             'env_value' => $envValue,
+            /** Absolute path of the file read. */
             'resolved_path' => $path,
+            /**
+             * Contents of the service account JSON file.
+             *
+             * @var array<string, mixed>
+             */
             'credentials' => $safe,
         ]);
     }
+
+    /**
+     * Save the Firebase credentials
+     *
+     * Saves the whole request body, the service account JSON downloaded from the Firebase console, as
+     * `storage/app/private/firebase/credentials.json`, replacing the current file. That is the file
+     * `FIREBASE_CREDENTIALS` points to by default; with another value, the saved file is not used.
+     */
     public function update(FirebaseConfigRequest $request): JsonResponse
     {
         

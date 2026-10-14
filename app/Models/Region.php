@@ -10,10 +10,21 @@ class Region extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'code', 'status'];
+    protected $fillable = [
+        'name',
+        'code',
+        'status',
+        'random_key',
+        'random_name',
+    ];
 
     public function municipalities()
     {
         return $this->hasMany(Municipality::class);
+    }
+
+    public function addresses()
+    {
+        return $this->hasMany(Address::class);
     }
 }

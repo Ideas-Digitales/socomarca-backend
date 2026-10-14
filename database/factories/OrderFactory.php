@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Order;
-use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use App\Models\Region;
@@ -62,7 +61,7 @@ class OrderFactory extends Factory
             'amount' => $total + $shippingCost,
             'status' => fake()->randomElement(['pending', 'processing', 'on_hold', 'completed', 'canceled', 'refunded', 'failed']),
             'order_meta' => json_encode($meta),
-            'branch_id' => Branch::factory(),
+            'customer_id' => fn (array $attributes) => $attributes['user_id'],
             'random_document_number' => fake()->numerify('##########'),
         ];
     }

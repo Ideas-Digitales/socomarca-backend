@@ -3,12 +3,15 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\BranchType;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -41,6 +44,10 @@ class User extends Authenticatable
         'user_code',
         'random_user_type',
         'prices_lists',
+        'random_entity_id',
+        'branch_type',
+        'billing_email',
+        'random_synced_at',
     ];
 
     /**
@@ -112,7 +119,109 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'prices_lists' => 'array',
+            'random_entity_id' => 'integer',
+            'random_synced_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updated(function (User $user) {
+            if ($user->wasChanged('is_active') && !$user->is_active) {
+                $user->tokens()->delete();
+            }
+        });
+    }
+
+    /**
+     * Emails are stored normalized so that lookups and duplicate detection are case-insensitive.
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => self::normalizeEmail($value),
+        );
+    }
+
+    /**
+     * Normalize an email address (trimmed and lowercase). Blank values are normalized to null.
+     *
+     * @param string|null $email
+     * @return string|null
+     */
+    public static function normalizeEmail(?string $email): ?string
+    {
+        $email = mb_strtolower(trim((string) $email));
+
+        return $email === '' ? null : $email;
+    }
+
+    /**
+     * Find the active user that can authenticate with the given email.
+     *
+     * Returns null when no active user has the email or when it is assigned to more than one
+     * active user: a shared email does not identify a single user. Inactive users are ignored,
+     * as in the email issues alert of the Random entities sync.
+     *
+     * @param string|null $email
+     * @return User|null
+     */
+    public static function findActiveByLoginEmail(?string $email): ?User
+    {
+        $email = self::normalizeEmail($email);
+
+        if ($email === null) {
+            return null;
+        }
+
+        $users = self::where('is_active', true)
+            ->whereRaw('lower(trim(email)) = ?', [$email])
+            ->limit(2)
+            ->get();
+
+        if ($users->count() > 1) {
+            Log::warning('Authentication denied: email assigned to more than one active user', [
+                'user_ids' => $users->pluck('id')->all(),
+            ]);
+        }
+
+        return $users->count() === 1 ? $users->first() : null;
+    }
+
+    /**
+     * Whether the user is synced from a Random entity, so that its data is managed by the sync.
+     */
+    public function isSyncedFromRandom(): bool
+    {
+        return $this->random_entity_id !== null;
+    }
+
+    /**
+     * Secondary branches of the same Random entity (KOEN).
+     */
+    public function secondaryBranches(): HasMany
+    {
+        return $this->hasMany(User::class, 'user_code', 'user_code')
+            ->where('branch_type', BranchType::SECONDARY);
+    }
+
+    /**
+     * Branches the user can place orders for, besides itself (see OrderPolicy::placeFor):
+     * the active secondary branches of its Random entity when it is a primary branch, none otherwise.
+     */
+    public function orderableBranches(): HasMany
+    {
+        return $this->secondaryBranches()
+            ->where('is_active', true)
+            ->when($this->branch_type !== BranchType::PRIMARY, fn ($query) => $query->whereRaw('false'));
+    }
+
+    /**
+     * Whether the user can place orders for other branches of its Random entity.
+     */
+    public function canOrderForBranches(): bool
+    {
+        return $this->orderableBranches()->exists();
     }
 
     public function addresses()

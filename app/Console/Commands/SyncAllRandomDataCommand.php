@@ -26,12 +26,12 @@ class SyncAllRandomDataCommand extends Command
         
         try {
             Bus::chain([
-                new SyncRandomCategories(),
-                new SyncRandomBrands(),
-                new SyncRandomProducts(),
-                new SyncRandomPrices(),
-                new SyncRandomStock(),
-                new SyncRandomUsers(),
+                (new SyncRandomCategories())->onQueue('random-sync-products'),
+                (new SyncRandomBrands())->onQueue('random-sync-products'),
+                (new SyncRandomProducts())->onQueue('random-sync-products'),
+                (new SyncRandomPrices())->onQueue('random-sync-products'),
+                (new SyncRandomStock())->onQueue('random-sync-products'),
+                (new SyncRandomUsers())->onQueue('random-sync-users'),
             ])->dispatch();
 
             $this->info('Proceso de sincronización encolado correctamente.');

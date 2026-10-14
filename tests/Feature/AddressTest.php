@@ -7,6 +7,7 @@ use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\assertDatabaseHas;
+use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
 use function Pest\Laravel\patchJson;
 use function Pest\Laravel\postJson;
@@ -36,6 +37,20 @@ describe('Addresses list endpoint', function () {
             ->assertStatus(200)
             //->assertJsonStructure($this->addressListJsonStructure)
             ->assertJsonCount($addressCount, 'data');
+    });
+
+    it('flags the addresses managed by the Random sync', function () {
+        Address::truncate();
+        $user = User::factory()->create();
+        $user->givePermissionTo(['read-own-addresses']);
+        $synced = Address::factory()->create(['user_id' => $user->id, 'is_synced' => true]);
+        $manual = Address::factory()->create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        $addresses = collect(getJson(route('addresses.index'))->assertOk()->json('data'))->keyBy('id');
+
+        expect($addresses[$synced->id]['is_synced'])->toBeTrue()
+            ->and($addresses[$manual->id]['is_synced'])->toBeFalse();
     });
 
     it('shouldn\'t read other users addresses when having "read-own-addresses" only', function () {
@@ -180,6 +195,31 @@ describe('Store addresses endpoint', function () {
                 'alias',
             ]);
     });
+
+    it('should forbid storing a synced address', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['create-addresses']);
+        $municipality = \App\Models\Municipality::factory()->create();
+
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(route('addresses.store'), [
+            'is_synced' => true,
+            'address_line1' => 'Calle Falsa 123',
+            'address_line2' => 'Depto 4B',
+            'postal_code' => '1234567',
+            'is_default' => true,
+            'type' => 'shipping',
+            'phone' => '987654321',
+            'contact_name' => 'Juan Pérez',
+            'municipality_id' => $municipality->id,
+            'alias' => 'Casa',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['is_synced']);
+
+        expect(Address::where('user_id', $user->id)->exists())->toBeFalse();
+    });
 });
 
 describe('Update addresses endpoint', function () {
@@ -251,6 +291,56 @@ describe('Update addresses endpoint', function () {
             'address_line1' => 'Solo Cambio Calle',
             'contact_name' => 'Nombre Original', // No cambia
         ]);
+    });
+
+    it('should forbid updating a synced address', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['update-addresses', 'read-own-addresses']);
+
+        $address = Address::factory()->create([
+            'user_id' => $user->id,
+            'is_synced' => true,
+            'address_line1' => 'GARRETON ARCE 1698',
+        ]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        $response = putJson(route('addresses.update', ['address' => $address->id]), [
+            'address_line1' => 'Calle Prohibida 123',
+        ]);
+
+        $response->assertForbidden();
+
+        assertDatabaseHas('addresses', [
+            'id' => $address->id,
+            'address_line1' => 'GARRETON ARCE 1698',
+        ]);
+    });
+});
+
+describe('Delete addresses endpoint', function () {
+    it('should allow deleting an own address when having "delete-addresses" and "read-own-addresses" permissions', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['delete-addresses', 'read-own-addresses']);
+        $address = Address::factory()->create(['user_id' => $user->id]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        deleteJson(route('addresses.destroy', ['address' => $address->id]))->assertOk();
+
+        expect(Address::whereKey($address->id)->exists())->toBeFalse();
+    });
+
+    it('should forbid deleting a synced address', function () {
+        $user = User::factory()->create();
+        $user->givePermissionTo(['delete-addresses', 'read-own-addresses']);
+        $address = Address::factory()->create([
+            'user_id' => $user->id,
+            'is_synced' => true,
+        ]);
+
+        Sanctum::actingAs($user, ['api-access']);
+        deleteJson(route('addresses.destroy', ['address' => $address->id]))->assertForbidden();
+
+        expect(Address::whereKey($address->id)->exists())->toBeTrue();
     });
 });
 

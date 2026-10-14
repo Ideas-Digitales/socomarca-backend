@@ -74,19 +74,21 @@ class RandomApiService
         ]);
     }
 
+    /**
+     * Get the customer entities (entity + branch records) to sync as users.
+     *
+     * When `fields` is given, Random only returns the requested columns (plus TIPODOCVEN
+     * and KOLTVEN), and IDMAEEN is not guaranteed in the default response.
+     */
     public function getEntidadesUsuarios($size = 15, $page = 1)
     {
         return $this->makeRequest('get', '/web32/entidades', [
             'empresa' => config('random.business_code'),
             'modalidad' => config('random.modality'),
             'size' => $size,
-            'page' => $page
+            'page' => $page,
+            'fields' => 'IDMAEEN,KOEN,SUEN,TIPOSUC,TIEN,RTEN,NOKOEN,SIEN,EMAIL,EMAILCOMER,FOEN,DIEN,CIEN,CMEN,CPOSTAL',
         ]);
-    }
-
-    public function fetchAndUpdateUsers()
-    {
-        return $this->makeRequest('get', '/web32/entidades');
     }
 
     /**
@@ -305,6 +307,46 @@ class RandomApiService
             $exception = new RandomApiServiceErrorException(
                 "Document trace query failed",
                 ['idmaeedo' => $idmaeedo],
+                $response
+            );
+
+            throw $exception;
+        }
+
+        return $response;
+    }
+
+    /**
+     * Get Random ERP Territorios
+     *
+     * @param int $level
+     * @param string $countryCode
+     *
+     * @return \Illuminate\Http\Client\Response
+     */
+    public function getTerritorios($level = 3, $countryCode = 'CL'): \Illuminate\Http\Client\Response
+    {
+        $endpoint = "/territorios";
+        $query = [
+            "ter1"=> $countryCode,
+            "nivel" => strval($level),
+        ];
+
+        if (!empty(config('random.token'))) {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->retry(2, 1000, null, false)
+            ->acceptJson()
+            ->get($this->baseUrl . $endpoint, $query);
+
+        if ($response->failed()) {
+            $exception = new RandomApiServiceErrorException(
+                "Territorios query failed",
+                ['query' => $query],
                 $response
             );
 

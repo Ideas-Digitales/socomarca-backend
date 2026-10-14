@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Users;
 
+use App\Models\User;
 use App\Rules\ValidateRut;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class StoreRequest extends FormRequest
@@ -44,14 +46,40 @@ class StoreRequest extends FormRequest
         return
         [
             'name' => 'bail|required|string|max:255',
+            /**
+             * Stored lowercase; must not belong to another user.
+             *
+             * @example juan.perez@socomarca.cl
+             */
             'email' => 'bail|required|email|unique:users,email|max:255',
+            /** At least 8 characters with letters. Send it again as `password_confirmation`. */
             'password' => ['bail', 'required', 'confirmed', Password::min(8)->letters()],
+            /** @example +56912345678 */
             'phone' => 'bail|required|string|max:15',
-            'rut' => ['bail', 'required', 'string', 'max:12', 'unique:users,rut', new ValidateRut],
+            /**
+             * Chilean RUT, with check digit.
+             *
+             * @example 12345678-5
+             */
+            'rut' => ['bail', 'required', 'string', 'max:12', new ValidateRut],
             'business_name' => 'bail|required|string|max:255',
+            /** Inactive users cannot log in. */
             'is_active' => 'bail|required|boolean',
-            'roles' => 'bail|sometimes|array',
-            'roles.*' => 'bail|string|exists:roles,name',
+            /**
+             * Role names. `admin` and `superadmin` require the `create-admin-users` permission.
+             *
+             * @example ["supervisor"]
+             */
+            'roles' => 'bail|required|array|min:1',
+            /** Existing role name other than `customer`. */
+            'roles.*' => ['bail', 'string', 'exists:roles,name', Rule::notIn(['customer'])],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('email'))) {
+            $this->merge(['email' => User::normalizeEmail($this->input('email'))]);
+        }
     }
 }

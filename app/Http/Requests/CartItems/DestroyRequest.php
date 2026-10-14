@@ -23,8 +23,19 @@ class DestroyRequest extends FormRequest
     public function rules(): array
     {
         return [
+            /** @var int */
             'product_id' => 'required',
+            /**
+             * Sale unit of the cart item.
+             *
+             * @var string
+             */
             'unit' => 'required',
+            /**
+             * Quantity to remove. It cannot exceed the quantity of the cart item.
+             *
+             * @var int
+             */
             'quantity' => [
                 'bail',
                 'required',

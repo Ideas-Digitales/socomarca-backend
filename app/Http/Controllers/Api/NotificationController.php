@@ -7,21 +7,41 @@ use App\Http\Requests\Notifications\StoreNotificationRequest;
 use App\Jobs\SendPushNotification;
 use App\Models\FcmNotificationHistory;
 use App\Models\User;
+use Dedoc\Scramble\Attributes\Group;
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 
 
+#[Group('Notifications', 'Send push notifications through Firebase Cloud Messaging and track which ones each user has viewed.', weight: 15)]
 class NotificationController extends Controller
 {
 
     /**
-     * List the notification history with a 'viewed' flag for the current user.
+     * List sent notifications
      *
-     * @param Request $request Accepts an optional 'per_page' (1-100, defaults to 20)
-     * @return \Illuminate\Http\JsonResponse Paginated history, newest first
+     * Lists the push notifications sent, newest first. `viewed` tells whether the authenticated user
+     * has marked each one as viewed.
+     *
+     * @response array{
+     *     current_page: int,
+     *     data: list<array{id: int, user_id: int, title: string, message: string, sent_at: string, viewed: bool}>,
+     *     first_page_url: string,
+     *     from: int|null,
+     *     last_page: int,
+     *     last_page_url: string,
+     *     links: list<array{url: string|null, label: string, active: bool}>,
+     *     next_page_url: string|null,
+     *     path: string,
+     *     per_page: int,
+     *     prev_page_url: string|null,
+     *     to: int|null,
+     *     total: int,
+     * }
      */
+    #[QueryParameter('per_page', 'Items per page, limited to 1-100.', type: 'int', default: 20)]
     public function index(Request $request)
     {
         $userId = Auth::user()->id;
@@ -45,10 +65,10 @@ class NotificationController extends Controller
     }
 
     /**
-     * Queue a push notification for every active user with an FCM token.
+     * Send a push notification
      *
-     * @param StoreNotificationRequest $request Validated title and message
-     * @return \Illuminate\Http\JsonResponse The notification and how many users it targets
+     * Queues a push notification to every active user with an FCM token. The notification is added
+     * to the history when the queued job sends it, so it may not be listed right away.
      */
     public function store(StoreNotificationRequest $request)
     {
@@ -62,7 +82,13 @@ class NotificationController extends Controller
         return response()->json([
             'title' => $validated['title'],
             'message' => $validated['message'],
+            /** Number of active users with an FCM token when the notification was queued. */
             'recipients_count' => $recipients_count,
+            /**
+             * The `created_at` sent in the request, or the current time.
+             *
+             * @var string
+             */
             'created_at' => $validated['created_at'] ?? now()->toISOString(),
         ], 201);
     }

@@ -19,7 +19,7 @@ class FavoriteListResource extends JsonResource
         [
             'id' => $this->id,
             'name' => $this->name,
-            //'favorites' => new WithoutFavoriteListCollection($this->favorites),
+            /** Favorite products of the list; empty for a newly created list. */
             'favorites' => \App\Http\Resources\Favorites\FavoriteResource::collection($this->favorites),
 
         ];

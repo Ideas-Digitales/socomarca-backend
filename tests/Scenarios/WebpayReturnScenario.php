@@ -2,8 +2,8 @@
 
 namespace Tests\Scenarios;
 
+use App\Enums\BranchType;
 use App\Enums\PaymentDocumentType;
-use App\Models\Branch;
 use App\Models\CartItem;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -16,27 +16,43 @@ class WebpayReturnScenario
 {
     public function __construct(
         public User $user,
-        public Branch $branch,
+        public User $customer,
         public Order $order,
         public Product $product,
         public Payment $payment,
     ) {}
 
-    public static function make(array $branchAttributes = [], string $token = 'fake_token_ws'): WebpayReturnScenario
+    /**
+     * @param array|null $secondaryBranchAttributes When given, the order is placed for a secondary
+     *      branch of the user's entity with these attributes; otherwise, for the user itself.
+     */
+    public static function make(?array $secondaryBranchAttributes = null, string $token = 'fake_token_ws'): WebpayReturnScenario
     {
         $user = User::factory()->create([
             'rut' => '12345678-9',
             'user_code' => '12345678-9',
+            'branch_code' => 'CM',
+            'branch_type' => BranchType::PRIMARY,
         ]);
         $user->assignRole('customer');
 
-        $branch = Branch::factory()->create(array_merge(['user_id' => $user->id], $branchAttributes));
+        $customer = $user;
+
+        if ($secondaryBranchAttributes !== null) {
+            $customer = User::factory()->create(array_merge([
+                'rut' => '12345678-9',
+                'user_code' => '12345678-9',
+                'branch_code' => 'LO',
+                'branch_type' => BranchType::SECONDARY,
+            ], $secondaryBranchAttributes));
+            $customer->assignRole('customer');
+        }
 
         $order = Order::factory()->create([
             'user_id' => $user->id,
+            'customer_id' => $customer->id,
             'status' => 'pending',
             'amount' => 10000,
-            'branch_id' => $branch->id,
             'notes' => '',
             'random_document_number' => null,
         ]);
@@ -65,6 +81,6 @@ class WebpayReturnScenario
             'generate_random_doc_type' => PaymentDocumentType::INVOICE,
         ]);
 
-        return new WebpayReturnScenario($user, $branch, $order, $product, $payment);
+        return new WebpayReturnScenario($user, $customer, $order, $product, $payment);
     }
 }

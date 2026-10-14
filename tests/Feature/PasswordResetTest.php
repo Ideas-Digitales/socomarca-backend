@@ -12,70 +12,99 @@ use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Mockery\MockInterface;
 
-use function Pest\Laravel\assertDatabaseHas;
 use function Pest\Laravel\getJson;
+use function Pest\Laravel\instance;
 use function Pest\Laravel\postJson;
 use function Pest\Laravel\putJson;
 
-it('allows requesting a password reset with a valid RUT', function () {
-    /** @var \Tests\TestCase $this */
-    Mail::fake();
-    Event::fake();
+describe('password reset request', function () {
+    it('sends a temporary password to the email of an active user', function () {
+        Mail::fake();
+        Event::fake();
 
-    $user = User::factory()->create([
-        'rut' => '11111111-1',
-        'email' => 'test@example.com',
-    ]);
-
-    $newPassword = fake()->password();
-    $newPasswordHash = Hash::make($newPassword);
-    $passwordDto = new Password($newPassword, $newPasswordHash);
-    $this->instance(
-        PasswordGeneratorService::class,
-        Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
-            $mock->expects('generate')->andReturn($passwordDto);
-        })
-    );
-    $response = postJson(route('auth.password.restore'), [
-        'rut' => '11111111-1',
-    ]);
-
-    $maskedEmail =Str::maskEmail($user->email);
-    $response->assertStatus(200)
-        ->assertJson([
-            'message' => __('auth.password_reset', ['email' => $maskedEmail]),
-            'data' => [
-                'email' => $maskedEmail,
-            ]
-        ])
-        ->assertJsonStructure([
-            'message',
-            'data' => [
-                'email',
-            ]
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'is_active' => true,
+            'password_changed_at' => now(),
         ]);
 
-    assertDatabaseHas('users', [
-        'rut' => $user->rut,
-        'password_changed_at' => null,
-    ]);
+        $newPassword = fake()->password();
+        $passwordDto = new Password($newPassword, Hash::make($newPassword));
+        instance(
+            PasswordGeneratorService::class,
+            Mockery::mock(PasswordGeneratorService::class, function (MockInterface $mock) use ($passwordDto) {
+                $mock->expects('generate')->andReturn($passwordDto);
+            })
+        );
 
-    $updatedUser = User::where('rut', $user->rut)->first();
-    expect(Hash::check($passwordDto->password, $updatedUser->password))->toBeTrue();
+        $maskedEmail = Str::maskEmail('test@example.com');
 
-    Mail::assertQueued(TemporaryPasswordMail::class, function ($mail) use ($user) {
-        return $mail->hasTo($user->email);
+        postJson(route('auth.password.restore'), [
+            'email' => ' Test@Example.com ',
+        ])
+            ->assertOk()
+            ->assertExactJson([
+                'message' => __('auth.password_reset', ['email' => $maskedEmail]),
+                'data' => ['email' => $maskedEmail],
+            ]);
+
+        $user->refresh();
+        expect($user->password_changed_at)->toBeNull()
+            ->and(Hash::check($passwordDto->password, $user->password))->toBeTrue();
+
+        Mail::assertQueued(TemporaryPasswordMail::class, fn ($mail) => $mail->hasTo('test@example.com'));
     });
-});
 
-it('rejects a password reset request when the RUT does not exist', function () {
-    Mail::fake();
+    it('requires the email', function () {
+        postJson(route('auth.password.restore'), [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    });
 
-    $response = postJson(route('auth.password.restore'), [
-        'rut' => '00000000-0',
+    it('responds the same without sending the password when the email does not belong to exactly one active user', function (Closure $arrange) {
+        Mail::fake();
+        $users = $arrange();
+        $passwords = array_map(fn (User $user) => $user->password, $users);
+
+        $maskedEmail = Str::maskEmail('test@example.com');
+
+        postJson(route('auth.password.restore'), [
+            'email' => 'test@example.com',
+        ])
+            ->assertOk()
+            ->assertExactJson([
+                'message' => __('auth.password_reset', ['email' => $maskedEmail]),
+                'data' => ['email' => $maskedEmail],
+            ]);
+
+        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
+        foreach ($users as $index => $user) {
+            expect($user->fresh()->password)->toBe($passwords[$index]);
+        }
+    })->with([
+        'unregistered email' => fn () => [],
+        'inactive user' => fn () => [
+            User::factory()->create(['email' => 'test@example.com', 'is_active' => false]),
+        ],
+        'email of several active users' => fn () => [
+            createSyncedCustomer(['email' => 'test@example.com', 'branch_code' => 'CM']),
+            createSyncedCustomer(['email' => 'test@example.com', 'branch_code' => 'LO']),
+        ],
     ]);
 
-    $response->assertStatus(403);
+    it('ignores inactive users when checking for duplicated emails', function () {
+        Mail::fake();
+
+        $user = createSyncedCustomer(['email' => 'test@example.com', 'branch_code' => 'CM']);
+        createSyncedCustomer(['email' => 'test@example.com', 'branch_code' => 'LO', 'is_active' => false]);
+
+        postJson(route('auth.password.restore'), [
+            'email' => 'test@example.com',
+        ])->assertOk();
+
+        Mail::assertQueued(TemporaryPasswordMail::class, fn ($mail) => $mail->hasTo($user->email) && $mail->user->is($user));
+    });
 });
 
 it('allows an authenticated user to change their password', function () {

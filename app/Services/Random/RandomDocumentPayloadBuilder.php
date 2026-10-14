@@ -5,12 +5,18 @@ namespace App\Services\Random;
 use App\Enums\PaymentDocumentType;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Scopes\SecondaryBranchesScope;
+use App\Services\VatService;
 
 class RandomDocumentPayloadBuilder
 {
+    public function __construct(private VatService $vatService) {}
+
     /**
      * Build the Random ERP "documento" (NVV) payload for an order.
+     *
+     * The entity code (KOEN) is the one of the user who placed the order and the branch
+     * (SUEN) is the one of the customer the order is placed for, which can be one of the
+     * user's secondary branches.
      *
      * @param Order $order
      * @param string $generateRandomDocType Payment document type chosen by the customer
@@ -27,26 +33,32 @@ class RandomDocumentPayloadBuilder
             ->with("product")
             ->get();
         $lines = $orderItems
-            ->map(function (OrderItem $item) {
-                return [
+            ->map(
+                fn(OrderItem $item) => [
                     "cantidad" => $item->quantity,
                     "codigoProducto" => $item->product->sku,
-                ];
-            })
+                    "idUnidad" => 1,
+                    "precioNetoUnitario" => (float) $item->price,
+                    "precioBrutoUnitario" => $this->vatService->applyTo(
+                        (float) $item->price,
+                        $item->vat,
+                    ),
+                    // Same amounts that were charged when the order was placed.
+                    "valorNetoLinea" => (float) $item->subtotal,
+                    "valorBrutoLinea" => (float) $item->total,
+                    "despacho" => true,
+                ],
+            )
             ->toArray();
 
         $randomDocType = PaymentDocumentType::getLabel($generateRandomDocType);
-        $branch = $order
-            ->branch()
-            ->withoutGlobalScope(SecondaryBranchesScope::class)
-            ->first();
+        $buyer = $order->user;
 
         return [
             "datos" => [
                 "empresa" => config("random.business_code"),
-                "codigoEntidad" => $order->user->user_code,
-                "sucursalEntidad" => $branch->code,
-                "sucursalEntidadDespacho" => $branch->code,
+                "codigoEntidad" => $buyer->user_code,
+                "sucursalEntidad" => $order->customer->branch_code,
                 "flujoVenta" => PaymentDocumentType::getSaleFlowOption(
                     $generateRandomDocType,
                 ),
@@ -56,7 +68,7 @@ class RandomDocumentPayloadBuilder
                 "funcionario" => config("random.functionary"),
                 "lineas" => $lines,
                 "texto1" => "{$paymentLabel}. Orden de compra: #{$order->id}",
-                "texto2" => "{$order?->user?->rut} - {$randomDocType}",
+                "texto2" => "{$buyer->rut} - {$randomDocType}",
                 "texto3" => "Origen: Compra rápida",
                 "observacion" => $order->notes,
             ],

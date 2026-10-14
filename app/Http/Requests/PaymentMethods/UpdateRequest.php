@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\PaymentMethods;
 
+use Dedoc\Scramble\Attributes\IgnoreParam;
 use Illuminate\Foundation\Http\FormRequest;
 
+#[IgnoreParam('id', 'body')]
 class UpdateRequest extends FormRequest
 {
     /**
@@ -24,6 +26,7 @@ class UpdateRequest extends FormRequest
         return
         [
             'id' => 'bail|integer|exists:payment_methods,id',
+            /** Whether the payment method is offered at checkout. */
             'active' => 'bail|required|boolean',
         ];
     }

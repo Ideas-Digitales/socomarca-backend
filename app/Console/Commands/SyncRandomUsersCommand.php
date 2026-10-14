@@ -34,7 +34,7 @@ class SyncRandomUsersCommand extends Command
          Log::info('SyncRandomUsers started');
        
         SyncRandomUsers::dispatch()
-            ->onQueue('random-users');
+            ->onQueue('random-sync-users');
 
         $this->info('Proceso de sincronización encolado correctamente.');
     }

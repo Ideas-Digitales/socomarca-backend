@@ -39,21 +39,31 @@ class AddressPolicy
 
     /**
      * Determine whether the user can update the model.
+     * Synced addresses are managed by the Random sync and cannot be updated via the API.
      */
     public function update(User $user, Address $address): bool
     {
+        if ($address->is_synced) {
+            return false;
+        }
+
         if (!$user->can('update-addresses')) {
             return false;
-        };
+        }
 
         return $this->view($user, $address);
     }
 
     /**
      * Determine whether the user can delete the model.
+     * Synced addresses are managed by the Random sync and cannot be deleted via the API.
      */
     public function delete(User $user, Address $address): bool
     {
+        if ($address->is_synced) {
+            return false;
+        }
+
         if (!$user->can('delete-addresses')) {
             return false;
         };

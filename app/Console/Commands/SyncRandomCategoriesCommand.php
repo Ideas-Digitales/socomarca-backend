@@ -15,7 +15,7 @@ class SyncRandomCategoriesCommand extends Command
         $this->info('Iniciando sincronización de categorías...');
         
         SyncRandomCategories::dispatch()
-            ->onQueue('random-categories');
+            ->onQueue('random-sync-products');
 
         $this->info('Proceso de sincronización encolado correctamente.');
     }

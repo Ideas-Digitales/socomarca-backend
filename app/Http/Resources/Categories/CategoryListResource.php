@@ -14,6 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * separate columns.
  *
  * @see \App\Http\Controllers\Api\CategoryController::index()
+ * @mixin \App\Models\Category
  */
 class CategoryListResource extends JsonResource
 {
@@ -26,10 +27,27 @@ class CategoryListResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
+            /** Random ERP code. */
             'code' => $this->code,
+            /**
+             * `1` supercategory, `2` category, `3` subcategory.
+             *
+             * @var 1|2|3
+             */
             'level' => $this->level,
+            /**
+             * Random ERP key: the codes of the category and its parents, separated by `/`.
+             *
+             * @example 01/02
+             */
             'key' => $this->key,
+            /**
+             * Disabled categories no longer exist in Random ERP.
+             *
+             * @var bool
+             */
             'enabled' => $this->enabled,
+            /** All the products of the category, whatever their status or prices. */
             'products_count' => $this->productsCountForLevel(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

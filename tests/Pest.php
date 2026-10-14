@@ -13,7 +13,6 @@
 */
 
 use App\Models\Address;
-use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Favorite;
@@ -99,11 +98,6 @@ function createUserHasFavoriteList()
         ->create();
 }
 
-function createBranch()
-{
-    return Branch::factory()->create();
-}
-
 function createUserHasFavorite()
 {
     return User::factory()
@@ -135,23 +129,24 @@ function createUserWithPermissions(array $permissions): User {
     return $user;
 }
 
-function createCustomerWithBranch(): array
+/**
+ * Create an active customer synced from a Random entity (primary branch by default),
+ * assigned to the test price list.
+ */
+function createSyncedCustomer(array $attributes = []): User
 {
-    $user = User::factory()->create([
-        "rut" => "12345678-9",
-        "user_code" => "12345678-9",
-        "branch_code" => "CM",
-    ]);
-    if (!$user->hasRole("customer")) {
-        $user->assignRole("customer");
-    }
-    $branch = Branch::factory()->create([
-        "user_id" => $user->id,
-        "code" => "CM",
-        "user_code" => "12345678-9",
-    ]);
+    static $entityId = 1000;
 
-    return [$user, $branch];
+    $user = User::factory()->create(array_merge([
+        'random_entity_id' => ++$entityId,
+        'user_code' => '77528378',
+        'branch_type' => \App\Enums\BranchType::PRIMARY,
+        'prices_lists' => [getPriceListCode()],
+        'is_active' => true,
+    ], $attributes));
+    $user->assignRole('customer');
+
+    return $user;
 }
 
 /**

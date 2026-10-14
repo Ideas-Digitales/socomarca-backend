@@ -4,11 +4,16 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Services\Data\UserService;
+use App\Support\Scramble\DocumentPermissionMiddleware;
+use Dedoc\Scramble\Scramble;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use App\Services\RandomApiService;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\Sanctum;
 use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
 use Symfony\Component\Mailer\Transport\Dsn;
 
@@ -32,6 +37,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Tokens issued before a user was deactivated must stop working on every route.
+        Sanctum::authenticateAccessTokensUsing(
+            fn (PersonalAccessToken $accessToken, bool $isValid) => $isValid
+                && (bool) $accessToken->tokenable?->is_active
+        );
+
         Mail::extend('brevo', function () {
             return (new BrevoTransportFactory)->create(
                 new Dsn(
@@ -41,6 +52,10 @@ class AppServiceProvider extends ServiceProvider
                 )
             );
         });
+
+        Scramble::configure()
+            ->routes(fn (Route $route) => Str::startsWith($route->uri, 'api/') && $route->uri !== 'api/{url}')
+            ->withOperationTransformers(DocumentPermissionMiddleware::class);
 
         Str::macro('maskEmail', function (string $email) {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
