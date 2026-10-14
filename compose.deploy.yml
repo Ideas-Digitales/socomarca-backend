@@ -70,6 +70,6 @@ networks:
 
 volumes:
   firebase_credentials_storage:
-    name: firebase_credentials_storage
+    name: firebase_credentials_${IMAGE_TAG}
   log_storage:
     name: socomarca_logs_${IMAGE_TAG}
