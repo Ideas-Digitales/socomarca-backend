@@ -216,7 +216,10 @@ class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
                     'branch_type'      => $branchType,
                     'rut'              => trim((string) ($entity['RTEN'] ?? '')),
                     'name'             => trim((string) ($entity['NOKOEN'] ?? '')),
-                    'email'            => User::normalizeEmail($entity['EMAILCOMER'] ?? null),
+                    //  Normalize the commercial email (EMAILCOMER) of a Random entity, used to log in. Emails of an
+                    //  excluded domain are stored as null, so that the customer has to request a valid commercial
+                    //  email before logging in.
+                    'email'            => $this->filterEmailAddress($entity['EMAILCOMER'] ?? null),
                     'billing_email'    => User::normalizeEmail($entity['EMAIL'] ?? null),
                     'business_name'    => trim((string) ($entity['SIEN'] ?? '')),
                     'phone'            => trim((string) ($entity['FOEN'] ?? '')) ?: null,
@@ -251,6 +254,19 @@ class SyncRandomUsers implements ShouldQueue, ShouldBeUnique
         }
 
         $this->syncAddress($user, $entity);
+    }
+
+    /**
+     * Validate the email address to avoid using it if it has a domain that's in
+     * the excluded domains list
+     *
+     * @param string|null $email
+     *
+     * @return string|null
+     */
+    private function filterEmailAddress(?string $email): ?string
+    {
+        return User::hasExcludedEmailDomain($email) ? null : User::normalizeEmail($email);
     }
 
     /**

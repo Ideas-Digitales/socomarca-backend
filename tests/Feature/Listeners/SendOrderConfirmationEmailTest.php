@@ -117,6 +117,20 @@ it("discards empty and invalid recipients", function () {
     expect(sentConfirmationRecipients())->toBe(["compras@cliente.cl"]);
 });
 
+it("discards the recipients of an excluded domain", function () {
+    Mail::fake();
+
+    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
+    $user->update([
+        "email" => "compras@cliente.cl",
+        "billing_email" => "FacturacionMIPYME@SII.cl",
+    ]);
+
+    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order->fresh()));
+
+    expect(sentConfirmationRecipients())->toBe(["compras@cliente.cl"]);
+});
+
 test("does not send email when customer has no email", function () {
     Mail::fake();
 

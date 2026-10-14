@@ -67,7 +67,8 @@ class SendOrderConfirmationEmail implements ShouldQueue
     /**
      * Commercial (EMAILCOMER) and billing (EMAIL) emails of the user who placed the order and
      * of the customer it was placed for, normalized and without duplicates. Invalid emails are
-     * discarded so that a wrong value in Random does not prevent sending to the rest.
+     * discarded so that a wrong value in Random does not prevent sending to the rest, as well as
+     * emails of an excluded domain (e.g. SII generic billing mailboxes).
      *
      * @return list<string>
      */
@@ -81,6 +82,7 @@ class SendOrderConfirmationEmail implements ShouldQueue
         ])
             ->map(fn (?string $email) => User::normalizeEmail($email))
             ->filter(fn (?string $email) => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
+            ->reject(fn (string $email) => User::hasExcludedEmailDomain($email))
             ->unique()
             ->values()
             ->all();
