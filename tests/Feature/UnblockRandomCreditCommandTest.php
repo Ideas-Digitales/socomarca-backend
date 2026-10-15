@@ -24,14 +24,19 @@ describe('random:unblock-credit command', function () {
 
     it('completes the processing credit payments and unblocks the credit lines', function () {
         $user = User::factory()->create();
-        $creditLine = CreditLine::factory()->create(['user_id' => $user->id, 'is_blocked' => true]);
         $first = createBlockedCreditPurchase($user);
         $second = createBlockedCreditPurchase($user);
+        $creditLine = CreditLine::factory()->create([
+            'user_id' => $user->id,
+            'is_blocked' => true,
+            'blocking_payment_id' => $second->id,
+        ]);
 
         $this->artisan('random:unblock-credit', ['user' => $user->id, '--force' => true])
             ->assertExitCode(0);
 
         expect($creditLine->refresh()->isBlocked())->toBeFalse()
+            ->and($creditLine->blocking_payment_id)->toBeNull()
             ->and($first->refresh()->status)->toBe('completed')
             ->and($second->refresh()->status)->toBe('completed');
     });

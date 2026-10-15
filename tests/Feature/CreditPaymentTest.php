@@ -71,6 +71,59 @@ test("it rejects payment if the user credit line is blocked", function () {
 });
 
 test(
+    "it rejects payment if a concurrent checkout blocks the credit line before it is locked",
+    function () {
+        $user = createCreditCustomer();
+        $creditLine = \App\Models\CreditLine::factory()->create([
+            "user_id" => $user->id,
+            "branch_code" => "CM",
+            "is_blocked" => false,
+        ]);
+
+        $address = Address::factory()->create(["user_id" => $user->id]);
+        $product = Product::factory()->create();
+        \App\Models\Price::factory()->create([
+            "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
+            "unit" => "UN",
+        ]);
+        CartItem::create([
+            "user_id" => $user->id,
+            "product_id" => $product->id,
+            "quantity" => 1,
+            "unit" => "UN",
+        ]);
+
+        // The other checkout blocks the line right after this one reads it unblocked.
+        $blockedConcurrently = false;
+        \App\Models\CreditLine::retrieved(function (\App\Models\CreditLine $retrieved) use (
+            $creditLine,
+            &$blockedConcurrently,
+        ) {
+            if (!$blockedConcurrently && $retrieved->is($creditLine)) {
+                $blockedConcurrently = true;
+                \App\Models\CreditLine::whereKey($creditLine->id)->update(["is_blocked" => true]);
+            }
+        });
+        Http::fake();
+
+        Sanctum::actingAs($user, ['api-access']);
+        $response = postJson(route("orders.pay"), [
+            "address_id" => $address->id,
+            "payment_method" => "random_credit",
+            "payment_document_type" => "receipt",
+        ]);
+
+        $response
+            ->assertStatus(200)
+            ->assertJsonPath("success", false)
+            ->assertJsonPath("message", "Línea de crédito bloqueada");
+        expect(\App\Models\Payment::count())->toBe(0);
+        Http::assertNothingSent();
+    },
+);
+
+test(
     "it calls successfully to Random Credit service during a credit line payment",
     function () {
         /** @var TestCase $this */
@@ -360,6 +413,7 @@ test("it can process a credit line payment successfully", function () {
     $creditLine = \App\Models\CreditLine::where("user_id", $user->id)->first();
     expect($creditLine)->not->toBeNull();
     expect($creditLine->isBlocked())->toBeTrue();
+    expect($creditLine->blocking_payment_id)->toBe($payment->id);
     expect($creditLine->state["CRSDVU"] == $CRSDVU)->toBeTrue();
 
     Http::assertSent(function (\Illuminate\Http\Client\Request $request) use (
