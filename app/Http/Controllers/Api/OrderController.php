@@ -380,89 +380,109 @@ class OrderController extends Controller
             ],
         );
 
-        if ($creditLine->isBlocked()) {
-            return response()->json([
-                "success" => false,
-                "message" => "Línea de crédito bloqueada",
-                "data" => [
-                    "transaction" => ["status" => "FAILED"],
-                ],
-            ]);
-        }
-
-        $creditLineResponse = $randomApiService->getCreditLine(
-            $buyer->user_code,
-            $buyer->branch_code,
-        );
-
-        $creditLineInfo = $creditLineResponse->json();
-
-        $availableCredit = (int) bcsub(
-            (string) ($creditLineInfo["CRSD"] ?? 0),
-            (string) ($creditLineInfo["CRSDVU"] ?? 0),
-            0,
-        );
-
-        if ($availableCredit < $order->amount) {
-            return response()->json([
-                "success" => false,
-                "message" => "Crédito insuficiente",
-                "payment" => null,
-                "data" => [
-                    "transaction" => ["status" => "FAILED"],
-                    "payment" => null,
-                    "credit_status" => $creditLineInfo,
-                ],
-            ]);
-        }
-
-        $payload = $this->payloadBuilder->build(
+        // The line stays locked until the payment is recorded and the line blocked, so a
+        // concurrent checkout of the same buyer waits and then finds the line blocked.
+        $result = DB::transaction(function () use (
+            $creditLine,
             $order,
+            $buyer,
+            $paymentMethod,
+            $randomApiService,
             $generateRandomDocType,
-            "Pago a crédito",
-        );
+        ) {
+            $creditLine = \App\Models\CreditLine::whereKey($creditLine->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $documentResponse = $this->documentService->createDocument(
-            $payload,
-            $order,
-        );
+            if ($creditLine->isBlocked()) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Línea de crédito bloqueada",
+                    "data" => [
+                        "transaction" => ["status" => "FAILED"],
+                    ],
+                ]);
+            }
 
-        if (isset($documentResponse["errorId"])) {
-            $payment = $this->paymentService->recordFailedCreditPayment(
+            $creditLineResponse = $randomApiService->getCreditLine(
+                $buyer->user_code,
+                $buyer->branch_code,
+            );
+
+            $creditLineInfo = $creditLineResponse->json();
+
+            $availableCredit = (int) bcsub(
+                (string) ($creditLineInfo["CRSD"] ?? 0),
+                (string) ($creditLineInfo["CRSDVU"] ?? 0),
+                0,
+            );
+
+            if ($availableCredit < $order->amount) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "Crédito insuficiente",
+                    "payment" => null,
+                    "data" => [
+                        "transaction" => ["status" => "FAILED"],
+                        "payment" => null,
+                        "credit_status" => $creditLineInfo,
+                    ],
+                ]);
+            }
+
+            $payload = $this->payloadBuilder->build(
+                $order,
+                $generateRandomDocType,
+                "Pago a crédito",
+            );
+
+            $documentResponse = $this->documentService->createDocument(
+                $payload,
+                $order,
+            );
+
+            if (isset($documentResponse["errorId"])) {
+                $payment = $this->paymentService->recordFailedCreditPayment(
+                    $order,
+                    $paymentMethod,
+                );
+                $payment->load("order");
+                return response()->json([
+                    "success" => false,
+                    "message" => "Creación de nota de venta fallida",
+                    "data" => [
+                        "transaction" => ["status" => "FAILED"],
+                        "payment" => new \App\Http\Resources\PaymentResource(
+                            $payment,
+                        ),
+                        "credit_status" => $creditLineInfo,
+                    ],
+                ]);
+            }
+
+            $payment = $this->paymentService->recordAuthorizedCreditPayment(
                 $order,
                 $paymentMethod,
+                $generateRandomDocType,
+                $documentResponse["numero"],
             );
-            $payment->load("order");
-            return response()->json([
-                "success" => false,
-                "message" => "Creación de nota de venta fallida",
-                "data" => [
-                    "transaction" => ["status" => "FAILED"],
-                    "payment" => new \App\Http\Resources\PaymentResource(
-                        $payment,
-                    ),
-                    "credit_status" => $creditLineInfo,
-                ],
-            ]);
+            $localCredit = $creditLineInfo;
+            $localCredit["CRSDVU"] = floatval(
+                bcadd($creditLineInfo["CRSDVU"], $order->amount),
+            );
+
+            $creditLine->update(["state" => $localCredit]);
+            $creditLine->block($payment);
+
+            return $payment;
+        });
+
+        if ($result instanceof \Illuminate\Http\JsonResponse) {
+            return $result;
         }
 
-        $payment = $this->paymentService->recordAuthorizedCreditPayment(
-            $order,
-            $paymentMethod,
-            $generateRandomDocType,
-            $documentResponse["numero"],
-        );
+        $payment = $result;
         OrderCompleted::dispatch($order);
-        $localCredit = $creditLineInfo;
-        $localCredit["CRSDVU"] = floatval(
-            bcadd($creditLineInfo["CRSDVU"], $order->amount),
-        );
-
-        $creditLine->update([
-            "state" => $localCredit,
-            "is_blocked" => true,
-        ]);
-
         $payment->load("order");
 
         \App\Models\CartItem::where("user_id", $order->user_id)->delete();
