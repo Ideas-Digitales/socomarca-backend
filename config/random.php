@@ -21,6 +21,9 @@ return [
     'credit_sync' => [
         'enabled' => env('RANDOM_CREDIT_SYNC_ENABLED', true),
         'frequency_minutes' => env('RANDOM_CREDIT_SYNC_FREQUENCY_MINUTES', 5),
+        // Enables `random:unblock-credit`, meant for QA only. APP_ENV can't tell QA from
+        // production apart, both environments are deployed as `local`.
+        'manual_unblock_enabled' => env('RANDOM_CREDIT_MANUAL_UNBLOCK_ENABLED', false),
     ],
     'warehouse_code' => env('RANDOM_ERP_WAREHOUSE_CODE', 'BEC'),
     'show_product_zero_price' => env('SHOW_PRODUCT_ZERO_PRICE', false),
@@ -29,6 +32,12 @@ return [
     'documents' => [
         'dry_run' => env('RANDOM_ERP_DOCUMENTS_DRY_RUN', false),
     ],
+    // Comma separated email domains (e.g. SII generic billing mailboxes) not allowed as commercial
+    // email (EMAILCOMER) by the users sync, nor as recipients of the order notifications.
+    'excluded_email_domains' => array_values(array_filter(array_map(
+        fn (string $domain) => ltrim(mb_strtolower(trim($domain)), '@'),
+        explode(',', (string) env('RANDOM_EXCLUDED_EMAIL_DOMAINS', 'sii.cl')),
+    ))),
     'warehouse_email_recipient' => env('WAREHOUSE_EMAIL_RECIPIENT', 'warehouse@socomarca.cl'),
     'site_logo_url' => env('SITE_LOGO_URL', 'https://socomarca-frontend.vercel.app/assets/global/logo.png'),
     // Base URL for email icons (cart + social). Defaults to the app's public assets;
