@@ -21,6 +21,9 @@ return [
     'credit_sync' => [
         'enabled' => env('RANDOM_CREDIT_SYNC_ENABLED', true),
         'frequency_minutes' => env('RANDOM_CREDIT_SYNC_FREQUENCY_MINUTES', 5),
+        // Enables `random:unblock-credit`, meant for QA only. APP_ENV can't tell QA from
+        // production apart, both environments are deployed as `local`.
+        'manual_unblock_enabled' => env('RANDOM_CREDIT_MANUAL_UNBLOCK_ENABLED', false),
     ],
     'warehouse_code' => env('RANDOM_ERP_WAREHOUSE_CODE', 'BEC'),
     'show_product_zero_price' => env('SHOW_PRODUCT_ZERO_PRICE', false),
