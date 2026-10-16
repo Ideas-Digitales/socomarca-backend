@@ -246,6 +246,7 @@
         // Branch the order was placed for; the buyer itself unless a primary branch ordered for a secondary one.
         $customer = $order->customer ?? $buyer;
         $customerName = $customer?->name ?? 'Cliente';
+        $audience = $audience ?? \App\Mail\OrderConfirmationMail::AUDIENCE_SELF;
         $billingAddress = $order->order_meta['address'] ?? [];
         $shippingAddress = $order->order_meta['address'] ?? [];
         $payment = $order->payments->first();
@@ -274,9 +275,19 @@
             <img class="cart-icon" src="{{ $iconBase }}/cart.png" width="90" height="90" alt="" />
         </div>
 
-        <p class="intro">
-            ¡Gracias por tu compra, <strong>{{ $buyerName }}</strong>! Hemos recibido tu pedido y ya lo estamos preparando.
-        </p>
+        @if ($audience === \App\Mail\OrderConfirmationMail::AUDIENCE_BUYER)
+            <p class="intro">
+                Registramos tu compra para la sucursal <strong>{{ $customerName }}</strong>. Hemos recibido el pedido y ya lo estamos preparando.
+            </p>
+        @elseif ($audience === \App\Mail\OrderConfirmationMail::AUDIENCE_BRANCH)
+            <p class="intro">
+                <strong>{{ $buyerName }}</strong> registró una compra para tu sucursal. Hemos recibido el pedido y ya lo estamos preparando.
+            </p>
+        @else
+            <p class="intro">
+                ¡Gracias por tu compra, <strong>{{ $buyerName }}</strong>! Hemos recibido tu pedido y ya lo estamos preparando.
+            </p>
+        @endif
 
         <p class="order-summary">
             Pedido <strong>N&deg;{{ $order->id }}</strong> - Total <strong>${{ number_format($total, 0, ',', '.') }}</strong>

@@ -58,6 +58,8 @@ return [
 
     // Order permissions
     'read-own-orders', // [customer]
+    'read-all-orders', // [superadmin, admin]
+    'cancel-orders', // [superadmin, admin]
     'create-orders', // [customer]
     'update-orders', // [customer]
 

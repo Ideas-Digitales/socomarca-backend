@@ -13,29 +13,49 @@ class OrderConfirmationMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Order $order)
-    {
+    /** Purchase placed for the buyer's own branch. */
+    public const AUDIENCE_SELF = 'self';
+
+    /** Primary branch that placed the purchase for a secondary branch. */
+    public const AUDIENCE_BUYER = 'buyer';
+
+    /** Secondary branch the purchase was placed for. */
+    public const AUDIENCE_BRANCH = 'branch';
+
+    public function __construct(
+        public Order $order,
+        public string $audience = self::AUDIENCE_SELF,
+    ) {
         $this->order->loadMissing([
-            "user",
-            "customer",
-            "orderDetails.product",
-            "payments.paymentMethod",
+            'user',
+            'customer',
+            'orderDetails.product',
+            'payments.paymentMethod',
         ]);
     }
 
     public function envelope(): Envelope
     {
-        return new Envelope(
-            subject: "¡Gracias por tu compra! Hemos recibido tu pedido N°{$this->order->id} en SOCOMARCA",
-        );
+        $id = $this->order->id;
+        $buyerName = $this->order->user?->name ?? 'Cliente';
+        $customerName = $this->order->customer?->name ?? $buyerName;
+
+        $subject = match ($this->audience) {
+            self::AUDIENCE_BUYER => "Registramos tu compra para la sucursal {$customerName}. Pedido N°{$id} en SOCOMARCA",
+            self::AUDIENCE_BRANCH => "{$buyerName} registró una compra para tu sucursal. Pedido N°{$id} en SOCOMARCA",
+            default => "¡Gracias por tu compra! Hemos recibido tu pedido N°{$id} en SOCOMARCA",
+        };
+
+        return new Envelope(subject: $subject);
     }
 
     public function content(): Content
     {
         return new Content(
-            view: "emails.order-confirmation",
+            view: 'emails.order-confirmation',
             with: [
-                "order" => $this->order,
+                'order' => $this->order,
+                'audience' => $this->audience,
             ],
         );
     }

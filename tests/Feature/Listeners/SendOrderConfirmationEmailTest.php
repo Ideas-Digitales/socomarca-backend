@@ -10,12 +10,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
-test("sends the order confirmation email to the customer", function () {
+test('sends the order confirmation email to the customer', function () {
     Mail::fake();
 
-    ["user" => $user, "order" => $order] = makeCompletedOrderScenario();
+    ['user' => $user, 'order' => $order] = makeCompletedOrderScenario();
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order));
 
     Mail::assertSent(OrderConfirmationMail::class, function (
         OrderConfirmationMail $mail,
@@ -34,123 +34,226 @@ function sentConfirmationRecipients(): array
     $mails = Mail::sent(OrderConfirmationMail::class);
     expect($mails)->toHaveCount(1);
 
-    return collect($mails->first()->to)->pluck("address")->sort()->values()->all();
+    return confirmationRecipients($mails->first());
 }
 
-it("sends one email to the commercial and billing emails of the user", function () {
+/**
+ * @return list<string>
+ */
+function confirmationRecipients(OrderConfirmationMail $mail): array
+{
+    return collect($mail->to)->pluck('address')->sort()->values()->all();
+}
+
+it('sends one email to the commercial and billing emails of the user', function () {
     Mail::fake();
 
-    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
     $user->update([
-        "email" => "compras@cliente.cl",
-        "billing_email" => "dte@cliente.cl",
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'dte@cliente.cl',
     ]);
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order->fresh()));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
 
     expect(sentConfirmationRecipients())->toBe([
-        "compras@cliente.cl",
-        "dte@cliente.cl",
+        'compras@cliente.cl',
+        'dte@cliente.cl',
     ]);
 });
 
-it("sends one email to the user and to the branch the order is placed for", function () {
+it('sends the buyer and the branch their own confirmation when the order is placed for another branch', function () {
     Mail::fake();
+    Storage::fake('s3');
 
-    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
     $user->update([
-        "email" => "compras@cliente.cl",
-        "billing_email" => "dte@cliente.cl",
+        'name' => 'Sucursal Principal',
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'dte@cliente.cl',
     ]);
     $branch = User::factory()->create([
-        "email" => "sucursal@cliente.cl",
-        "billing_email" => "dte-sucursal@cliente.cl",
+        'name' => 'Sucursal Norte',
+        'email' => 'sucursal@cliente.cl',
+        'billing_email' => 'dte-sucursal@cliente.cl',
     ]);
-    $order->update(["customer_id" => $branch->id]);
+    $order->update(['customer_id' => $branch->id]);
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order->fresh()));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
 
-    expect(sentConfirmationRecipients())->toBe([
-        "compras@cliente.cl",
-        "dte-sucursal@cliente.cl",
-        "dte@cliente.cl",
-        "sucursal@cliente.cl",
-    ]);
+    $mails = Mail::sent(OrderConfirmationMail::class);
+    expect($mails)->toHaveCount(2);
+
+    $buyerMail = $mails->first(
+        fn (OrderConfirmationMail $mail) => $mail->audience === OrderConfirmationMail::AUDIENCE_BUYER,
+    );
+    $branchMail = $mails->first(
+        fn (OrderConfirmationMail $mail) => $mail->audience === OrderConfirmationMail::AUDIENCE_BRANCH,
+    );
+
+    expect($buyerMail)->not->toBeNull()
+        ->and(confirmationRecipients($buyerMail))->toBe([
+            'compras@cliente.cl',
+            'dte@cliente.cl',
+        ])
+        ->and($branchMail)->not->toBeNull()
+        ->and(confirmationRecipients($branchMail))->toBe([
+            'dte-sucursal@cliente.cl',
+            'sucursal@cliente.cl',
+        ]);
+
+    $buyerSubject = $buyerMail->envelope()->subject;
+    $buyerBody = $buyerMail->render();
+    expect($buyerSubject)->toContain('Sucursal Norte')
+        ->and($buyerSubject)->toContain((string) $order->id)
+        ->and($buyerSubject)->toContain('SOCOMARCA')
+        ->and($buyerBody)->toContain('Registramos tu compra para la sucursal')
+        ->and($buyerBody)->toContain('Sucursal Norte')
+        ->and($buyerBody)->not->toContain('¡Gracias por tu compra');
+
+    $branchSubject = $branchMail->envelope()->subject;
+    $branchBody = $branchMail->render();
+    expect($branchSubject)->toContain('Sucursal Principal')
+        ->and($branchSubject)->toContain((string) $order->id)
+        ->and($branchSubject)->toContain('SOCOMARCA')
+        ->and($branchBody)->toContain('Sucursal Principal')
+        ->and($branchBody)->toContain('registró una compra para tu sucursal')
+        ->and($branchBody)->not->toContain('¡Gracias por tu compra');
 });
 
-it("normalizes the recipients and removes duplicates", function () {
+it('normalizes the recipients and keeps a shared address only on the buyer email', function () {
     Mail::fake();
 
-    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
     $user->update([
-        "email" => "compras@cliente.cl",
-        "billing_email" => "dte@cliente.cl",
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'dte@cliente.cl',
     ]);
     $branch = User::factory()->create([
-        "email" => "sucursal@cliente.cl",
-        "billing_email" => "dte@cliente.cl",
+        'email' => 'sucursal@cliente.cl',
+        'billing_email' => 'dte@cliente.cl',
     ]);
     // Random sourced values may come with spaces or uppercase.
-    DB::table("users")->where("id", $branch->id)->update(["billing_email" => " DTE@Cliente.cl "]);
-    $order->update(["customer_id" => $branch->id]);
+    DB::table('users')->where('id', $branch->id)->update(['billing_email' => ' DTE@Cliente.cl ']);
+    $order->update(['customer_id' => $branch->id]);
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order->fresh()));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
 
-    expect(sentConfirmationRecipients())->toBe([
-        "compras@cliente.cl",
-        "dte@cliente.cl",
-        "sucursal@cliente.cl",
+    $mails = Mail::sent(OrderConfirmationMail::class);
+    expect($mails)->toHaveCount(2);
+
+    $buyerMail = $mails->first(
+        fn (OrderConfirmationMail $mail) => $mail->audience === OrderConfirmationMail::AUDIENCE_BUYER,
+    );
+    $branchMail = $mails->first(
+        fn (OrderConfirmationMail $mail) => $mail->audience === OrderConfirmationMail::AUDIENCE_BRANCH,
+    );
+
+    expect(confirmationRecipients($buyerMail))->toBe([
+        'compras@cliente.cl',
+        'dte@cliente.cl',
+    ])->and(confirmationRecipients($branchMail))->toBe([
+        'sucursal@cliente.cl',
     ]);
 });
 
-it("discards empty and invalid recipients", function () {
+it('does not send a second email when every branch address already belongs to the buyer', function () {
     Mail::fake();
 
-    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
     $user->update([
-        "email" => "compras@cliente.cl",
-        "billing_email" => "no-es-un-email",
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'dte@cliente.cl',
     ]);
+    $branch = User::factory()->create([
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'dte@cliente.cl',
+    ]);
+    $order->update(['customer_id' => $branch->id]);
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order->fresh()));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
 
-    expect(sentConfirmationRecipients())->toBe(["compras@cliente.cl"]);
+    $mails = Mail::sent(OrderConfirmationMail::class);
+    expect($mails)->toHaveCount(1)
+        ->and($mails->first()->audience)->toBe(OrderConfirmationMail::AUDIENCE_BUYER)
+        ->and(confirmationRecipients($mails->first()))->toBe([
+            'compras@cliente.cl',
+            'dte@cliente.cl',
+        ]);
 });
 
-it("discards the recipients of an excluded domain", function () {
+it('sends only the branch email when the buyer has no valid address', function () {
     Mail::fake();
 
-    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
     $user->update([
-        "email" => "compras@cliente.cl",
-        "billing_email" => "FacturacionMIPYME@SII.cl",
+        'email' => 'no-es-un-email',
+        'billing_email' => null,
     ]);
+    $branch = User::factory()->create([
+        'email' => 'sucursal@cliente.cl',
+        'billing_email' => 'FacturacionMIPYME@SII.cl',
+    ]);
+    $order->update(['customer_id' => $branch->id]);
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order->fresh()));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
 
-    expect(sentConfirmationRecipients())->toBe(["compras@cliente.cl"]);
+    $mails = Mail::sent(OrderConfirmationMail::class);
+    expect($mails)->toHaveCount(1)
+        ->and($mails->first()->audience)->toBe(OrderConfirmationMail::AUDIENCE_BRANCH)
+        ->and(confirmationRecipients($mails->first()))->toBe([
+            'sucursal@cliente.cl',
+        ]);
 });
 
-test("does not send email when customer has no email", function () {
+it('discards empty and invalid recipients', function () {
     Mail::fake();
 
-    ["order" => $order, "user" => $user] = makeCompletedOrderScenario();
-    $user->update(["email" => "", "billing_email" => null]);
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
+    $user->update([
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'no-es-un-email',
+    ]);
+
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
+
+    expect(sentConfirmationRecipients())->toBe(['compras@cliente.cl']);
+});
+
+it('discards the recipients of an excluded domain', function () {
+    Mail::fake();
+
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
+    $user->update([
+        'email' => 'compras@cliente.cl',
+        'billing_email' => 'FacturacionMIPYME@SII.cl',
+    ]);
+
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
+
+    expect(sentConfirmationRecipients())->toBe(['compras@cliente.cl']);
+});
+
+test('does not send email when customer has no email', function () {
+    Mail::fake();
+
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
+    $user->update(['email' => '', 'billing_email' => null]);
     $order->refresh();
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order));
 
     Mail::assertNothingSent();
 });
 
 test(
-    "confirmation email subject contains order number and confirmation wording",
+    'confirmation email subject contains order number and confirmation wording',
     function () {
         Mail::fake();
 
-        ["order" => $order] = makeCompletedOrderScenario();
+        ['order' => $order] = makeCompletedOrderScenario();
 
-        (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order));
+        (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order));
 
         Mail::assertSent(OrderConfirmationMail::class, function (
             OrderConfirmationMail $mail,
@@ -158,23 +261,23 @@ test(
             $subject = $mail->envelope()->subject;
 
             return str_contains($subject, (string) $order->id) &&
-                str_contains($subject, "Gracias por tu compra") &&
-                str_contains($subject, "SOCOMARCA");
+                str_contains($subject, 'Gracias por tu compra') &&
+                str_contains($subject, 'SOCOMARCA');
         });
     },
 );
 
-test("confirmation email body renders the order summary view", function () {
+test('confirmation email body renders the order summary view', function () {
     Mail::fake();
     Storage::fake('s3');
 
     [
-        "user" => $user,
-        "order" => $order,
-        "product" => $product,
+        'user' => $user,
+        'order' => $order,
+        'product' => $product,
     ] = makeCompletedOrderScenario();
 
-    (new SendOrderConfirmationEmail())->handle(new OrderCompleted($order));
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order));
 
     Mail::assertSent(OrderConfirmationMail::class, function (
         OrderConfirmationMail $mail,
@@ -182,26 +285,29 @@ test("confirmation email body renders the order summary view", function () {
         $rendered = $mail->render();
         $logoUrl = Storage::disk('s3')->url('assets/logo.png');
 
-        return str_contains($rendered, "Pedido") &&
+        return str_contains($rendered, '¡Gracias por tu compra') &&
+            str_contains($rendered, 'Pedido') &&
             str_contains($rendered, (string) $order->id) &&
             str_contains($rendered, $user->name) &&
             str_contains($rendered, $product->name) &&
-            str_contains($rendered, $logoUrl);
+            str_contains($rendered, $logoUrl) &&
+            ! str_contains($rendered, 'para la sucursal') &&
+            ! str_contains($rendered, 'para tu sucursal');
     });
 });
 
-test("confirmation listener implements ShouldQueue", function () {
-    expect(new SendOrderConfirmationEmail())->toBeInstanceOf(
+test('confirmation listener implements ShouldQueue', function () {
+    expect(new SendOrderConfirmationEmail)->toBeInstanceOf(
         ShouldQueue::class,
     );
 });
 
 test(
-    "event dispatch sends both the warehouse email and the customer confirmation email",
+    'event dispatch sends both the warehouse email and the customer confirmation email',
     function () {
         Mail::fake();
 
-        ["order" => $order] = makeCompletedOrderScenario();
+        ['order' => $order] = makeCompletedOrderScenario();
 
         OrderCompleted::dispatch($order);
 

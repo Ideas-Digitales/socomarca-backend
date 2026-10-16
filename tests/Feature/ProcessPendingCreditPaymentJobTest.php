@@ -51,8 +51,10 @@ function createBlockedCreditLine(User $user, ?Payment $blockingPayment): CreditL
 function fakeRandomCreditApi(array $traces = [], array $creditState = ['CRSD' => 2000, 'CRSDVU' => 100]): void
 {
     $baseUrl = config('random.url');
+    $granted = $creditState['CRSD'] ?? 0;
     $fakes = [
         "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
+        ...randomGrantedCreditStub($baseUrl, '12345678-9', 'CM', $granted),
         "{$baseUrl}/gestion/credito/resumen/*" => Http::response(
             ['KOEN' => '12345678-9', 'SUEN' => 'CM', 'CRSDVV' => 0, 'CRSDCU' => 0, 'CRSDCV' => 0, ...$creditState],
             200,
@@ -249,6 +251,29 @@ test('it keeps the line blocked and warns when the trace query fails', function 
     expect($creditLine->refresh()->isBlocked())->toBeTrue()
         ->and($payment->refresh()->status)->toBe('processing');
     expectCreditWarning('NVV trace query failed, the credit line stays blocked until the next cycle', $creditLine, $payment);
+});
+
+test('it stores the granted credit and zero usage when the summary does not exist', function () {
+    $payment = createCreditPaymentWithNvv($this->user, 360);
+    $creditLine = createBlockedCreditLine($this->user, $payment);
+    $baseUrl = config('random.url');
+    Http::fake([
+        "{$baseUrl}/login" => Http::response(['token' => 'fake_token'], 200),
+        ...randomGrantedCreditStub($baseUrl, '12345678-9', 'CM', 50000000),
+        "{$baseUrl}/gestion/credito/resumen/*" => Http::response(['message' => 'No se encuentra el recurso'], 404),
+        "{$baseUrl}/documentos/traza/360" => Http::response(['data' => [
+            ['maeedo' => ['IDMAEEDO' => 361, 'TIDO' => 'FCV']],
+        ]], 200),
+    ]);
+
+    runPendingCreditPaymentJob($creditLine);
+
+    $creditLine->refresh();
+    expect($creditLine->isBlocked())->toBeFalse()
+        ->and($creditLine->state['CRSD'])->toBe(50000000)
+        ->and($creditLine->state['CRSDVU'])->toBe(0)
+        ->and($creditLine->state['CRSDVV'])->toBe(0)
+        ->and($payment->refresh()->status)->toBe('completed');
 });
 
 test('it still unblocks the line when the credit state can not be refreshed', function () {

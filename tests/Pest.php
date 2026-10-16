@@ -57,6 +57,24 @@ uses(
 |
 */
 
+/**
+ * Granted credit (`CRTO`) of one branch, as returned by GET /web32/entidades.
+ *
+ * @return array<string, \Illuminate\Http\Client\Response>
+ */
+function randomGrantedCreditStub(string $baseUrl, string $koen, string $suen, int|float $crto): array
+{
+    return [
+        "{$baseUrl}/web32/entidades*" => \Illuminate\Support\Facades\Http::response([[
+            'IDMAEEN' => 1,
+            'KOEN' => $koen,
+            'SUEN' => $suen,
+            'CRTO' => $crto,
+            'CRSD' => $crto,
+        ]], 200),
+    ];
+}
+
 function createUser()
 {
     return User::factory()->create();

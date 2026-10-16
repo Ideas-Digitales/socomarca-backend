@@ -7,7 +7,10 @@
 
 ## Notas
 
-### GET /api/users/{user}/credit-lines
+### GET /api/users/{user}/credit-line
+
+`CRSD` es el crédito otorgado (`CRTO` de `GET /web32/entidades`). `CRSDVU` y `CRSDVV` salen de `GET /gestion/credito/resumen/{koen}/{suen}`; el `CRSD` de ese resumen no se usa. Si el resumen responde 404, el uso y el vencido quedan en 0. Disponible: `CRSD - CRSDVU`.
+
  **response** 
 
 ```jsonc
