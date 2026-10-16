@@ -173,6 +173,17 @@ return [
         'file' => 'Debe ser un archivo válido.',
         'mimes' => 'El archivo debe ser de tipo ZIP.',
         ],
+        'order_number' => [
+            'required' => 'El número de orden es obligatorio.',
+            'integer' => 'El número de orden debe ser un número entero.',
+            'exists' => 'El número de orden no existe.',
+            'invoiced' => 'La orden no se puede cancelar porque ya tiene una factura (FCV).',
+            'charged' => 'La orden no se puede cancelar porque ya fue cobrada.',
+            'dispatched' => 'La orden no se puede cancelar porque ya fue despachada.',
+            'not_awaiting_invoice' => 'Solo se pueden cancelar órdenes en espera de factura (FCV).',
+            'already_canceled' => 'La orden ya está cancelada.',
+            'unverified' => 'La orden no se pudo cancelar porque no se pudo confirmar su estado en Random ERP.',
+        ],
     ],
 
     /*
@@ -212,6 +223,7 @@ return [
         'municipality_id' => 'id municipio',
         'name' => 'nombre',
         'order_id' => 'id pedido',
+        'order_number' => 'número de orden',
         'order_meta' => 'meta pedido',
         'paid_at' => 'pagado en',
         'current_password' => 'contraseña actual',

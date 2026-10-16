@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\OrderCompleted;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Orders\CancelOrderRequest;
 use App\Http\Requests\Orders\PayOrderRequest;
 use App\Http\Resources\Orders\OrderCollection;
+use App\Http\Resources\Orders\OrderResource;
 use App\Http\Resources\Orders\PaymentResource;
 use App\Models\CartItem;
 use App\Models\Order;
@@ -20,6 +22,7 @@ use App\Models\Category;
 use App\Models\Subcategory;
 use App\Models\Brand;
 use App\Models\Price;
+use App\Services\Orders\CancelAwaitingInvoiceOrder;
 use App\Services\Random\RandomDocumentService;
 use App\Services\Random\RandomDocumentPayloadBuilder;
 use App\Services\CartPriceResolver;
@@ -31,7 +34,7 @@ use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
-#[Group('Orders', 'List the user\'s orders and check out the cart, paying with Webpay or the Random ERP credit line.', weight: 11)]
+#[Group('Orders', 'List the user\'s orders, check out the cart, and cancel an order that is waiting for an invoice.', weight: 11)]
 class OrderController extends Controller
 {
     protected WebpayService $webpayService;
@@ -332,6 +335,32 @@ class OrderController extends Controller
         }
 
         return $orderInfo; // Devolver la respuesta original si el carrito está vacío
+    }
+
+    /**
+     * Cancel an order waiting for an invoice
+     *
+     * Deletes the Random ERP sales note (NVV) of an order that is still waiting for an invoice
+     * (FCV): it has not been invoiced, charged or dispatched. The order and its credit payment
+     * are set to `canceled`, and the credit line is unblocked when this payment blocked it.
+     *
+     * Requires both `read-all-orders` and `cancel-orders`.
+     */
+    #[Response(200, 'The order was canceled')]
+    #[Response(403, 'The user lacks `read-all-orders` or `cancel-orders`')]
+    #[Response(422, 'The order number is missing or the order is not waiting for an invoice (FCV)')]
+    #[Response(500, 'Random ERP rejected the deletion; the order, the payment and the credit line were not changed')]
+    public function cancel(CancelOrderRequest $request, CancelAwaitingInvoiceOrder $cancellation)
+    {
+        $order = $cancellation->cancel(
+            Order::query()->findOrFail($request->integer('order_number'))
+        );
+
+        $order->load(['payments.paymentMethod', 'customer', 'orderDetails.product', 'user']);
+
+        return (new OrderResource($order))->additional([
+            'message' => __('orders.canceled'),
+        ]);
     }
 
     /**

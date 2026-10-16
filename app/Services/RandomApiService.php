@@ -402,6 +402,39 @@ class RandomApiService
     }
 
     /**
+     * Delete a document in Random ERP.
+     *
+     * `$idmaeedo` is the document id stored in `random_documents.idmaeedo`.
+     *
+     * @see DELETE /web32/documento/{idmaeedo}
+     */
+    public function deleteDocument(int $idmaeedo): \Illuminate\Http\Client\Response
+    {
+        $endpoint = "/web32/documento/{$idmaeedo}";
+
+        if (!empty(config('random.token'))) {
+            $token = config('random.token');
+        } else {
+            $token = $this->getToken();
+        }
+
+        $response = Http::withToken($token)
+            ->acceptJson()
+            ->asJson()
+            ->delete($this->baseUrl . $endpoint);
+
+        if ($response->failed()) {
+            throw new RandomApiServiceErrorException(
+                'Random ERP document deletion failed',
+                ['idmaeedo' => $idmaeedo],
+                $response
+            );
+        }
+
+        return $response;
+    }
+
+    /**
      * Get Random ERP Territorios
      *
      * @param int $level
