@@ -38,6 +38,10 @@ class CancelAwaitingInvoiceOrder
 
     /**
      * Reason the order cannot be canceled, as a key of `validation.custom.order_number`.
+     *
+     * @param Order $order
+     *
+     * @return string|null
      */
     public function rejection(Order $order): ?string
     {
@@ -48,6 +52,10 @@ class CancelAwaitingInvoiceOrder
 
     /**
      * Delete the NVV in Random ERP and mark the order and its credit payment as canceled.
+     *
+     * @param Order $order
+     *
+     * @return Order
      */
     public function cancel(Order $order): Order
     {
@@ -76,6 +84,13 @@ class CancelAwaitingInvoiceOrder
         return $order->refresh();
     }
 
+    /**
+     * Local reason the order cannot be canceled, before asking Random ERP for the NVV trace.
+     *
+     * @param Order $order
+     *
+     * @return string|null
+     */
     private function localRejection(Order $order): ?string
     {
         if ($order->status === 'canceled') {
@@ -107,6 +122,10 @@ class CancelAwaitingInvoiceOrder
 
     /**
      * Credit payment still waiting for Random ERP to turn its NVV into an invoice (FCV) or a receipt (BLV).
+     *
+     * @param Order $order
+     *
+     * @return Payment|null
      */
     private function awaitingInvoicePayment(Order $order): ?Payment
     {
@@ -121,7 +140,11 @@ class CancelAwaitingInvoiceOrder
     }
 
     /**
-     * @param  iterable<int, string|null>  $types
+     * Rejection key when an invoice (FCV) or a receipt (BLV) was already issued.
+     *
+     * @param iterable<int, string|null> $types Document types attached to the order or present in the NVV trace
+     *
+     * @return string|null
      */
     private function issuedDocumentRejection(iterable $types): ?string
     {
@@ -140,8 +163,13 @@ class CancelAwaitingInvoiceOrder
 
     /**
      * A non-credit payment already authorized, or any payment marked completed.
+     *
      * Credit payments set `paid_at` when the NVV is created and stay `processing`
      * until the invoice or the receipt exists, so that timestamp does not mean they were charged.
+     *
+     * @param Order $order
+     *
+     * @return bool
      */
     private function isCharged(Order $order): bool
     {
@@ -158,6 +186,13 @@ class CancelAwaitingInvoiceOrder
         });
     }
 
+    /**
+     * Reason from the Random ERP NVV trace when the order is no longer waiting for a tax document.
+     *
+     * @param Order $order
+     *
+     * @return string|null
+     */
     private function traceRejection(Order $order): ?string
     {
         $nvv = $order->randomDocuments->firstWhere('type', 'NVV');
