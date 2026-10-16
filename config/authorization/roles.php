@@ -62,6 +62,10 @@ return [
 
         // Credit lines
         'read-all-credit-lines',
+
+        // Orders
+        'read-all-orders',
+        'cancel-orders',
     ],
     'admin' => [
         'read-users',
@@ -123,6 +127,10 @@ return [
 
         // Credit lines
         'read-all-credit-lines',
+
+        // Orders
+        'read-all-orders',
+        'cancel-orders',
     ],
     'supervisor' => [
         'read-own-profile',
