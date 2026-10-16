@@ -39,47 +39,90 @@ class SendOrderConfirmationEmail implements ShouldQueue
 
     /**
      * Handle the event.
+     *
+     * A purchase for the buyer's own branch keeps the single confirmation. A primary
+     * branch ordering for a secondary one gets two: the buyer is told the purchase
+     * was for that branch, and the branch is told a purchase was placed for it.
+     * An address that belongs to both sides is sent only the buyer's copy.
      */
     public function handle(OrderCompleted $event): void
     {
         $event->order->loadMissing([
-            "user",
-            "customer",
-            "orderDetails.product",
-            "payments.paymentMethod",
+            'user',
+            'customer',
+            'orderDetails.product',
+            'payments.paymentMethod',
         ]);
 
-        $recipients = $this->recipients($event->order);
+        $order = $event->order;
+        $forAnotherBranch = $order->user !== null
+            && $order->customer !== null
+            && ! $order->user->is($order->customer);
 
-        if (empty($recipients)) {
-            Log::warning(
-                "SendOrderConfirmationEmail: order has no customer email, skipping email send.",
-                [
-                    "order_id" => $event->order->id,
-                ],
-            );
+        if (! $forAnotherBranch) {
+            $this->send($order, $this->emailAddresses($order->user, $order->customer), OrderConfirmationMail::AUDIENCE_SELF);
+
             return;
         }
 
-        Mail::to($recipients)->send(new OrderConfirmationMail($event->order));
+        $buyerRecipients = $this->emailAddresses($order->user);
+        // An address shared with the buyer already receives the buyer's copy.
+        $branchRecipients = array_values(array_diff(
+            $this->emailAddresses($order->customer),
+            $buyerRecipients,
+        ));
+
+        if ($buyerRecipients === [] && $branchRecipients === []) {
+            $this->warnNoRecipients($order);
+
+            return;
+        }
+
+        if ($buyerRecipients !== []) {
+            Mail::to($buyerRecipients)->send(new OrderConfirmationMail($order, OrderConfirmationMail::AUDIENCE_BUYER));
+        }
+
+        if ($branchRecipients !== []) {
+            Mail::to($branchRecipients)->send(new OrderConfirmationMail($order, OrderConfirmationMail::AUDIENCE_BRANCH));
+        }
     }
 
     /**
-     * Commercial (EMAILCOMER) and billing (EMAIL) emails of the user who placed the order and
-     * of the customer it was placed for, normalized and without duplicates. Invalid emails are
-     * discarded so that a wrong value in Random does not prevent sending to the rest, as well as
-     * emails of an excluded domain (e.g. SII generic billing mailboxes).
+     * @param  list<string>  $recipients
+     */
+    private function send(Order $order, array $recipients, string $audience): void
+    {
+        if ($recipients === []) {
+            $this->warnNoRecipients($order);
+
+            return;
+        }
+
+        Mail::to($recipients)->send(new OrderConfirmationMail($order, $audience));
+    }
+
+    private function warnNoRecipients(Order $order): void
+    {
+        Log::warning(
+            'SendOrderConfirmationEmail: order has no customer email, skipping email send.',
+            [
+                'order_id' => $order->id,
+            ],
+        );
+    }
+
+    /**
+     * Commercial (EMAILCOMER) and billing (EMAIL) emails of the given users, normalized
+     * and without duplicates. Invalid emails are discarded so that a wrong value in Random
+     * does not prevent sending to the rest, as well as emails of an excluded domain
+     * (e.g. SII generic billing mailboxes).
      *
      * @return list<string>
      */
-    private function recipients(Order $order): array
+    private function emailAddresses(?User ...$users): array
     {
-        return collect([
-            $order->user?->email,
-            $order->user?->billing_email,
-            $order->customer?->email,
-            $order->customer?->billing_email,
-        ])
+        return collect($users)
+            ->flatMap(fn (?User $user) => [$user?->email, $user?->billing_email])
             ->map(fn (?string $email) => User::normalizeEmail($email))
             ->filter(fn (?string $email) => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)
             ->reject(fn (string $email) => User::hasExcludedEmailDomain($email))
