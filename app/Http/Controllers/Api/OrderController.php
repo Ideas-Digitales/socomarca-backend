@@ -346,6 +346,11 @@ class OrderController extends Controller
      * payment blocked it.
      *
      * Requires both `read-all-orders` and `cancel-orders`.
+     *
+     * @param CancelOrderRequest $request
+     * @param CancelAwaitingInvoiceOrder $cancellation
+     *
+     * @return OrderResource
      */
     #[Response(200, 'The order was canceled')]
     #[Response(403, 'The user lacks `read-all-orders` or `cancel-orders`')]

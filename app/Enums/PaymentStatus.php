@@ -16,6 +16,11 @@ class PaymentStatus
      */
     public const CANCELED = 'canceled';
 
+    /**
+     * Payment status values stored in `payments.status`.
+     *
+     * @return array<int, string>
+     */
     public static function values(): array
     {
         return [
