@@ -11,7 +11,7 @@ class PaymentStatus
     public const FAILED = 'failed';
 
     /**
-     * The credit payment was canceled before Random ERP issued the invoice.
+     * The credit payment was canceled before Random ERP issued the invoice or the receipt.
      * `orders.status` already uses `canceled`; this value did not exist on payments.
      */
     public const CANCELED = 'canceled';

@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Cancels an order that is still waiting for Random ERP to issue an FCV invoice.
+ * Cancels an order that is still waiting for Random ERP to issue a tax document
+ * (invoice FCV or receipt BLV).
  */
 class CancelAwaitingInvoiceOrder
 {
@@ -24,9 +25,14 @@ class CancelAwaitingInvoiceOrder
     private const DISPATCH_TYPE = 'GDV';
 
     /**
-     * Invoice document type this cancellation is limited to.
+     * Invoice document type (factura).
      */
     private const INVOICE_TYPE = 'FCV';
+
+    /**
+     * Receipt document type (boleta).
+     */
+    private const RECEIPT_TYPE = 'BLV';
 
     public function __construct(private RandomApiService $randomApi) {}
 
@@ -76,8 +82,8 @@ class CancelAwaitingInvoiceOrder
             return 'already_canceled';
         }
 
-        if ($order->randomDocuments->contains('type', self::INVOICE_TYPE)) {
-            return 'invoiced';
+        if ($reason = $this->issuedDocumentRejection($order->randomDocuments->pluck('type'))) {
+            return $reason;
         }
 
         if ($order->randomDocuments->contains('type', self::DISPATCH_TYPE)) {
@@ -100,21 +106,42 @@ class CancelAwaitingInvoiceOrder
     }
 
     /**
-     * Credit payment still waiting for Random ERP to turn its NVV into an FCV.
+     * Credit payment still waiting for Random ERP to turn its NVV into an invoice (FCV) or a receipt (BLV).
      */
     private function awaitingInvoicePayment(Order $order): ?Payment
     {
         return $order->payments->first(function (Payment $payment) {
             return $payment->status === PaymentStatus::PROCESSING
-                && $payment->generate_random_doc_type === PaymentDocumentType::INVOICE
+                && in_array($payment->generate_random_doc_type, [
+                    PaymentDocumentType::INVOICE,
+                    PaymentDocumentType::RECEIPT,
+                ], true)
                 && $payment->paymentMethod?->code === 'random_credit';
         });
     }
 
     /**
+     * @param  iterable<int, string|null>  $types
+     */
+    private function issuedDocumentRejection(iterable $types): ?string
+    {
+        $types = collect($types);
+
+        if ($types->contains(self::INVOICE_TYPE)) {
+            return 'invoiced';
+        }
+
+        if ($types->contains(self::RECEIPT_TYPE)) {
+            return 'receipt_issued';
+        }
+
+        return null;
+    }
+
+    /**
      * A non-credit payment already authorized, or any payment marked completed.
      * Credit payments set `paid_at` when the NVV is created and stay `processing`
-     * until the invoice exists, so that timestamp does not mean they were charged.
+     * until the invoice or the receipt exists, so that timestamp does not mean they were charged.
      */
     private function isCharged(Order $order): bool
     {
@@ -146,8 +173,8 @@ class CancelAwaitingInvoiceOrder
             ->filter()
             ->unique();
 
-        if ($types->contains(self::INVOICE_TYPE)) {
-            return 'invoiced';
+        if ($reason = $this->issuedDocumentRejection($types)) {
+            return $reason;
         }
 
         if ($types->contains(self::DISPATCH_TYPE)) {
