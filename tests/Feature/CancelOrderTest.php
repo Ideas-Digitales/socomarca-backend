@@ -14,9 +14,9 @@ use Laravel\Sanctum\Sanctum;
 use function Pest\Laravel\postJson;
 
 /**
- * Credit order whose NVV is still waiting for an FCV invoice.
+ * Credit order whose NVV is still waiting for an invoice (FCV) or a receipt (BLV).
  */
-function makeAwaitingInvoiceOrder(int $nvvId = 360): array
+function makeAwaitingInvoiceOrder(int $nvvId = 360, string $documentType = PaymentDocumentType::INVOICE): array
 {
     $buyer = User::factory()->create();
     $order = Order::query()->create([
@@ -48,7 +48,7 @@ function makeAwaitingInvoiceOrder(int $nvvId = 360): array
         'token' => 'token-'.$nvvId,
         'paid_at' => now(),
         'status' => PaymentStatus::PROCESSING,
-        'generate_random_doc_type' => PaymentDocumentType::INVOICE,
+        'generate_random_doc_type' => $documentType,
     ]);
 
     return [$buyer, $order, $payment];
@@ -87,7 +87,7 @@ beforeEach(function () {
     Http::preventStrayRequests();
 });
 
-describe('cancel order waiting for an invoice', function () {
+describe('cancel order waiting for an invoice or a receipt', function () {
     it('cancels the order for an administrative role', function (string $role) {
         [$buyer, $order, $payment] = makeAwaitingInvoiceOrder();
         $creditLine = CreditLine::factory()->create([
@@ -119,6 +119,30 @@ describe('cancel order waiting for an invoice', function () {
         Http::assertSent(fn ($request) => $request->method() === 'DELETE'
             && str_ends_with($request->url(), '/web32/documento/360'));
     })->with(['superadmin', 'admin']);
+
+    it('cancels a credit order waiting for a receipt', function () {
+        [$buyer, $order, $payment] = makeAwaitingInvoiceOrder(documentType: PaymentDocumentType::RECEIPT);
+        $creditLine = CreditLine::factory()->create([
+            'user_id' => $buyer->id,
+            'is_blocked' => true,
+            'blocking_payment_id' => $payment->id,
+        ]);
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        actAsRole('admin');
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled')
+            ->assertJsonPath('data.payments.0.status', PaymentStatus::CANCELED);
+
+        expect($order->refresh()->status)->toBe('canceled')
+            ->and($payment->refresh()->status)->toBe(PaymentStatus::CANCELED)
+            ->and($creditLine->refresh()->isBlocked())->toBeFalse()
+            ->and($creditLine->blocking_payment_id)->toBeNull();
+
+        Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+            && str_ends_with($request->url(), '/web32/documento/360'));
+    });
 
     it('rejects a second cancellation without calling Random again', function () {
         [, $order] = makeAwaitingInvoiceOrder();
@@ -193,24 +217,25 @@ describe('cancel order waiting for an invoice', function () {
         'unknown' => [['order_number' => 999999], 'The order number does not exist.'],
     ]);
 
-    it('rejects orders that are not waiting for an FCV invoice', function (string $setup, string $message) {
+    it('rejects orders that are not waiting for a Random document', function (string $setup, string $message) {
         [, $order, $payment] = makeAwaitingInvoiceOrder();
 
         match ($setup) {
-            'invoiced' => tap($order, function (Order $order) {
-                $fcv = RandomDocument::query()->create([
+            'invoiced', 'receipt issued' => tap($order, function (Order $order) use ($setup) {
+                $type = $setup === 'invoiced' ? 'FCV' : 'BLV';
+                $document = RandomDocument::query()->create([
                     'idmaeedo' => 361,
-                    'type' => 'FCV',
-                    'document' => ['TIDO' => 'FCV'],
+                    'type' => $type,
+                    'document' => ['TIDO' => $type],
                 ]);
-                $order->randomDocuments()->attach($fcv->idmaeedo);
+                $order->randomDocuments()->attach($document->idmaeedo);
             }),
             'charged' => $payment->update(['status' => PaymentStatus::COMPLETED]),
             'webpay' => $payment->update([
                 'payment_method_id' => PaymentMethod::query()->where('code', 'transbank')->value('id'),
             ]),
-            'receipt' => $payment->update([
-                'generate_random_doc_type' => PaymentDocumentType::RECEIPT,
+            'without document type' => $payment->update([
+                'generate_random_doc_type' => null,
             ]),
             'without nvv' => $order->randomDocuments()->detach(),
             'canceled' => $order->update(['status' => 'canceled']),
@@ -225,10 +250,11 @@ describe('cancel order waiting for an invoice', function () {
         expect($payment->refresh()->status)->not->toBe(PaymentStatus::CANCELED);
     })->with([
         'invoiced' => ['invoiced', 'The order cannot be canceled because it already has an invoice (FCV).'],
+        'receipt issued' => ['receipt issued', 'The order cannot be canceled because it already has a receipt (BLV).'],
         'charged' => ['charged', 'The order cannot be canceled because it has already been charged.'],
         'webpay' => ['webpay', 'The order cannot be canceled because it has already been charged.'],
-        'receipt' => ['receipt', 'Only orders waiting for an invoice (FCV) can be canceled.'],
-        'without nvv' => ['without nvv', 'Only orders waiting for an invoice (FCV) can be canceled.'],
+        'without document type' => ['without document type', 'Only orders waiting for a Random document (receipt or invoice) can be canceled.'],
+        'without nvv' => ['without nvv', 'Only orders waiting for a Random document (receipt or invoice) can be canceled.'],
         'canceled' => ['canceled', 'The order is already canceled.'],
     ]);
 
@@ -245,8 +271,9 @@ describe('cancel order waiting for an invoice', function () {
             ->and($payment->refresh()->status)->toBe(PaymentStatus::PROCESSING);
     })->with([
         'invoiced' => [['NVV', 'FCV'], 'The order cannot be canceled because it already has an invoice (FCV).'],
+        'receipt issued' => [['NVV', 'BLV'], 'The order cannot be canceled because it already has a receipt (BLV).'],
         'dispatched' => [['NVV', 'GDV'], 'The order cannot be canceled because it has already been dispatched.'],
-        'other document' => [['NVV', 'BLV'], 'Only orders waiting for an invoice (FCV) can be canceled.'],
+        'other document' => [['NVV', 'OCC'], 'Only orders waiting for a Random document (receipt or invoice) can be canceled.'],
     ]);
 
     it('rejects the order when the trace cannot be confirmed', function () {
@@ -278,6 +305,18 @@ describe('cancel order waiting for an invoice', function () {
         postJson(route('orders.cancel'), ['order_number' => $order->id])
             ->assertUnprocessable()
             ->assertJsonPath('errors.order_number.0', 'La orden no se puede cancelar porque ya tiene una factura (FCV).');
+
+        [, $receiptOrder] = makeAwaitingInvoiceOrder(460);
+        $blv = RandomDocument::query()->create([
+            'idmaeedo' => 362,
+            'type' => 'BLV',
+            'document' => ['TIDO' => 'BLV'],
+        ]);
+        $receiptOrder->randomDocuments()->attach($blv->idmaeedo);
+
+        postJson(route('orders.cancel'), ['order_number' => $receiptOrder->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.order_number.0', 'La orden no se puede cancelar porque ya tiene una boleta (BLV).');
 
         app()->setLocale('es');
         postJson(route('orders.cancel'), [])

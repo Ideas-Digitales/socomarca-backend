@@ -8,7 +8,7 @@ use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 /**
- * The order is waiting for Random ERP to issue an FCV invoice.
+ * The order is waiting for Random ERP to issue an invoice (FCV) or a receipt (BLV).
  */
 class AwaitingInvoiceOrder implements ValidationRule
 {

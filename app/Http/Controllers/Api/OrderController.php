@@ -34,7 +34,7 @@ use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
-#[Group('Orders', 'List the user\'s orders, check out the cart, and cancel an order that is waiting for an invoice.', weight: 11)]
+#[Group('Orders', 'List the user\'s orders, check out the cart, and cancel an order that is waiting for an invoice or a receipt.', weight: 11)]
 class OrderController extends Controller
 {
     protected WebpayService $webpayService;
@@ -338,17 +338,18 @@ class OrderController extends Controller
     }
 
     /**
-     * Cancel an order waiting for an invoice
+     * Cancel an order waiting for an invoice or a receipt
      *
      * Deletes the Random ERP sales note (NVV) of an order that is still waiting for an invoice
-     * (FCV): it has not been invoiced, charged or dispatched. The order and its credit payment
-     * are set to `canceled`, and the credit line is unblocked when this payment blocked it.
+     * (FCV) or a receipt (BLV): it has not been documented, charged or dispatched. The order and
+     * its credit payment are set to `canceled`, and the credit line is unblocked when this
+     * payment blocked it.
      *
      * Requires both `read-all-orders` and `cancel-orders`.
      */
     #[Response(200, 'The order was canceled')]
     #[Response(403, 'The user lacks `read-all-orders` or `cancel-orders`')]
-    #[Response(422, 'The order number is missing or the order is not waiting for an invoice (FCV)')]
+    #[Response(422, 'The order number is missing or the order is not waiting for a Random document (invoice or receipt)')]
     #[Response(500, 'Random ERP rejected the deletion; the order, the payment and the credit line were not changed')]
     public function cancel(CancelOrderRequest $request, CancelAwaitingInvoiceOrder $cancellation)
     {
