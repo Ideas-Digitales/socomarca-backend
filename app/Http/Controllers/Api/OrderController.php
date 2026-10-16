@@ -404,12 +404,10 @@ class OrderController extends Controller
                 ]);
             }
 
-            $creditLineResponse = $randomApiService->getCreditLine(
+            $creditLineInfo = $randomApiService->getCreditLine(
                 $buyer->user_code,
                 $buyer->branch_code,
             );
-
-            $creditLineInfo = $creditLineResponse->json();
 
             $availableCredit = (int) bcsub(
                 (string) ($creditLineInfo["CRSD"] ?? 0),

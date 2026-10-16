@@ -70,6 +70,30 @@ class RandomMockProvider extends ServiceProvider
                         "CRSDCV" => 0
                     ], 200);
                 },
+                // The summary request is recorded first, so this stub can echo its branch.
+                "{$baseUrl}/web32/entidades*" => function ($request) {
+                    $koen = '';
+                    $suen = '';
+                    foreach (Http::recorded() as [$recorded]) {
+                        $path = parse_url($recorded->url(), PHP_URL_PATH) ?? '';
+                        if (!str_contains($path, '/gestion/credito/resumen/')) {
+                            continue;
+                        }
+                        $segments = explode('/', trim($path, '/'));
+                        $suen = (string) array_pop($segments);
+                        $koen = (string) array_pop($segments);
+                    }
+
+                    parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+                    return Http::response([[
+                        'IDMAEEN' => 1,
+                        'KOEN' => $query['koen'] ?? $koen,
+                        'SUEN' => $suen,
+                        'CRTO' => 500000,
+                        'CRSD' => 500000,
+                    ]], 200);
+                },
             ]);
         }
     }

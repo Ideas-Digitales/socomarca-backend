@@ -98,8 +98,9 @@ class ProcessPendingCreditPaymentJob implements ShouldQueue, ShouldBeUnique
         $order->randomDocuments()->syncWithoutDetaching([$invoiceDocument->idmaeedo]);
 
         try {
-            $creditStateResponse = $randomApi->getCreditLine($this->creditLine->user->user_code, $this->creditLine->branch_code);
-            $this->creditLine->update(['state' => $creditStateResponse->json()]);
+            $this->creditLine->update([
+                'state' => $randomApi->getCreditLine($this->creditLine->user->user_code, $this->creditLine->branch_code),
+            ]);
         } catch (\Throwable $e) {
             Log::warning('Error while updating local Random ERP Credit', $this->logContext($payment, [
                 'message' => $e->getMessage(),

@@ -151,6 +151,7 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
+            ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
             "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
                 [
                     "KOEN" => "12345678-9",
@@ -258,6 +259,7 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
+            ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
             "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
                 [
                     "KOEN" => "12345678-9",
@@ -333,6 +335,7 @@ test("it can process a credit line payment successfully", function () {
     $baseUrl = config("random.url");
     Http::fake([
         "{$baseUrl}/login" => Http::response(["token" => "fake_token"], 200),
+        ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
         "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
             [
                 "KOEN" => "12345678-9",
@@ -521,6 +524,7 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
+            ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
             "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
                 [
                     "KOEN" => "12345678-9",
@@ -707,6 +711,7 @@ test("it handles credit line payment failure correctly", function () {
     $baseUrl = config("random.url");
     Http::fake([
         "{$baseUrl}/login" => Http::response(["token" => "fake_token"], 200),
+        ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
         "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
             [
                 "KOEN" => "12345678-9",
@@ -777,6 +782,7 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
+            ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
             "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
                 [
                     "KOEN" => "12345678-9",
@@ -872,11 +878,12 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
+            ...randomGrantedCreditStub($baseUrl, $user->user_code, $user->branch_code, 2000),
             "{$baseUrl}/gestion/credito/resumen/{$user->user_code}/{$user->branch_code}" => Http::response(
                 [
                     "KOEN" => $user->rut,
                     "SUEN" => $user->branch_code,
-                    "CRSD" => 2000,
+                    "CRSD" => 450000000,
                     "CRSDVU" => 1500,
                     "CRSDVV" => 0,
                     "CRSDCU" => 0,
@@ -900,6 +907,59 @@ test(
                 "transaction" => ["status" => "FAILED"],
             ],
         ]);
+    },
+);
+
+test(
+    "it charges the granted credit when the branch has no credit summary",
+    function () {
+        Storage::fake("s3");
+        $user = createCreditCustomer();
+        $address = Address::factory()->create(["user_id" => $user->id]);
+        $product = Product::factory()->create();
+        \App\Models\Price::factory()->create([
+            "product_id" => $product->id,
+            "price_list_id" => getPriceListCode(),
+            "unit" => "UN",
+        ]);
+        CartItem::create([
+            "user_id" => $user->id,
+            "product_id" => $product->id,
+            "quantity" => 1,
+            "unit" => "UN",
+        ]);
+
+        $baseUrl = config("random.url");
+        Http::fake([
+            "{$baseUrl}/login" => Http::response(["token" => "fake_token"], 200),
+            ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50000000),
+            "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
+                ["message" => "No se encuentra el recurso"],
+                404,
+            ),
+            "{$baseUrl}/web32/documento*" => Http::response(
+                [
+                    "numero" => "0000000001",
+                    "tido" => "NVV",
+                    "idmaeedo" => 657,
+                ],
+                200,
+            ),
+        ]);
+
+        Sanctum::actingAs($user, ["api-access"]);
+        $response = postJson(route("orders.pay"), [
+            "address_id" => $address->id,
+            "payment_method" => "random_credit",
+            "payment_document_type" => "receipt",
+        ]);
+
+        $response->assertOk()->assertJsonPath("success", true);
+
+        $creditLine = \App\Models\CreditLine::where("user_id", $user->id)->first();
+        expect($creditLine)->not->toBeNull()
+            ->and($creditLine->state["CRSD"])->toBe(50000000)
+            ->and($creditLine->state["CRSDVU"])->toEqual($response->json("data.payment.amount"));
     },
 );
 
@@ -932,6 +992,7 @@ test(
                 ["token" => "fake_token"],
                 200,
             ),
+            ...randomGrantedCreditStub($baseUrl, "12345678-9", "CM", 50092358399999.99),
             "{$baseUrl}/gestion/credito/resumen/12345678-9/CM" => Http::response(
                 [
                     "KOEN" => "12345678-9",
