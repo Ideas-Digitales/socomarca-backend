@@ -35,6 +35,12 @@ class PaymentResource extends JsonResource
              * @var string
              */
             'response_status' => $this->response_status,
+            /**
+             * Settlement status. `canceled` is a credit payment canceled before Random ERP issued the invoice.
+             *
+             * @var 'processing'|'completed'|'failed'|'canceled'
+             */
+            'status' => $this->status,
             /** Webpay transaction token; a generated identifier for credit payments. */
             'token' => $this->token,
             /**

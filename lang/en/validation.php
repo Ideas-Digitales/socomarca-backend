@@ -179,6 +179,17 @@ return [
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
+        'order_number' => [
+            'required' => 'The order number is required.',
+            'integer' => 'The order number must be an integer.',
+            'exists' => 'The order number does not exist.',
+            'invoiced' => 'The order cannot be canceled because it already has an invoice (FCV).',
+            'charged' => 'The order cannot be canceled because it has already been charged.',
+            'dispatched' => 'The order cannot be canceled because it has already been dispatched.',
+            'not_awaiting_invoice' => 'Only orders waiting for an invoice (FCV) can be canceled.',
+            'already_canceled' => 'The order is already canceled.',
+            'unverified' => 'The order could not be canceled because its status in Random ERP could not be confirmed.',
+        ],
     ],
 
     /*
@@ -192,6 +203,8 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'order_number' => 'order number',
+    ],
 
 ];

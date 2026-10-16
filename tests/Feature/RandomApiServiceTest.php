@@ -201,3 +201,39 @@ it('throws an error when document creation fails', function () {
     expect(fn () => $service->createDocument($payload))
         ->toThrow(RandomApiServiceErrorException::class);
 });
+
+it('deletes a document in Random ERP by idmaeedo', function () {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/web32/documento/360' => Http::response(['deleted' => true], 200),
+    ]);
+
+    $response = (new RandomApiService)->deleteDocument(360);
+
+    expect($response->successful())->toBeTrue();
+
+    Http::assertSent(function ($request) {
+        return $request->method() === 'DELETE'
+            && $request->url() === 'http://random.test/web32/documento/360'
+            && $request->hasHeader('Authorization', 'Bearer token-123')
+            && $request->hasHeader('Content-Type', 'application/json');
+    });
+});
+
+it('throws when Random ERP rejects the document deletion', function () {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/web32/documento/360' => Http::response(['message' => 'Not Found'], 404),
+    ]);
+
+    expect(fn () => (new RandomApiService)->deleteDocument(360))
+        ->toThrow(RandomApiServiceErrorException::class);
+});
