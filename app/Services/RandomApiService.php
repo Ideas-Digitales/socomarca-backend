@@ -3,15 +3,18 @@
 namespace App\Services;
 
 use App\Exceptions\RandomApiServiceErrorException;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class RandomApiService
 {
     protected $baseUrl;
+
     protected $username;
+
     protected $password;
+
     protected $ttl;
 
     public function __construct()
@@ -25,10 +28,10 @@ class RandomApiService
     protected function getToken()
     {
         return Cache::remember('random_api_token', $this->ttl * 60, function () {
-            $response = Http::asForm()->post($this->baseUrl . '/login', [
+            $response = Http::asForm()->post($this->baseUrl.'/login', [
                 'username' => $this->username,
                 'password' => $this->password,
-                'ttl' => $this->ttl
+                'ttl' => $this->ttl,
             ]);
 
             if ($response->successful()) {
@@ -36,7 +39,7 @@ class RandomApiService
             }
 
             $error = $response->json();
-            throw new \Exception('Error al obtener el token de autenticación: ' . $error['message']);
+            throw new \Exception('Error al obtener el token de autenticación: '.$error['message']);
         });
     }
 
@@ -49,13 +52,13 @@ class RandomApiService
         //     $token = $this->getToken();
         // }
         $token = config('random.token');
-        $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
+        $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl.$endpoint, $params);
 
-        //If token is expired, get new token and make request again
+        // If token is expired, get new token and make request again
         if (isset($response->json()['message']) && $response->json()['message'] == 'jwt expired') {
             Cache::forget('random_api_token');
             $token = $this->getToken();
-            $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl . $endpoint, $params);
+            $response = Http::withToken($token)->acceptJson()->$method($this->baseUrl.$endpoint, $params);
 
             return $response->json();
         }
@@ -70,7 +73,7 @@ class RandomApiService
             'kofu' => $kofu,
             'modalidad' => $modalidad,
             'size' => $size,
-            'page' => $page
+            'page' => $page,
         ]);
     }
 
@@ -125,7 +128,7 @@ class RandomApiService
      */
     private function creditUsage(string $koen, string $suen): array
     {
-        $response = $this->authorizedGet('/gestion/credito/resumen/' . rawurlencode($koen) . '/' . rawurlencode($suen));
+        $response = $this->authorizedGet('/gestion/credito/resumen/'.rawurlencode($koen).'/'.rawurlencode($suen));
 
         if ($response->status() === 404) {
             return [
@@ -142,7 +145,7 @@ class RandomApiService
 
         $data = $response->json();
         foreach (['CRSDVU', 'CRSDVV'] as $key) {
-            if (!is_array($data) || !array_key_exists($key, $data) || !is_numeric($data[$key])) {
+            if (! is_array($data) || ! array_key_exists($key, $data) || ! is_numeric($data[$key])) {
                 $this->failCredit($koen, $suen, $response);
             }
         }
@@ -178,16 +181,16 @@ class RandomApiService
             }
 
             $entities = $response->json();
-            if (!is_array($entities) || !array_is_list($entities)) {
+            if (! is_array($entities) || ! array_is_list($entities)) {
                 $this->failCredit($koen, $suen, $response);
             }
 
             foreach ($entities as $entity) {
-                if (!is_array($entity) || trim((string) ($entity['SUEN'] ?? '')) !== trim($suen)) {
+                if (! is_array($entity) || trim((string) ($entity['SUEN'] ?? '')) !== trim($suen)) {
                     continue;
                 }
 
-                if (!isset($entity['CRTO']) || !is_numeric($entity['CRTO'])) {
+                if (! isset($entity['CRTO']) || ! is_numeric($entity['CRTO'])) {
                     $this->failCredit($koen, $suen, $response);
                 }
 
@@ -204,17 +207,17 @@ class RandomApiService
     }
 
     /**
-     * @param array<string, mixed> $query
+     * @param  array<string, mixed>  $query
      */
     private function authorizedGet(string $path, array $query = []): \Illuminate\Http\Client\Response
     {
-        $token = !empty(config('random.token')) ? config('random.token') : $this->getToken();
+        $token = ! empty(config('random.token')) ? config('random.token') : $this->getToken();
 
         try {
             return Http::withToken($token)
                 ->retry(2, 1000, null, false)
                 ->acceptJson()
-                ->get($this->baseUrl . $path, $query);
+                ->get($this->baseUrl.$path, $query);
         } catch (\Throwable $e) {
             Log::error('Random API Error', [
                 'message' => $e->getMessage(),
@@ -253,18 +256,34 @@ class RandomApiService
     {
         $params = [
             'empresa' => config('random.business_code'),
-            'fields' => "KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR,HFPR"
+            'fields' => 'KOPR,NOKOPR,KOPRAL,NMARCA,FMPR,PFPR,MRPR,HFPR',
         ];
 
         // Only add non-empty parameters
-        if (!empty($tipr)) $params['tipr'] = $tipr;
-        if ($kopr_anterior > 0) $params['kopr_anterior'] = $kopr_anterior;
-        if (!empty($kopr)) $params['kopr'] = $kopr;
-        if (!empty($nokopr)) $params['nokopr'] = $nokopr;
-        if (!empty($search)) $params['search'] = $search;
-        if (!empty($fmpr)) $params['fmpr'] = $fmpr;
-        if (!empty($pfpr)) $params['pfpr'] = $pfpr;
-        if (!empty($hfpr)) $params['hfpr'] = $hfpr;
+        if (! empty($tipr)) {
+            $params['tipr'] = $tipr;
+        }
+        if ($kopr_anterior > 0) {
+            $params['kopr_anterior'] = $kopr_anterior;
+        }
+        if (! empty($kopr)) {
+            $params['kopr'] = $kopr;
+        }
+        if (! empty($nokopr)) {
+            $params['nokopr'] = $nokopr;
+        }
+        if (! empty($search)) {
+            $params['search'] = $search;
+        }
+        if (! empty($fmpr)) {
+            $params['fmpr'] = $fmpr;
+        }
+        if (! empty($pfpr)) {
+            $params['pfpr'] = $pfpr;
+        }
+        if (! empty($hfpr)) {
+            $params['hfpr'] = $hfpr;
+        }
 
         return $this->makeRequest('get', '/productos?tipr=FPN', $params);
     }
@@ -297,11 +316,21 @@ class RandomApiService
             'kobo' => config('random.warehouse_code'),
         ];
 
-        if ($kopr !== null) $params['kopr'] = $kopr;
-        if ($fields !== null) $params['fields'] = $fields;
-        if ($warehouse !== null) $params['warehouse'] = $warehouse;
-        if ($business_code !== null) $params['business_code'] = $business_code;
-        if ($mode !== null) $params['mode'] = $mode;
+        if ($kopr !== null) {
+            $params['kopr'] = $kopr;
+        }
+        if ($fields !== null) {
+            $params['fields'] = $fields;
+        }
+        if ($warehouse !== null) {
+            $params['warehouse'] = $warehouse;
+        }
+        if ($business_code !== null) {
+            $params['business_code'] = $business_code;
+        }
+        if ($mode !== null) {
+            $params['mode'] = $mode;
+        }
 
         return $this->makeRequest('get', '/stock/detalle', $params);
     }
@@ -310,7 +339,7 @@ class RandomApiService
     {
         $params = [
             'empresa' => config('random.business_code'),
-            'fields' => 'KOPR,MRPR,NOKOMR'
+            'fields' => 'KOPR,MRPR,NOKOMR',
         ];
 
         return $this->makeRequest('get', '/productos', $params);
@@ -318,10 +347,6 @@ class RandomApiService
 
     /**
      * Create a document
-     *
-     * @param array $data
-     *
-     * @return \Illuminate\Http\Client\Response
      */
     public function createDocument(array $data): \Illuminate\Http\Client\Response
     {
@@ -333,19 +358,19 @@ class RandomApiService
             $token = $this->getToken();
         }
 
-        Log::debug('Random URL (RandomApiService): ' . $this->baseUrl);
+        Log::debug('Random URL (RandomApiService): '.$this->baseUrl);
 
         try {
             $dryRun = config('random.documents.dry_run');
             $response = Http::withToken($token)
                 ->when($dryRun, function ($static, $whenParameter) {
                     $static->withQueryParameters([
-                        'dryRun' => 'true'
+                        'dryRun' => 'true',
                     ]);
                 })
                 ->retry(2, 1000, null, false)
                 ->acceptJson()
-                ->post($this->baseUrl . $endpoint, $data);
+                ->post($this->baseUrl.$endpoint, $data);
         } catch (\Throwable $e) {
             Log::error('Random API Error', [
                 'message' => $e->getMessage(),
@@ -355,7 +380,7 @@ class RandomApiService
 
         if ($response === null || $response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "Falló la creación del documento en Random ERP",
+                'Falló la creación del documento en Random ERP',
                 $data,
                 $response
             );
@@ -368,16 +393,12 @@ class RandomApiService
 
     /**
      * Get document trace
-     *
-     * @param int $idmaeedo
-     *
-     * @return \Illuminate\Http\Client\Response
      */
     public function getDocumentTrace(int $idmaeedo): \Illuminate\Http\Client\Response
     {
         $endpoint = "/documentos/traza/{$idmaeedo}";
 
-        if (!empty(config('random.token'))) {
+        if (! empty(config('random.token'))) {
             $token = config('random.token');
         } else {
             $token = $this->getToken();
@@ -386,11 +407,11 @@ class RandomApiService
         $response = Http::withToken($token)
             ->retry(2, 1000, null, false)
             ->acceptJson()
-            ->get($this->baseUrl . $endpoint);
+            ->get($this->baseUrl.$endpoint);
 
         if ($response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "Document trace query failed",
+                'Document trace query failed',
                 ['idmaeedo' => $idmaeedo],
                 $response
             );
@@ -412,7 +433,7 @@ class RandomApiService
     {
         $endpoint = "/web32/documento/{$idmaeedo}";
 
-        if (!empty(config('random.token'))) {
+        if (! empty(config('random.token'))) {
             $token = config('random.token');
         } else {
             $token = $this->getToken();
@@ -421,7 +442,7 @@ class RandomApiService
         $response = Http::withToken($token)
             ->acceptJson()
             ->asJson()
-            ->delete($this->baseUrl . $endpoint);
+            ->delete($this->baseUrl.$endpoint);
 
         if ($response->failed()) {
             throw new RandomApiServiceErrorException(
@@ -437,20 +458,18 @@ class RandomApiService
     /**
      * Get Random ERP Territorios
      *
-     * @param int $level
-     * @param string $countryCode
-     *
-     * @return \Illuminate\Http\Client\Response
+     * @param  int  $level
+     * @param  string  $countryCode
      */
     public function getTerritorios($level = 3, $countryCode = 'CL'): \Illuminate\Http\Client\Response
     {
-        $endpoint = "/territorios";
+        $endpoint = '/territorios';
         $query = [
-            "ter1"=> $countryCode,
-            "nivel" => strval($level),
+            'ter1' => $countryCode,
+            'nivel' => strval($level),
         ];
 
-        if (!empty(config('random.token'))) {
+        if (! empty(config('random.token'))) {
             $token = config('random.token');
         } else {
             $token = $this->getToken();
@@ -459,11 +478,11 @@ class RandomApiService
         $response = Http::withToken($token)
             ->retry(2, 1000, null, false)
             ->acceptJson()
-            ->get($this->baseUrl . $endpoint, $query);
+            ->get($this->baseUrl.$endpoint, $query);
 
         if ($response->failed()) {
             $exception = new RandomApiServiceErrorException(
-                "Territorios query failed",
+                'Territorios query failed',
                 ['query' => $query],
                 $response
             );
@@ -472,5 +491,95 @@ class RandomApiService
         }
 
         return $response;
+    }
+
+    /**
+     * Contacts of an entity (`GET /web32/contactos`).
+     *
+     * @return array<string, mixed>
+     */
+    public function getContacts(string $codigoEntidad): array
+    {
+        $response = $this->contactsRequest('get', [
+            'codigoEntidad' => $codigoEntidad,
+        ]);
+
+        if ($response->failed()) {
+            throw new RandomApiServiceErrorException(
+                'No se pudieron obtener los contactos de la entidad',
+                ['codigoEntidad' => $codigoEntidad],
+                $response
+            );
+        }
+
+        $data = $response->json();
+
+        return is_array($data) ? $data : [];
+    }
+
+    /**
+     * Create or update contacts (`PUT /web32/contactos`).
+     *
+     * The body is a JSON array. Random answers with how many rows it created and updated.
+     * The call is synchronous: checkout can use the contact as soon as this returns.
+     *
+     * @param  list<array<string, mixed>>  $contacts
+     * @return array{updated: int, created: int}
+     */
+    public function updateContacts(array $contacts): array
+    {
+        $response = $this->contactsRequest('put', $contacts);
+        $data = $response->json();
+        $updated = is_array($data) ? ($data['updated'] ?? null) : null;
+        $created = is_array($data) ? ($data['created'] ?? null) : null;
+
+        if (
+            $response->failed()
+            || ! is_numeric($updated)
+            || ! is_numeric($created)
+            || ((int) $updated + (int) $created) < 1
+        ) {
+            throw new RandomApiServiceErrorException(
+                'No se pudo actualizar el contacto en Random ERP',
+                ['contacts' => $contacts],
+                $response
+            );
+        }
+
+        return [
+            'updated' => (int) $updated,
+            'created' => (int) $created,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|list<array<string, mixed>>  $payload
+     */
+    private function contactsRequest(string $method, array $payload): \Illuminate\Http\Client\Response
+    {
+        $token = ! empty(config('random.token')) ? config('random.token') : $this->getToken();
+
+        try {
+            $pending = Http::withToken($token)
+                ->retry(2, 1000, null, false)
+                ->acceptJson()
+                ->asJson();
+
+            $url = $this->baseUrl.'/web32/contactos';
+
+            return $method === 'get'
+                ? $pending->get($url, $payload)
+                : $pending->put($url, $payload);
+        } catch (\Throwable $e) {
+            Log::error('Random API Error', [
+                'message' => $e->getMessage(),
+            ]);
+
+            throw new RandomApiServiceErrorException(
+                'No se pudo comunicar con Random ERP',
+                ['endpoint' => '/web32/contactos'],
+                null
+            );
+        }
     }
 }

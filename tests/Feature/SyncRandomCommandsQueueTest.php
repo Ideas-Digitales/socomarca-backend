@@ -26,6 +26,14 @@ it('queues the sync job on the queue processed by supervisor', function (string 
     'users' => ['random:sync-users', SyncRandomUsers::class, 'random-sync-users'],
 ]);
 
+it('does not queue contact sync while it is disabled', function () {
+    Queue::fake();
+
+    $this->artisan('random:sync-contacts')->assertSuccessful();
+
+    Queue::assertNothingPushed();
+});
+
 it('queues each job of the full sync chain on the queue processed by supervisor', function () {
     Queue::fake();
 

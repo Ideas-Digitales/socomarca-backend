@@ -22,6 +22,7 @@ class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
+
     use HasRoles;
 
     /**
@@ -52,7 +53,7 @@ class User extends Authenticatable
 
     /**
      * @var array
-     * Allowed filters for the filter scope.
+     *            Allowed filters for the filter scope.
      */
     protected $allowedFilters = [
         [
@@ -83,7 +84,7 @@ class User extends Authenticatable
 
     /**
      * @var array
-     * Allowed sorts for the filter scope.
+     *            Allowed sorts for the filter scope.
      */
     protected $allowedSorts = [
         'id',
@@ -127,7 +128,7 @@ class User extends Authenticatable
     protected static function booted(): void
     {
         static::updated(function (User $user) {
-            if ($user->wasChanged('is_active') && !$user->is_active) {
+            if ($user->wasChanged('is_active') && ! $user->is_active) {
                 $user->tokens()->delete();
             }
         });
@@ -145,9 +146,6 @@ class User extends Authenticatable
 
     /**
      * Normalize an email address (trimmed and lowercase). Blank values are normalized to null.
-     *
-     * @param string|null $email
-     * @return string|null
      */
     public static function normalizeEmail(?string $email): ?string
     {
@@ -159,15 +157,12 @@ class User extends Authenticatable
     /**
      * Whether the email belongs to a domain of config('random.excluded_email_domains'), such as
      * the SII generic billing mailboxes, which must not be used to log in nor to notify.
-     *
-     * @param string|null $email
-     * @return bool
      */
     public static function hasExcludedEmailDomain(?string $email): bool
     {
         $email = self::normalizeEmail($email);
 
-        if ($email === null || !str_contains($email, '@')) {
+        if ($email === null || ! str_contains($email, '@')) {
             return false;
         }
 
@@ -182,9 +177,6 @@ class User extends Authenticatable
      * Returns null when no active user has the email or when it is assigned to more than one
      * active user: a shared email does not identify a single user. Inactive users are ignored,
      * as in the email issues alert of the Random entities sync.
-     *
-     * @param string|null $email
-     * @return User|null
      */
     public static function findActiveByLoginEmail(?string $email): ?User
     {
@@ -250,6 +242,67 @@ class User extends Authenticatable
     }
 
     /**
+     * Contacts that belong to this branch user.
+     */
+    public function contacts(): HasMany
+    {
+        return $this->hasMany(Contact::class);
+    }
+
+    /**
+     * Branch users whose contacts this user may see: itself, plus the secondary branches of its
+     * entity when it is the primary branch.
+     *
+     * @return list<int>
+     */
+    public function managedBranchUserIds(): array
+    {
+        $ids = [$this->id];
+
+        if ($this->branch_type === BranchType::PRIMARY && trim((string) $this->user_code) !== '') {
+            $ids = array_merge($ids, $this->secondaryBranches()->pluck('id')->all());
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Whether this user may assign a contact to that branch user.
+     * Users with `read-all-contacts` may assign any branch.
+     */
+    public function managesBranchUser(self $branch): bool
+    {
+        if ($this->can('read-all-contacts')) {
+            return true;
+        }
+
+        return in_array($branch->id, $this->managedBranchUserIds(), true);
+    }
+
+    /**
+     * Whether this user may attach the contact to an order or edit it.
+     * A primary branch may use its own contacts and those of its secondary branches.
+     */
+    public function canUseContact(Contact $contact): bool
+    {
+        $ownerId = $contact->user_id;
+
+        if ($ownerId === null) {
+            return false;
+        }
+
+        if ((int) $ownerId === (int) $this->id) {
+            return true;
+        }
+
+        if ($this->branch_type !== BranchType::PRIMARY || trim((string) $this->user_code) === '') {
+            return false;
+        }
+
+        return $this->secondaryBranches()->whereKey($ownerId)->exists();
+    }
+
+    /**
      * Retorna solo la dirección de facturación
      *
      * @return [type]
@@ -301,24 +354,24 @@ class User extends Authenticatable
     /**
      * Scope a query to filter users based on given criteria
      *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @param array $filters
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function scopeFilter($query, array $filters)
     {
         foreach ($filters as $filter) {
-            if ($filter['field'] === 'role' && !empty($filter['value'])) {
+            if ($filter['field'] === 'role' && ! empty($filter['value'])) {
                 if (($filter['operator'] ?? '=') === 'IN' && is_array($filter['value'])) {
                     $query->role($filter['value']);
                 } else {
                     $query->role($filter['value']);
                 }
+
                 continue;
             }
 
             // Filtro especial para buscar en name o email
-            if ($filter['field'] === 'name_or_email' && !empty($filter['value'])) {
+            if ($filter['field'] === 'name_or_email' && ! empty($filter['value'])) {
                 $value = $filter['value'];
                 $operator = $filter['operator'] ?? 'ILIKE';
 
@@ -333,6 +386,7 @@ class User extends Authenticatable
                     $q->where('name', $operator, $searchValue)
                         ->orWhere('email', $operator, $searchValue);
                 });
+
                 continue;
             }
 
@@ -359,7 +413,7 @@ class User extends Authenticatable
                         $query
                             ->selectRaw("similarity(users.{$field['field']}, ?) AS similarity_index", [$value])
                             ->whereRaw("users.{$field['field']} % ?", [$value])
-                            ->orderBy("similarity_index", "DESC");
+                            ->orderBy('similarity_index', 'DESC');
                     } else {
                         // Fallback a ILIKE si pg_trgm no está disponible
                         $query->where($field['field'], 'ILIKE', "%{$value}%");
@@ -381,14 +435,13 @@ class User extends Authenticatable
 
     /**
      * Verificar si la extensión pg_trgm está disponible en PostgreSQL
-     *
-     * @return bool
      */
     private function isPgTrgmAvailable(): bool
     {
         try {
             $result = DB::select("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'");
-            return !empty($result);
+
+            return ! empty($result);
         } catch (\Exception $e) {
             return false;
         }
