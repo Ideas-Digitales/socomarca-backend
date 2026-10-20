@@ -9,29 +9,30 @@ use App\Http\Requests\Orders\PayOrderRequest;
 use App\Http\Resources\Orders\OrderCollection;
 use App\Http\Resources\Orders\OrderResource;
 use App\Http\Resources\Orders\PaymentResource;
+use App\Models\Brand;
 use App\Models\CartItem;
+use App\Models\Category;
+use App\Models\Contact;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Product;
-use Illuminate\Support\Facades\DB;
-use App\Services\WebpayService;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Http\Request;
-use App\Models\User;
-use App\Models\Category;
-use App\Models\Subcategory;
-use App\Models\Brand;
 use App\Models\Price;
-use App\Services\Orders\CancelAwaitingInvoiceOrder;
-use App\Services\Random\RandomDocumentService;
-use App\Services\Random\RandomDocumentPayloadBuilder;
+use App\Models\Product;
+use App\Models\Subcategory;
+use App\Models\User;
 use App\Services\CartPriceResolver;
+use App\Services\Orders\CancelAwaitingInvoiceOrder;
 use App\Services\PaymentService;
+use App\Services\Random\RandomDocumentPayloadBuilder;
+use App\Services\Random\RandomDocumentService;
 use App\Services\VatService;
+use App\Services\WebpayService;
 use Dedoc\Scramble\Attributes\Group;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 #[Group('Orders', 'List the user\'s orders, check out the cart, and cancel an order that is waiting for an invoice or a receipt.', weight: 11)]
@@ -39,9 +40,6 @@ class OrderController extends Controller
 {
     protected WebpayService $webpayService;
 
-    /**
-     * @var RandomDocumentService
-     */
     protected RandomDocumentService $documentService;
 
     protected RandomDocumentPayloadBuilder $payloadBuilder;
@@ -80,23 +78,23 @@ class OrderController extends Controller
     #[QueryParameter('payment_method_code', 'Only orders with a payment made with this payment method code.', type: 'string', example: 'random_credit')]
     public function index(Request $request)
     {
-        $perPage = $request->input("per_page", 20);
-        $sortBy = in_array($request->input("sort"), ["id", "created_at"])
-            ? $request->input("sort")
-            : "created_at";
-        $sortDirection = in_array($request->input("sort_direction"), [
-            "asc",
-            "desc",
+        $perPage = $request->input('per_page', 20);
+        $sortBy = in_array($request->input('sort'), ['id', 'created_at'])
+            ? $request->input('sort')
+            : 'created_at';
+        $sortDirection = in_array($request->input('sort_direction'), [
+            'asc',
+            'desc',
         ])
-            ? $request->input("sort_direction")
-            : "desc";
+            ? $request->input('sort_direction')
+            : 'desc';
 
         $orders = Order::visibleTo(Auth::user())
-            ->with(["payments", "customer", "orderDetails.product"])
-            ->when($request->has("payment_method_code"), function (
+            ->with(['payments', 'customer', 'orderDetails.product'])
+            ->when($request->has('payment_method_code'), function (
                 Builder $query,
             ) use ($request) {
-                $code = $request->input("payment_method_code");
+                $code = $request->input('payment_method_code');
                 $query->byPaymentMethodCode($code);
             })
             ->orderBy($sortBy, $sortDirection)
@@ -117,28 +115,29 @@ class OrderController extends Controller
      * document is issued for it (also when the order ships to one of its secondary
      * branches); the price list of every item is stored on it.
      *
-     * @param int $addressId Address of the customer, stored in the order metadata
-     * @param User $customer User the order ships to (the authenticated user or one of its secondary branches)
-     * @param string|null $notes Free text notes, forwarded to the ERP document
-     *
+     * @param  int  $addressId  Address of the customer, stored in the order metadata
+     * @param  User  $customer  User the order ships to (the authenticated user or one of its secondary branches)
+     * @param  Contact|null  $contact  Optional contact person of the buyer's entity; its RUT is frozen on the order
+     * @param  string|null  $notes  Free text notes, forwarded to the ERP document
      * @return \App\Models\Order|\Illuminate\Http\JsonResponse The created order, a 400 response when the cart is empty,
      *                                                         or a 422 response listing the products the user has no price for
      */
     public function createFromCart(
         int $addressId,
         User $customer,
+        ?Contact $contact = null,
         ?string $notes = null,
     ) {
-        //$this->createCart();
+        // $this->createCart();
         $user = User::find(Auth::user()->id);
-        $carts = CartItem::with("product")
-            ->where("user_id", $user->id)
-            ->orderBy("id")
+        $carts = CartItem::with('product')
+            ->where('user_id', $user->id)
+            ->orderBy('id')
             ->get();
 
         if ($carts->isEmpty()) {
             return response()->json(
-                ["message" => "El carrito está vacío"],
+                ['message' => 'El carrito está vacío'],
                 400,
             );
         }
@@ -149,12 +148,12 @@ class OrderController extends Controller
         if ($unpriced->isNotEmpty()) {
             return response()->json(
                 [
-                    "message" => "Algunos productos del carrito no tienen precio vigente",
-                    "products" => $unpriced->map(fn (CartItem $cart) => [
-                        "id" => $cart->product_id,
-                        "name" => $cart->product?->name,
-                        "sku" => $cart->product?->sku,
-                        "unit" => $cart->unit,
+                    'message' => 'Algunos productos del carrito no tienen precio vigente',
+                    'products' => $unpriced->map(fn (CartItem $cart) => [
+                        'id' => $cart->product_id,
+                        'name' => $cart->product?->name,
+                        'sku' => $cart->product?->sku,
+                        'unit' => $cart->unit,
                     ])->values(),
                 ],
                 422,
@@ -165,12 +164,12 @@ class OrderController extends Controller
             DB::beginTransaction();
 
             $lines = $carts->map(fn (CartItem $cart) => [
-                "cart" => $cart,
-                "price" => $prices->get($cart->id),
-                "subtotal" => (float) $prices->get($cart->id)->price * $cart->quantity,
+                'cart' => $cart,
+                'price' => $prices->get($cart->id),
+                'subtotal' => (float) $prices->get($cart->id)->price * $cart->quantity,
             ]);
 
-            $subtotal = (int) round($lines->sum("subtotal"));
+            $subtotal = (int) round($lines->sum('subtotal'));
             $vatRate = $this->vatService->rate();
             // VAT is calculated on the net subtotal of the order; the office is
             // sum later, just as it was charged before integrating VAT.
@@ -178,27 +177,41 @@ class OrderController extends Controller
             $shippingCost =
                 $subtotal >= 70000
                 ? 0
-                : (int) config("random.fixed_shipping_cost");
+                : (int) config('random.fixed_shipping_cost');
             $amount = $total + $shippingCost;
 
-            $address = $customer->addresses()->where("id", $addressId)->first();
+            $address = $customer->addresses()->where('id', $addressId)->first();
 
             $order_meta = [
-                "user" => $user->toArray(),
-                "address" => $address ? $address->toArray() : null,
+                'user' => $user->toArray(),
+                'address' => $address ? $address->toArray() : null,
             ];
 
+            if ($contact) {
+                $order_meta['contact'] = $contact->only([
+                    'id',
+                    'rut',
+                    'name',
+                    'email',
+                    'phone',
+                    'user_id',
+                    'address',
+                ]);
+            }
+
             $data = [
-                "user_id" => $user->id,
-                "subtotal" => $subtotal,
-                "vat" => $vatRate,
-                "total" => $total,
-                "shipping_cost" => $shippingCost,
-                "amount" => $amount,
-                "status" => "pending",
-                "order_meta" => $order_meta,
-                "customer_id" => $customer->id,
-                "notes" => $notes ?? "",
+                'user_id' => $user->id,
+                'subtotal' => $subtotal,
+                'vat' => $vatRate,
+                'total' => $total,
+                'shipping_cost' => $shippingCost,
+                'amount' => $amount,
+                'status' => 'pending',
+                'order_meta' => $order_meta,
+                'customer_id' => $customer->id,
+                'contact_id' => $contact?->id,
+                'contact_rut' => $contact?->rut,
+                'notes' => $notes ?? '',
             ];
 
             // Create the order
@@ -207,16 +220,16 @@ class OrderController extends Controller
             // Create the order items
             foreach ($lines as $line) {
                 OrderItem::create([
-                    "order_id" => $order->id,
-                    "product_id" => $line["cart"]->product_id,
-                    "unit" => $line["price"]->unit,
-                    "quantity" => $line["cart"]->quantity,
-                    "price" => $line["price"]->price,
-                    "price_list_id" => $line["price"]->price_list_id,
-                    "subtotal" => $line["subtotal"],
-                    "vat" => $vatRate,
-                    "total" => $this->vatService->applyTo(
-                        $line["subtotal"],
+                    'order_id' => $order->id,
+                    'product_id' => $line['cart']->product_id,
+                    'unit' => $line['price']->unit,
+                    'quantity' => $line['cart']->quantity,
+                    'price' => $line['price']->price,
+                    'price_list_id' => $line['price']->price_list_id,
+                    'subtotal' => $line['subtotal'],
+                    'vat' => $vatRate,
+                    'total' => $this->vatService->applyTo(
+                        $line['subtotal'],
                         $vatRate,
                     ),
                 ]);
@@ -241,8 +254,9 @@ class OrderController extends Controller
      * unit), as in the cart, and the prices, VAT and shipping cost are frozen on the order. Shipping is
      * free from a net subtotal of 70,000.
      *
-     * The order is sent to Random ERP as a sales note (NVV) with the authenticated user's entity code and
-     * the branch code of `customer_id`.
+     * The order is sent to Random ERP as a sales note (NVV) with the authenticated user's entity code
+     * and the branch code of `customer_id`. When `contact_id` is sent, the sales note also includes
+     * that contact's RUT as `rutContacto`.
      *
      * `payment_method` decides how the order is paid:
      *
@@ -267,67 +281,67 @@ class OrderController extends Controller
         200,
         'Webpay transaction created (`data`), or result of the credit payment (`success`)',
         type: 'array{data: \App\Http\Resources\Orders\PaymentResource}'
-            . '|array{success: true, data: array{transaction: array{status: "AUTHORIZED"}, payment: \App\Http\Resources\PaymentResource}}'
-            . '|array{success: false, message: "Línea de crédito bloqueada", data: array{transaction: array{status: "FAILED"}}}'
-            . '|array{success: false, message: "Crédito insuficiente", payment: null, data: array{transaction: array{status: "FAILED"}, payment: null, credit_status: array<string, mixed>}}'
-            . '|array{success: false, message: "Creación de nota de venta fallida", data: array{transaction: array{status: "FAILED"}, payment: \App\Http\Resources\PaymentResource, credit_status: array<string, mixed>}}',
+            .'|array{success: true, data: array{transaction: array{status: "AUTHORIZED"}, payment: \App\Http\Resources\PaymentResource}}'
+            .'|array{success: false, message: "Línea de crédito bloqueada", data: array{transaction: array{status: "FAILED"}}}'
+            .'|array{success: false, message: "Crédito insuficiente", payment: null, data: array{transaction: array{status: "FAILED"}, payment: null, credit_status: array<string, mixed>}}'
+            .'|array{success: false, message: "Creación de nota de venta fallida", data: array{transaction: array{status: "FAILED"}, payment: \App\Http\Resources\PaymentResource, credit_status: array<string, mixed>}}',
     )]
     #[Response(400, 'The cart is empty')]
     #[Response(
         422,
         'Validation error, or some cart products have no active price in the user\'s price lists (`products`)',
         type: 'array{message: string, errors: array<string, list<string>>}'
-            . '|array{message: "Algunos productos del carrito no tienen precio vigente", products: list<array{id: int, name: string|null, sku: string|null, unit: string}>}',
+            .'|array{message: "Algunos productos del carrito no tienen precio vigente", products: list<array{id: int, name: string|null, sku: string|null, unit: string}>}',
     )]
     #[Response(500, 'The Webpay transaction could not be created (the order is left pending), or the credit payment failed unexpectedly')]
     public function payOrder(PayOrderRequest $request)
     {
         $orderInfo = $this->createFromCart(
-            intval($request->input("address_id")),
+            intval($request->input('address_id')),
             $request->customer(),
-            $request->input("notes", ""),
+            $request->contact(),
+            $request->input('notes', ''),
         );
 
         if ($orderInfo instanceof Order && $orderInfo->id) {
-            if ($orderInfo->status !== "pending") {
+            if ($orderInfo->status !== 'pending') {
                 return response()->json(
-                    ["message" => "La orden no está pendiente de pago"],
+                    ['message' => 'La orden no está pendiente de pago'],
                     400,
                 );
             }
-            $order = Order::with(["user", "customer"])->find($orderInfo->id);
+            $order = Order::with(['user', 'customer'])->find($orderInfo->id);
 
-            if ($request->payment_method === "random_credit") {
+            if ($request->payment_method === 'random_credit') {
                 return $this->processRandomCreditPayment(
                     $order,
-                    $request->input("payment_document_type"),
+                    $request->input('payment_document_type'),
                 );
             }
 
             try {
                 $paymentResponse = $this->webpayService->createTransaction(
                     $order,
-                    $request->input("payment_document_type"),
+                    $request->input('payment_document_type'),
                 );
 
                 return new PaymentResource(
                     (object) [
-                        "order" => $order,
-                        "payment_url" => $paymentResponse["url"],
-                        "token" => $paymentResponse["token"],
+                        'order' => $order,
+                        'payment_url' => $paymentResponse['url'],
+                        'token' => $paymentResponse['token'],
                     ],
                 );
             } catch (\Exception $e) {
                 return response()->json(
                     [
-                        "message" =>
-                        "Error al procesar el pago: " . $e->getMessage(),
+                        'message' => 'Error al procesar el pago: '.$e->getMessage(),
                         /**
                          * The created order, left pending.
                          *
                          * @var array<string, mixed>
                          */
-                        "order" => $order,
+                        'order' => $order,
                     ],
                     500,
                 );
@@ -347,8 +361,6 @@ class OrderController extends Controller
      *
      * Requires both `read-all-orders` and `cancel-orders`.
      *
-     * @param CancelOrderRequest $request
-     * @param CancelAwaitingInvoiceOrder $cancellation
      *
      * @return OrderResource
      */
@@ -372,9 +384,7 @@ class OrderController extends Controller
     /**
      * Process payment using Random credit
      *
-     * @param Order $order
-     * @param string $generateRandomDocType Random Document type to generate in ERP
-     *
+     * @param  string  $generateRandomDocType  Random Document type to generate in ERP
      * @return \Illuminate\Http\JsonResponse
      */
     private function processRandomCreditPayment(
@@ -382,8 +392,8 @@ class OrderController extends Controller
         string $generateRandomDocType,
     ) {
         $paymentMethod = \App\Models\PaymentMethod::where(
-            "code",
-            "random_credit",
+            'code',
+            'random_credit',
         )->firstOrFail();
 
         $randomApiService = app(\App\Services\RandomApiService::class);
@@ -396,8 +406,8 @@ class OrderController extends Controller
             $buyer?->rut === null ||
             $buyer?->user_code === null
         ) {
-            Log::error("RandomCredit Error: Customer missing required attributes", [
-                "customer" => $buyer,
+            Log::error('RandomCredit Error: Customer missing required attributes', [
+                'customer' => $buyer,
             ]);
             // TODO Handle with a custom exception
             throw new \Exception(
@@ -407,11 +417,11 @@ class OrderController extends Controller
 
         $creditLine = \App\Models\CreditLine::firstOrCreate(
             [
-                "user_id" => $buyer->id,
-                "branch_code" => $buyer->branch_code,
+                'user_id' => $buyer->id,
+                'branch_code' => $buyer->branch_code,
             ],
             [
-                "is_blocked" => false,
+                'is_blocked' => false,
             ],
         );
 
@@ -431,10 +441,10 @@ class OrderController extends Controller
 
             if ($creditLine->isBlocked()) {
                 return response()->json([
-                    "success" => false,
-                    "message" => "Línea de crédito bloqueada",
-                    "data" => [
-                        "transaction" => ["status" => "FAILED"],
+                    'success' => false,
+                    'message' => 'Línea de crédito bloqueada',
+                    'data' => [
+                        'transaction' => ['status' => 'FAILED'],
                     ],
                 ]);
             }
@@ -445,20 +455,20 @@ class OrderController extends Controller
             );
 
             $availableCredit = (int) bcsub(
-                (string) ($creditLineInfo["CRSD"] ?? 0),
-                (string) ($creditLineInfo["CRSDVU"] ?? 0),
+                (string) ($creditLineInfo['CRSD'] ?? 0),
+                (string) ($creditLineInfo['CRSDVU'] ?? 0),
                 0,
             );
 
             if ($availableCredit < $order->amount) {
                 return response()->json([
-                    "success" => false,
-                    "message" => "Crédito insuficiente",
-                    "payment" => null,
-                    "data" => [
-                        "transaction" => ["status" => "FAILED"],
-                        "payment" => null,
-                        "credit_status" => $creditLineInfo,
+                    'success' => false,
+                    'message' => 'Crédito insuficiente',
+                    'payment' => null,
+                    'data' => [
+                        'transaction' => ['status' => 'FAILED'],
+                        'payment' => null,
+                        'credit_status' => $creditLineInfo,
                     ],
                 ]);
             }
@@ -466,7 +476,7 @@ class OrderController extends Controller
             $payload = $this->payloadBuilder->build(
                 $order,
                 $generateRandomDocType,
-                "Pago a crédito",
+                'Pago a crédito',
             );
 
             $documentResponse = $this->documentService->createDocument(
@@ -474,21 +484,22 @@ class OrderController extends Controller
                 $order,
             );
 
-            if (isset($documentResponse["errorId"])) {
+            if (isset($documentResponse['errorId'])) {
                 $payment = $this->paymentService->recordFailedCreditPayment(
                     $order,
                     $paymentMethod,
                 );
-                $payment->load("order");
+                $payment->load('order');
+
                 return response()->json([
-                    "success" => false,
-                    "message" => "Creación de nota de venta fallida",
-                    "data" => [
-                        "transaction" => ["status" => "FAILED"],
-                        "payment" => new \App\Http\Resources\PaymentResource(
+                    'success' => false,
+                    'message' => 'Creación de nota de venta fallida',
+                    'data' => [
+                        'transaction' => ['status' => 'FAILED'],
+                        'payment' => new \App\Http\Resources\PaymentResource(
                             $payment,
                         ),
-                        "credit_status" => $creditLineInfo,
+                        'credit_status' => $creditLineInfo,
                     ],
                 ]);
             }
@@ -497,14 +508,14 @@ class OrderController extends Controller
                 $order,
                 $paymentMethod,
                 $generateRandomDocType,
-                $documentResponse["numero"],
+                $documentResponse['numero'],
             );
             $localCredit = $creditLineInfo;
-            $localCredit["CRSDVU"] = floatval(
-                bcadd($creditLineInfo["CRSDVU"], $order->amount),
+            $localCredit['CRSDVU'] = floatval(
+                bcadd($creditLineInfo['CRSDVU'], $order->amount),
             );
 
-            $creditLine->update(["state" => $localCredit]);
+            $creditLine->update(['state' => $localCredit]);
             $creditLine->block($payment);
 
             return $payment;
@@ -516,16 +527,16 @@ class OrderController extends Controller
 
         $payment = $result;
         OrderCompleted::dispatch($order);
-        $payment->load("order");
+        $payment->load('order');
 
-        \App\Models\CartItem::where("user_id", $order->user_id)->delete();
+        \App\Models\CartItem::where('user_id', $order->user_id)->delete();
 
         return response()->json(
             [
-                "success" => true,
-                "data" => [
-                    "transaction" => ["status" => "AUTHORIZED"],
-                    "payment" => new \App\Http\Resources\PaymentResource(
+                'success' => true,
+                'data' => [
+                    'transaction' => ['status' => 'AUTHORIZED'],
+                    'payment' => new \App\Http\Resources\PaymentResource(
                         $payment,
                     ),
                 ],
@@ -534,38 +545,38 @@ class OrderController extends Controller
         );
     }
 
-    //NOTA: No eliminar este método, es para crear un carrito de prueba
+    // NOTA: No eliminar este método, es para crear un carrito de prueba
     public function createCart()
     {
         $category = Category::factory()->create();
         $subcategory = Subcategory::factory()->create([
-            "category_id" => $category->id,
+            'category_id' => $category->id,
         ]);
         $brand = Brand::factory()->create();
 
         $product = Product::factory()->create([
-            "category_id" => $category->id,
-            "subcategory_id" => $subcategory->id,
-            "brand_id" => $brand->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'brand_id' => $brand->id,
         ]);
 
         // Crear productos con sus precios
         $price1 = Price::factory()->create([
-            "product_id" => $product->id,
-            "price_list_id" => fake()->word(),
-            "unit" => "kg",
-            "price" => 100,
-            "valid_from" => now()->subDays(1),
-            "valid_to" => null,
-            "is_active" => true,
+            'product_id' => $product->id,
+            'price_list_id' => fake()->word(),
+            'unit' => 'kg',
+            'price' => 100,
+            'valid_from' => now()->subDays(1),
+            'valid_to' => null,
+            'is_active' => true,
         ]);
 
         CartItem::create([
-            "user_id" => Auth::user()->id,
-            "product_id" => $price1->product_id,
-            "quantity" => 2,
-            "price" => $price1->price,
-            "unit" => $price1->unit,
+            'user_id' => Auth::user()->id,
+            'product_id' => $price1->product_id,
+            'quantity' => 2,
+            'price' => $price1->price,
+            'unit' => $price1->unit,
         ]);
     }
 }

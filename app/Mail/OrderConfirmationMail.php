@@ -22,6 +22,9 @@ class OrderConfirmationMail extends Mailable
     /** Secondary branch the purchase was placed for. */
     public const AUDIENCE_BRANCH = 'branch';
 
+    /** Contact person named on the order. */
+    public const AUDIENCE_CONTACT = 'contact';
+
     public function __construct(
         public Order $order,
         public string $audience = self::AUDIENCE_SELF,
@@ -29,6 +32,7 @@ class OrderConfirmationMail extends Mailable
         $this->order->loadMissing([
             'user',
             'customer',
+            'contact',
             'orderDetails.product',
             'payments.paymentMethod',
         ]);
@@ -43,6 +47,7 @@ class OrderConfirmationMail extends Mailable
         $subject = match ($this->audience) {
             self::AUDIENCE_BUYER => "Registramos tu compra para la sucursal {$customerName}. Pedido N°{$id} en SOCOMARCA",
             self::AUDIENCE_BRANCH => "{$buyerName} registró una compra para tu sucursal. Pedido N°{$id} en SOCOMARCA",
+            self::AUDIENCE_CONTACT => "Te indicaron como contacto del pedido N°{$id} en SOCOMARCA",
             default => "¡Gracias por tu compra! Hemos recibido tu pedido N°{$id} en SOCOMARCA",
         };
 

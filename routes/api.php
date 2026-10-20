@@ -1,45 +1,44 @@
 <?php
 
 use App\Http\Controllers\Api\AddressController;
-use App\Http\Controllers\Api\CreditLineController;
-use App\Http\Controllers\Api\PriceExtremesController;
-use App\Http\Controllers\Api\UserController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\Api\CategoryController;
-use App\Http\Controllers\Api\SubcategoryController;
 use App\Http\Controllers\Api\BrandController;
 use App\Http\Controllers\Api\CartController;
-use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\PriceController;
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\PasswordResetController;
+use App\Http\Controllers\Api\CartItemController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\CreditLineController;
+use App\Http\Controllers\Api\FaqController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\FavoriteListController;
-use App\Http\Controllers\Api\CartItemController;
-use App\Http\Controllers\Api\PaymentMethodController;
+use App\Http\Controllers\Api\FirebaseConfigController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PaymentMethodController;
+use App\Http\Controllers\Api\PriceController;
+use App\Http\Controllers\Api\PriceExtremesController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProductImagePresignedUrlController;
+use App\Http\Controllers\Api\ProductImageSyncController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SiteinfoController;
-use App\Http\Controllers\Api\WebpayController;
-use App\Http\Controllers\Api\FaqController;
-use App\Http\Controllers\Api\FirebaseConfigController;
-use App\Http\Controllers\Api\NotificationController;
-use App\Http\Controllers\Api\ProductImagePresignedUrlController;
-use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
-use App\Http\Controllers\Api\ProductImageSyncController;
+use App\Http\Controllers\Api\SubcategoryController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VatController;
+use App\Http\Controllers\Api\ViewedNotificationsBatchStoreController;
+use App\Http\Controllers\Api\WebpayController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\SettingsController;
+use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
     Route::post('/token', [AuthController::class, 'login'])->name('auth.token.store');
     Route::middleware('throttle:6,1')->group(function () {
         Route::post('/restore', [PasswordResetController::class, 'forgotPassword'])->name('auth.password.restore');
     });
-    Route::middleware(['auth:sanctum','abilities:api-access'])->group(function () {
+    Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
         Route::get('/check-token', [AuthController::class, 'checkToken'])->name('auth.check.token');
         Route::delete('/token', [AuthController::class, 'destroy'])->name('auth.token.destroy');
         Route::prefix('/password')->group(function () {
@@ -51,7 +50,6 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
-
 
     Route::put('fcm/token', [UserController::class, 'updateFcmToken'])
         ->name('firebase.fcm-token');
@@ -103,6 +101,13 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
         ->middlewareFor('update', 'can:update,address')
         ->middlewareFor('destroy', 'can:delete,address');
 
+    Route::resource('contacts', ContactController::class)
+        ->only(['index', 'store', 'show', 'update'])
+        ->parameters(['contacts' => 'contact'])
+        ->middlewareFor('index', 'can:viewAny,App\Models\Contact')
+        ->middlewareFor('store', 'can:create,App\Models\Contact')
+        ->middlewareFor('show', 'can:view,contact')
+        ->middlewareFor('update', 'can:update,contact');
 
     Route::get('/regions', [AddressController::class, 'regions'])
         ->middleware('permission:read-all-regions')
@@ -116,7 +121,6 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
         ->middleware('permission:update-regions')
         ->name('addresses.regions.municipalities.status');
 
-
     Route::patch('/municipalities/status', [AddressController::class, 'updateMunicipalitiesStatus'])
         ->middleware('permission:update-municipalities')
         ->name('addresses.municipalities.bulk-status');
@@ -129,13 +133,11 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::post('/categories/search', [CategoryController::class, 'search'])
         ->middleware('permission:read-all-categories')->name('categories.search');
 
-
     Route::resource('subcategories', SubcategoryController::class)
         ->only(['index', 'show'])
         ->parameters(['subcategories' => 'subcategory'])
         ->middlewareFor('index', 'permission:read-all-subcategories')
         ->middlewareFor('show', 'permission:read-all-subcategories');
-
 
     Route::post('/products/images/presigned-upload-url', [ProductImagePresignedUrlController::class, 'store'])
         ->middleware(['permission:sync-product-images'])
@@ -143,7 +145,6 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::post('/products/images/sync', [ProductImageSyncController::class, 'store'])
         ->middleware(['permission:sync-product-images'])
         ->name('products.image.sync');
-
 
     Route::get('/products/price-extremes', [PriceExtremesController::class, 'index'])
         ->name('products.price-extremes')
@@ -203,7 +204,6 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
         ->middleware(['permission:read-all-orders', 'permission:cancel-orders'])
         ->name('orders.cancel');
 
-
     Route::middleware(['auth:sanctum', 'permission:read-all-reports'])->group(function () {
 
         // Export endpoints
@@ -238,9 +238,9 @@ Route::resource('faq', FaqController::class)
     ->middlewareFor('update', ['auth:sanctum', 'can:update,faq'])
     ->middlewareFor('destroy', ['auth:sanctum', 'can:delete,faq']);
 
-//Se sacan de la autenticacion porque es confirmacion de pago.
-//Front recibe el token y lo envia a /webpay/return  (La ruta se establece en el webpayService: linea 59)
-///webpay/return valida la token y entrega al front el estado del pago
+// Se sacan de la autenticacion porque es confirmacion de pago.
+// Front recibe el token y lo envia a /webpay/return  (La ruta se establece en el webpayService: linea 59)
+// /webpay/return valida la token y entrega al front el estado del pago
 Route::get('/webpay/return', [WebpayController::class, 'return'])->name('webpay.return');
 Route::get('/webpay/status', [WebpayController::class, 'status']);
 Route::post('/webpay/refund', [WebpayController::class, 'refund']);
@@ -267,8 +267,6 @@ Route::middleware(['auth:sanctum', 'permission:update-content-settings'])->group
     Route::put('/privacy-policy', [SiteinfoController::class, 'updatePrivacyPolicy'])->name('siteinfo.privacy-policy.update');
     Route::put('/customer-message', [SiteinfoController::class, 'updateCustomerMessage'])->name('siteinfo.customer-message.update');
 });
-
-
 
 // Settings
 Route::middleware(['auth:sanctum', 'permission:read-content-settings'])->group(function () {

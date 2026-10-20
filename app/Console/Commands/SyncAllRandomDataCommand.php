@@ -18,27 +18,28 @@ class SyncAllRandomDataCommand extends Command
     use Queueable;
 
     protected $signature = 'random:sync-all';
+
     protected $description = 'Sincroniza todos los datos desde la API de Random en cadena';
 
     public function handle()
     {
         $this->info('Iniciando sincronización completa de datos...');
-        
+
         try {
             Bus::chain([
-                (new SyncRandomCategories())->onQueue('random-sync-products'),
-                (new SyncRandomBrands())->onQueue('random-sync-products'),
-                (new SyncRandomProducts())->onQueue('random-sync-products'),
-                (new SyncRandomPrices())->onQueue('random-sync-products'),
-                (new SyncRandomStock())->onQueue('random-sync-products'),
-                (new SyncRandomUsers())->onQueue('random-sync-users'),
+                (new SyncRandomCategories)->onQueue('random-sync-products'),
+                (new SyncRandomBrands)->onQueue('random-sync-products'),
+                (new SyncRandomProducts)->onQueue('random-sync-products'),
+                (new SyncRandomPrices)->onQueue('random-sync-products'),
+                (new SyncRandomStock)->onQueue('random-sync-products'),
+                (new SyncRandomUsers)->onQueue('random-sync-users'),
             ])->dispatch();
 
             $this->info('Proceso de sincronización encolado correctamente.');
             Log::info('Sincronización completa encolada');
         } catch (\Exception $e) {
-            $this->error('Error al encolar la sincronización: ' . $e->getMessage());
-            Log::error('Error al encolar sincronización completa: ' . $e->getMessage());
+            $this->error('Error al encolar la sincronización: '.$e->getMessage());
+            Log::error('Error al encolar sincronización completa: '.$e->getMessage());
         }
     }
-} 
+}
