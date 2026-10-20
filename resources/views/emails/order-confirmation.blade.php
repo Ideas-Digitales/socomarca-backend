@@ -283,6 +283,10 @@
             <p class="intro">
                 <strong>{{ $buyerName }}</strong> registró una compra para tu sucursal. Hemos recibido el pedido y ya lo estamos preparando.
             </p>
+        @elseif ($audience === \App\Mail\OrderConfirmationMail::AUDIENCE_CONTACT)
+            <p class="intro">
+                Hola <strong>{{ $order->order_meta['contact']['name'] ?? 'contacto' }}</strong>, te indicaron como contacto de este pedido. Aquí está la información de la compra.
+            </p>
         @else
             <p class="intro">
                 ¡Gracias por tu compra, <strong>{{ $buyerName }}</strong>! Hemos recibido tu pedido y ya lo estamos preparando.

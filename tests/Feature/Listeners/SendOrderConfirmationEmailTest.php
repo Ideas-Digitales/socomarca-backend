@@ -296,6 +296,91 @@ test('confirmation email body renders the order summary view', function () {
     });
 });
 
+/**
+ * The order factory stores order_meta already encoded, so the cast may expose a string.
+ *
+ * @param  array<string, mixed>  $contact
+ * @return array<string, mixed>
+ */
+function orderMetaWithContact(\App\Models\Order $order, array $contact): array
+{
+    $meta = $order->order_meta;
+
+    if (is_string($meta)) {
+        $decoded = json_decode($meta, true);
+        $meta = is_array($decoded) ? $decoded : [];
+    }
+
+    return array_merge($meta ?? [], ['contact' => $contact]);
+}
+
+it('sends the order information to the contact email', function () {
+    Mail::fake();
+    Storage::fake('s3');
+
+    ['order' => $order, 'product' => $product] = makeCompletedOrderScenario();
+    $order->update([
+        'order_meta' => orderMetaWithContact($order, [
+            'name' => 'Ana Pérez',
+            'email' => 'Ana@Contacto.cl',
+        ]),
+    ]);
+
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
+
+    $mails = Mail::sent(OrderConfirmationMail::class);
+    $contactMail = $mails->first(
+        fn (OrderConfirmationMail $mail) => $mail->audience === OrderConfirmationMail::AUDIENCE_CONTACT,
+    );
+
+    expect($contactMail)->not->toBeNull()
+        ->and(confirmationRecipients($contactMail))->toBe(['ana@contacto.cl']);
+
+    $rendered = $contactMail->render();
+    expect($contactMail->envelope()->subject)->toContain('contacto')
+        ->and($contactMail->envelope()->subject)->toContain((string) $order->id)
+        ->and($rendered)->toContain('Ana Pérez')
+        ->and($rendered)->toContain('información de la compra')
+        ->and($rendered)->toContain($product->name)
+        ->and($rendered)->toContain((string) $order->id);
+});
+
+it('does not send a second copy when the contact email already receives the confirmation', function () {
+    Mail::fake();
+
+    ['order' => $order, 'user' => $user] = makeCompletedOrderScenario();
+    $order->update([
+        'order_meta' => orderMetaWithContact($order, [
+            'name' => 'Ana Pérez',
+            'email' => $user->email,
+        ]),
+    ]);
+
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
+
+    expect(Mail::sent(OrderConfirmationMail::class))->toHaveCount(1)
+        ->and(Mail::sent(OrderConfirmationMail::class)->first()->audience)
+        ->toBe(OrderConfirmationMail::AUDIENCE_SELF);
+});
+
+it('skips a contact email that cannot be notified', function () {
+    Mail::fake();
+
+    ['order' => $order] = makeCompletedOrderScenario();
+    $order->update([
+        'order_meta' => orderMetaWithContact($order, [
+            'name' => 'Ana Pérez',
+            'email' => 'no-es-un-correo',
+        ]),
+    ]);
+
+    (new SendOrderConfirmationEmail)->handle(new OrderCompleted($order->fresh()));
+
+    expect(Mail::sent(OrderConfirmationMail::class))->toHaveCount(1)
+        ->and(Mail::sent(OrderConfirmationMail::class)->first()->audience)
+        ->toBe(OrderConfirmationMail::AUDIENCE_SELF);
+});
+
 test('confirmation listener implements ShouldQueue', function () {
     expect(new SendOrderConfirmationEmail)->toBeInstanceOf(
         ShouldQueue::class,
