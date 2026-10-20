@@ -237,3 +237,81 @@ it('throws when Random ERP rejects the document deletion', function () {
     expect(fn () => (new RandomApiService)->deleteDocument(360))
         ->toThrow(RandomApiServiceErrorException::class);
 });
+
+it('lists the contacts of an entity', function () {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/web32/contactos*' => Http::response([
+            'data' => [
+                ['KOEN' => '77722167', 'RUTCONTACT' => '86027191-5', 'NOKOCON' => 'Samuel'],
+            ],
+            'object' => 'list',
+        ], 200),
+    ]);
+
+    $contacts = (new RandomApiService)->getContacts('77722167');
+
+    expect($contacts['object'])->toBe('list')
+        ->and($contacts['data'][0]['RUTCONTACT'])->toBe('86027191-5');
+
+    Http::assertSent(function ($request) {
+        parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+        return $request->method() === 'GET'
+            && str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/web32/contactos')
+            && $query['codigoEntidad'] === '77722167';
+    });
+});
+
+it('updates contacts with a json array and reads the created and updated counts', function () {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/web32/contactos' => Http::response(['updated' => 0, 'created' => 1], 200),
+    ]);
+
+    $result = (new RandomApiService)->updateContacts([[
+        'codigoEntidad' => '77722167',
+        'rutContacto' => '86027191-5',
+        'nombreContacto' => 'Samuel Alderete Rayún',
+        'emailContacto' => 'salderete@ideasdigitales.cl',
+        'fonoContacto' => '+5215656780748',
+        'SUTRABCON' => '1',
+        'AUTORIZADO' => true,
+        'DIRECON' => 'San Francisco 22',
+    ]]);
+
+    expect($result)->toBe(['updated' => 0, 'created' => 1]);
+
+    Http::assertSent(function ($request) {
+        $body = $request->data();
+
+        return $request->method() === 'PUT'
+            && $request->url() === 'http://random.test/web32/contactos'
+            && is_array($body)
+            && array_is_list($body)
+            && $body[0]['rutContacto'] === '86027191-5'
+            && $body[0]['AUTORIZADO'] === true;
+    });
+});
+
+it('rejects a contacts update that did not create or update any row', function () {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/web32/contactos' => Http::response(['updated' => 0, 'created' => 0], 200),
+    ]);
+
+    expect(fn () => (new RandomApiService)->updateContacts([['rutContacto' => '86027191-5']]))
+        ->toThrow(RandomApiServiceErrorException::class);
+});

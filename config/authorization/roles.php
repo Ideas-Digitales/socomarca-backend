@@ -16,6 +16,10 @@ return [
         'create-addresses',
         'update-addresses',
         'delete-addresses',
+        'read-all-contacts',
+        'read-own-contacts',
+        'create-contacts',
+        'update-contacts',
         'read-all-brands',
         'read-all-categories',
         'read-all-subcategories',
@@ -44,21 +48,21 @@ return [
         'sync-product-images',
 
         // Address related permissions
-        "store-address",
-        "update-address",
-        "delete-address",
+        'store-address',
+        'update-address',
+        'delete-address',
 
         // FAQ related permissions
-        "read-all-faqs",
-        "create-faqs",
-        "update-faqs",
-        "delete-faqs",
+        'read-all-faqs',
+        'create-faqs',
+        'update-faqs',
+        'delete-faqs',
 
         // Notification related permissions
-        "create-notifications",
-        "read-all-notifications",
-        "create-viewed-notifications",
-        "update-system-config",
+        'create-notifications',
+        'read-all-notifications',
+        'create-viewed-notifications',
+        'update-system-config',
 
         // Credit lines
         'read-all-credit-lines',
@@ -81,6 +85,10 @@ return [
         'create-addresses',
         'update-addresses',
         'delete-addresses',
+        'read-all-contacts',
+        'read-own-contacts',
+        'create-contacts',
+        'update-contacts',
         'read-content-settings',
         'update-content-settings',
         'read-all-system-config',
@@ -108,22 +116,21 @@ return [
         'sync-product-images',
         'update-system-config',
 
-
         // Address related permissions
-        "store-address",
-        "update-address",
-        "delete-address",
+        'store-address',
+        'update-address',
+        'delete-address',
 
         // FAQ related permissions
-        "read-all-faqs",
-        "create-faqs",
-        "update-faqs",
-        "delete-faqs",
+        'read-all-faqs',
+        'create-faqs',
+        'update-faqs',
+        'delete-faqs',
 
         // Notification related permissions
-        "create-notifications",
-        "read-all-notifications",
-        "create-viewed-notifications",
+        'create-notifications',
+        'read-all-notifications',
+        'create-viewed-notifications',
 
         // Credit lines
         'read-all-credit-lines',
@@ -148,7 +155,7 @@ return [
         'read-customers-export',
 
         // FAQ related permissions
-        "read-all-faqs",
+        'read-all-faqs',
         'read-all-products-export',
         'read-all-categories-export',
 
@@ -175,10 +182,10 @@ return [
         'read-all-regions',
 
         // FAQ related permissions
-        "read-all-faqs",
-        "create-faqs",
-        "update-faqs",
-        "delete-faqs",
+        'read-all-faqs',
+        'create-faqs',
+        'update-faqs',
+        'delete-faqs',
         'create-viewed-notifications',
     ],
     'customer' => [
@@ -189,6 +196,9 @@ return [
         'create-addresses',
         'update-addresses',
         'delete-addresses',
+        'read-own-contacts',
+        'create-contacts',
+        'update-contacts',
         'read-own-favorites',
         'create-favorites',
         'delete-favorites',
@@ -211,20 +221,20 @@ return [
         'read-price-list-products',
         'read-all-regions',
 
-        "store-address",
-        "update-address",
-        "delete-address",
+        'store-address',
+        'update-address',
+        'delete-address',
 
         // FAQ related permissions
-        "read-all-faqs",
+        'read-all-faqs',
         // Siteinfo authorization
         'read-content-settings',
 
-        "read-all-notifications",
+        'read-all-notifications',
         'create-viewed-notifications',
 
-        //Credit Line permissions
-        "read-own-credit-lines",
+        // Credit Line permissions
+        'read-own-credit-lines',
         // Payment method permissions
         'read-all-payment-methods',
     ],
@@ -243,6 +253,10 @@ return [
         'create-addresses',
         'update-addresses',
         'delete-addresses',
+        'read-all-contacts',
+        'read-own-contacts',
+        'create-contacts',
+        'update-contacts',
         'read-all-brands',
         'read-all-categories',
         'read-all-subcategories',

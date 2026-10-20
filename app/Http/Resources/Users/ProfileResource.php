@@ -47,6 +47,12 @@ class ProfileResource extends JsonResource
              */
             'branch_type' => $this->branch_type,
             /**
+             * Random ERP branch code (SUEN) of the authenticated user.
+             *
+             * @var string|null
+             */
+            'branch_code' => $this->branch_code,
+            /**
              * Whether the user can place orders for other branches (`GET /branches`): a primary branch with
              * at least one active secondary branch. Same value as in the login response.
              *
