@@ -23,13 +23,15 @@ class Order extends Model
         'order_meta',
         'random_document_number',
         'customer_id',
+        'contact_id',
+        'contact_rut',
         'notes',
     ];
 
     protected function casts(): array
     {
         return [
-            'order_meta' => 'array'
+            'order_meta' => 'array',
         ];
     }
 
@@ -62,6 +64,15 @@ class Order extends Model
     public function customer()
     {
         return $this->belongsTo(User::class, 'customer_id');
+    }
+
+    /**
+     * Contact person of the entity chosen at checkout. The sales note uses `contact_rut`,
+     * which stays even if this contact is later removed.
+     */
+    public function contact()
+    {
+        return $this->belongsTo(Contact::class);
     }
 
     /**
@@ -148,7 +159,7 @@ class Order extends Model
                   ON (order_meta->\'address\'->>\'municipality_id\')::bigint = municipalities.id
                 WHERE orders.status = \'completed\'
                   AND order_meta->\'address\'->>\'municipality_id\' IS NOT NULL
-                  AND orders.created_at BETWEEN \'' . $start . '\' AND \'' . $end . '\'
+                  AND orders.created_at BETWEEN \''.$start.'\' AND \''.$end.'\'
                 GROUP BY month, municipalities.name
                 ORDER BY month, total_purchases DESC
             ) as t'))
@@ -256,8 +267,8 @@ class Order extends Model
      * Get orders which have the payment method associated through the
      * payment relationship
      *
-     * @param Builder $query Eloquent query Builder
-     * @param string $code Payment method code
+     * @param  Builder  $query  Eloquent query Builder
+     * @param  string  $code  Payment method code
      */
     protected function byPaymentMethodCode(Builder $query, string $code)
     {

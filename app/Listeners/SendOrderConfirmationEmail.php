@@ -44,12 +44,15 @@ class SendOrderConfirmationEmail implements ShouldQueue
      * branch ordering for a secondary one gets two: the buyer is told the purchase
      * was for that branch, and the branch is told a purchase was placed for it.
      * An address that belongs to both sides is sent only the buyer's copy.
+     * The contact named on the order also receives the order information, unless that
+     * address already got the buyer or branch confirmation.
      */
     public function handle(OrderCompleted $event): void
     {
         $event->order->loadMissing([
             'user',
             'customer',
+            'contact',
             'orderDetails.product',
             'payments.paymentMethod',
         ]);
@@ -60,7 +63,9 @@ class SendOrderConfirmationEmail implements ShouldQueue
             && ! $order->user->is($order->customer);
 
         if (! $forAnotherBranch) {
-            $this->send($order, $this->emailAddresses($order->user, $order->customer), OrderConfirmationMail::AUDIENCE_SELF);
+            $recipients = $this->emailAddresses($order->user, $order->customer);
+            $this->send($order, $recipients, OrderConfirmationMail::AUDIENCE_SELF);
+            $this->sendContactCopy($order, $recipients);
 
             return;
         }
@@ -74,8 +79,6 @@ class SendOrderConfirmationEmail implements ShouldQueue
 
         if ($buyerRecipients === [] && $branchRecipients === []) {
             $this->warnNoRecipients($order);
-
-            return;
         }
 
         if ($buyerRecipients !== []) {
@@ -85,6 +88,8 @@ class SendOrderConfirmationEmail implements ShouldQueue
         if ($branchRecipients !== []) {
             Mail::to($branchRecipients)->send(new OrderConfirmationMail($order, OrderConfirmationMail::AUDIENCE_BRANCH));
         }
+
+        $this->sendContactCopy($order, array_merge($buyerRecipients, $branchRecipients));
     }
 
     /**
@@ -99,6 +104,43 @@ class SendOrderConfirmationEmail implements ShouldQueue
         }
 
         Mail::to($recipients)->send(new OrderConfirmationMail($order, $audience));
+    }
+
+    /**
+     * @param  list<string>  $alreadySent
+     */
+    private function sendContactCopy(Order $order, array $alreadySent): void
+    {
+        $email = $this->contactEmail($order);
+
+        if ($email === null || in_array($email, $alreadySent, true)) {
+            return;
+        }
+
+        Mail::to($email)->send(new OrderConfirmationMail($order, OrderConfirmationMail::AUDIENCE_CONTACT));
+    }
+
+    /**
+     * Email frozen on the order at checkout, or the contact's current email when the
+     * snapshot has none.
+     */
+    private function contactEmail(Order $order): ?string
+    {
+        $snapshot = $order->order_meta['contact']['email'] ?? null;
+        $raw = is_string($snapshot) && trim($snapshot) !== ''
+            ? $snapshot
+            : $order->contact?->email;
+        $email = User::normalizeEmail(is_string($raw) ? $raw : null);
+
+        if ($email === null || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
+        }
+
+        if (User::hasExcludedEmailDomain($email)) {
+            return null;
+        }
+
+        return $email;
     }
 
     private function warnNoRecipients(Order $order): void

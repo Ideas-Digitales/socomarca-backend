@@ -4,6 +4,7 @@ namespace App\Http\Requests\Orders;
 
 use App\Enums\PaymentDocumentType;
 use App\Models\Address;
+use App\Models\Contact;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
@@ -30,7 +31,7 @@ class PayOrderRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     $customer = User::find($value);
 
-                    if (!$customer || !$this->user()->can('placeFor', [Order::class, $customer])) {
+                    if (! $customer || ! $this->user()->can('placeFor', [Order::class, $customer])) {
                         $fail('No puede emitir pedidos para el cliente indicado.');
                     }
                 },
@@ -44,8 +45,36 @@ class PayOrderRequest extends FormRequest
                         ->where('user_id', $this->customerId())
                         ->exists();
 
-                    if (!$belongsToCustomer) {
+                    if (! $belongsToCustomer) {
                         $fail('La dirección no pertenece al cliente del pedido.');
+                    }
+                },
+            ],
+            /**
+             * Optional contact person of a branch the authenticated user manages. It must be authorized.
+             * When present, its RUT is sent to Random ERP as `rutContacto` on the sales note. Omit it to
+             * check out without a contact.
+             */
+            'contact_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                'exists:contacts,id',
+                function ($attribute, $value, $fail) {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+
+                    $contact = Contact::query()->find($value);
+
+                    if (! $contact || ! $this->user()->canUseContact($contact)) {
+                        $fail('El contacto no pertenece a tu sucursal.');
+
+                        return;
+                    }
+
+                    if (! $contact->authorized) {
+                        $fail('El contacto no está autorizado.');
                     }
                 },
             ],
@@ -63,14 +92,14 @@ class PayOrderRequest extends FormRequest
             /** Tax document Random ERP issues for the sales note: `invoice` (factura) or `receipt` (boleta). */
             'payment_document_type' => [
                 'required',
-                Rule::in(PaymentDocumentType::values())
+                Rule::in(PaymentDocumentType::values()),
             ],
             /** Notes for the order, forwarded to the Random ERP sales note. */
             'notes' => [
                 'sometimes',
                 'nullable',
                 'string',
-            ]
+            ],
         ];
     }
 
@@ -84,6 +113,19 @@ class PayOrderRequest extends FormRequest
             : $this->user();
     }
 
+    /**
+     * Contact person whose RUT is written on the Random ERP sales note, or null when the
+     * checkout does not name one.
+     */
+    public function contact(): ?Contact
+    {
+        if (! $this->filled('contact_id')) {
+            return null;
+        }
+
+        return Contact::query()->findOrFail($this->integer('contact_id'));
+    }
+
     private function customerId(): int
     {
         return filter_var($this->input('customer_id'), FILTER_VALIDATE_INT) ?: $this->user()->id;
@@ -93,11 +135,11 @@ class PayOrderRequest extends FormRequest
     {
         if ($this->has('user_id')) {
             $this->merge([
-                'user_id' => (int) $this->user_id
+                'user_id' => (int) $this->user_id,
             ]);
         }
 
-        if (!$this->has('notes')) {
+        if (! $this->has('notes')) {
             $this->merge(['notes' => '']);
         }
     }

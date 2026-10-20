@@ -13,146 +13,161 @@ uses(RefreshDatabase::class);
 function buildOrderWithItems(): array
 {
     $user = User::factory()->create([
-        "rut" => "11111111-1",
-        "user_code" => "11111111-1",
-        "branch_code" => "CM",
+        'rut' => '11111111-1',
+        'user_code' => '11111111-1',
+        'branch_code' => 'CM',
     ]);
     $order = Order::factory()->create([
-        "user_id" => $user->id,
-        "notes" => "Ring the bell",
+        'user_id' => $user->id,
+        'notes' => 'Ring the bell',
     ]);
 
-    $product = Product::factory()->create(["sku" => "SKU-123"]);
+    $product = Product::factory()->create(['sku' => 'SKU-123']);
     OrderItem::factory()->create([
-        "order_id" => $order->id,
-        "product_id" => $product->id,
-        "quantity" => 3,
-        "price" => 831.09,
-        "subtotal" => 2493.27,
-        "vat" => 19,
-        "total" => 2966.99,
+        'order_id' => $order->id,
+        'product_id' => $product->id,
+        'quantity' => 3,
+        'price' => 831.09,
+        'subtotal' => 2493.27,
+        'vat' => 19,
+        'total' => 2966.99,
     ]);
 
     return [$order, $product];
 }
 
 test(
-    "builds the receipt payload with the receipt sale flow option",
+    'builds the receipt payload with the receipt sale flow option',
     function () {
         [$order, $product] = buildOrderWithItems();
 
         $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::RECEIPT,
-            "Pago por Webpay",
+            'Pago por Webpay',
         );
 
-        expect($payload["datos"]["codigoEntidad"])->toBe("11111111-1");
-        expect($payload["datos"]["sucursalEntidad"])->toBe("CM");
-        expect($payload["datos"])->not->toHaveKey("sucursalEntidadDespacho");
-        expect($payload["datos"]["flujoVenta"])->toBe("NVVBLV");
-        expect($payload["datos"]["tido"])->toBe("NVV");
-        expect($payload["datos"]["lineas"])->toBe([
+        expect($payload['datos']['codigoEntidad'])->toBe('11111111-1');
+        expect($payload['datos'])->not->toHaveKey('rutContacto');
+        expect($payload['datos']['sucursalEntidad'])->toBe('CM');
+        expect($payload['datos'])->not->toHaveKey('sucursalEntidadDespacho');
+        expect($payload['datos']['flujoVenta'])->toBe('NVVBLV');
+        expect($payload['datos']['tido'])->toBe('NVV');
+        expect($payload['datos']['lineas'])->toBe([
             [
-                "cantidad" => 3,
-                "codigoProducto" => $product->sku,
-                "idUnidad" => 1,
-                "precioNetoUnitario" => 831.09,
-                "precioBrutoUnitario" => 989.0,
-                "valorNetoLinea" => 2493.27,
-                "valorBrutoLinea" => 2966.99,
-                "despacho" => true,
+                'cantidad' => 3,
+                'codigoProducto' => $product->sku,
+                'idUnidad' => 1,
+                'precioNetoUnitario' => 831.09,
+                'precioBrutoUnitario' => 989.0,
+                'valorNetoLinea' => 2493.27,
+                'valorBrutoLinea' => 2966.99,
+                'despacho' => true,
             ],
         ]);
-        expect($payload["datos"]["texto1"])->toBe(
+        expect($payload['datos']['texto1'])->toBe(
             "Pago por Webpay. Orden de compra: #{$order->id}",
         );
-        expect($payload["datos"]["texto2"])->toBe("11111111-1 - Boleta");
-        expect($payload["datos"]["observacion"])->toBe("Ring the bell");
+        expect($payload['datos']['texto2'])->toBe('11111111-1 - Boleta');
+        expect($payload['datos']['observacion'])->toBe('Ring the bell');
     },
 );
 
 test(
-    "rounds the gross unit price with the VAT rate stored in the order item",
+    'rounds the gross unit price with the VAT rate stored in the order item',
     function () {
         [$order] = buildOrderWithItems();
-        OrderItem::where("order_id", $order->id)->update([
-            "price" => 1000,
-            "subtotal" => 3000,
-            "vat" => 10.5,
-            "total" => 3315,
+        OrderItem::where('order_id', $order->id)->update([
+            'price' => 1000,
+            'subtotal' => 3000,
+            'vat' => 10.5,
+            'total' => 3315,
         ]);
 
         $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::RECEIPT,
-            "Pago por Webpay",
+            'Pago por Webpay',
         );
 
-        $line = $payload["datos"]["lineas"][0];
-        expect($line["precioNetoUnitario"])->toBe(1000.0);
-        expect($line["precioBrutoUnitario"])->toBe(1105.0);
-        expect($line["valorNetoLinea"])->toBe(3000.0);
-        expect($line["valorBrutoLinea"])->toBe(3315.0);
+        $line = $payload['datos']['lineas'][0];
+        expect($line['precioNetoUnitario'])->toBe(1000.0);
+        expect($line['precioBrutoUnitario'])->toBe(1105.0);
+        expect($line['valorNetoLinea'])->toBe(3000.0);
+        expect($line['valorBrutoLinea'])->toBe(3315.0);
     },
 );
 
 test(
-    "builds the invoice payload with the invoice sale flow option",
+    'builds the invoice payload with the invoice sale flow option',
     function () {
         [$order] = buildOrderWithItems();
 
         $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::INVOICE,
-            "Pago por Webpay",
+            'Pago por Webpay',
         );
 
-        expect($payload["datos"]["flujoVenta"])->toBe("NVVFCV");
-        expect($payload["datos"]["texto2"])->toBe("11111111-1 - Factura");
+        expect($payload['datos']['flujoVenta'])->toBe('NVVFCV');
+        expect($payload['datos']['texto2'])->toBe('11111111-1 - Factura');
     },
 );
 
 test(
-    "issues the document with the buyer entity code and the branch of the customer",
+    'issues the document with the buyer entity code and the branch of the customer',
     function () {
         [$order] = buildOrderWithItems();
         $branch = User::factory()->create([
-            "rut" => "11111111-1",
-            "user_code" => "11111111-1",
-            "branch_code" => "LO",
+            'rut' => '11111111-1',
+            'user_code' => '11111111-1',
+            'branch_code' => 'LO',
         ]);
-        $order->update(["customer_id" => $branch->id]);
+        $order->update(['customer_id' => $branch->id]);
 
         $payload = app(RandomDocumentPayloadBuilder::class)->build(
             $order->fresh(),
             PaymentDocumentType::RECEIPT,
-            "Pago por Webpay",
+            'Pago por Webpay',
         );
 
-        expect($payload["datos"]["codigoEntidad"])->toBe("11111111-1");
-        expect($payload["datos"]["sucursalEntidad"])->toBe("LO");
-        expect($payload["datos"]["texto2"])->toBe("11111111-1 - Boleta");
+        expect($payload['datos']['codigoEntidad'])->toBe('11111111-1');
+        expect($payload['datos']['sucursalEntidad'])->toBe('LO');
+        expect($payload['datos']['texto2'])->toBe('11111111-1 - Boleta');
     },
 );
 
+test('sends the checkout contact rut as rutContacto', function () {
+    [$order] = buildOrderWithItems();
+    $order->update(['contact_rut' => '86027191-5']);
+
+    $payload = app(RandomDocumentPayloadBuilder::class)->build(
+        $order->fresh(),
+        PaymentDocumentType::INVOICE,
+        'Pago a crédito',
+    );
+
+    expect($payload['datos']['rutContacto'])->toBe('86027191-5');
+    expect($payload['datos']['codigoEntidad'])->toBe('11111111-1');
+});
+
 test(
-    "credit-line payloads derive the sale flow option from the chosen document type, same as webpay",
+    'credit-line payloads derive the sale flow option from the chosen document type, same as webpay',
     function () {
         [$order] = buildOrderWithItems();
 
         $receiptPayload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::RECEIPT,
-            "Pago a crédito",
+            'Pago a crédito',
         );
         $invoicePayload = app(RandomDocumentPayloadBuilder::class)->build(
             $order,
             PaymentDocumentType::INVOICE,
-            "Pago a crédito",
+            'Pago a crédito',
         );
 
-        expect($receiptPayload["datos"]["flujoVenta"])->toBe("NVVBLV");
-        expect($invoicePayload["datos"]["flujoVenta"])->toBe("NVVFCV");
+        expect($receiptPayload['datos']['flujoVenta'])->toBe('NVVBLV');
+        expect($invoicePayload['datos']['flujoVenta'])->toBe('NVVFCV');
     },
 );

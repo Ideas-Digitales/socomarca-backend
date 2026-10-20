@@ -75,6 +75,17 @@ function randomGrantedCreditStub(string $baseUrl, string $koen, string $suen, in
     ];
 }
 
+/**
+ * Contact of the user's Random entity, ready to be sent as contact_id at checkout.
+ */
+function checkoutContact(User $user): \App\Models\Contact
+{
+    return \App\Models\Contact::factory()->create([
+        'user_id' => $user->id,
+        'entity_code' => $user->user_code,
+    ]);
+}
+
 function createUser()
 {
     return User::factory()->create();
@@ -126,12 +137,13 @@ function createUserHasFavorite()
 
 function getPriceListCode(): string
 {
-    return "LIST1";
+    return 'LIST1';
 }
 
-function generateUserData() {
+function generateUserData()
+{
     return [
-        'name' => fake()->firstName() . ' ' . fake()->lastName(),
+        'name' => fake()->firstName().' '.fake()->lastName(),
         'email' => fake()->email,
         'password' => fake()->password(10, 12),
         'phone' => strval(fake()->numberBetween(1000000000, 2000000000)),
@@ -141,9 +153,11 @@ function generateUserData() {
     ];
 }
 
-function createUserWithPermissions(array $permissions): User {
+function createUserWithPermissions(array $permissions): User
+{
     $user = User::factory()->create();
     $user->givePermissionTo($permissions);
+
     return $user;
 }
 
@@ -177,14 +191,15 @@ function createProductWithPrice(array $attributes = []): Product
 {
     $product = Product::create($attributes);
     Price::create([
-        "product_id" => $product->id,
-        "price_list_id" => $attributes["price_list_id"] ?? getPriceListCode(),
-        "unit" => "un",
-        "price" => $attributes["price"] ?? 5000,
-        "stock" => $attributes["stock"] ?? 50,
-        "is_active" => $attributes["price_is_active"] ?? true,
-        "valid_from" => now()->subDays(10),
+        'product_id' => $product->id,
+        'price_list_id' => $attributes['price_list_id'] ?? getPriceListCode(),
+        'unit' => 'un',
+        'price' => $attributes['price'] ?? 5000,
+        'stock' => $attributes['stock'] ?? 50,
+        'is_active' => $attributes['price_is_active'] ?? true,
+        'valid_from' => now()->subDays(10),
     ]);
+
     return $product;
 }
 
@@ -202,8 +217,8 @@ function brandUser(): User
 /**
  * Create a brand with one product priced on the test price list.
  *
- * @param array $priceAttributes Overrides for the price row, e.g. stock or price
- * @param array $productAttributes Overrides for the product row, e.g. status
+ * @param  array  $priceAttributes  Overrides for the price row, e.g. stock or price
+ * @param  array  $productAttributes  Overrides for the product row, e.g. status
  */
 function brandWithProduct(string $name, array $priceAttributes = [], array $productAttributes = []): Brand
 {
@@ -211,7 +226,7 @@ function brandWithProduct(string $name, array $priceAttributes = [], array $prod
 
     createProductWithPrice(array_merge([
         'name' => "Producto {$name}",
-        'sku' => 'SKU-' . uniqid(),
+        'sku' => 'SKU-'.uniqid(),
         'brand_id' => $brand->id,
         'status' => true,
     ], $productAttributes, $priceAttributes));
