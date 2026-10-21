@@ -96,16 +96,21 @@ class Contact extends Model
     /**
      * Body of one element of `PUT /web32/contactos`.
      *
+     * `SUTRABCON` is the branch code. Random accepts at most 3 characters.
+     *
      * @return array<string, mixed>
      */
     public function toRandomPayload(): array
     {
+        $this->load('user');
+
         return [
             'codigoEntidad' => $this->entity_code,
             'rutContacto' => $this->rut,
             'nombreContacto' => $this->name,
             'emailContacto' => $this->email,
             'fonoContacto' => $this->phone,
+            'SUTRABCON' => trim((string) $this->user?->branch_code),
             'AUTORIZADO' => (bool) $this->authorized,
             'DIRECON' => $this->address,
         ];
