@@ -149,6 +149,31 @@ jobs:
         chmod 600 firebase-credentials.json
         echo "✅ Credenciales válidas, se instalarán en /app/${CRED_PATH#/}"
 
+    # Mailpit is part of the QA deploy only. Production does not require these keys.
+    - name: Validate Mailpit settings
+      if: env.IMAGE_TAG == 'qa'
+      run: |
+        python3 - << 'PY'
+        import pathlib, re, sys
+
+        text = pathlib.Path(".env").read_text()
+
+        def value(key):
+            quoted = re.search(rf'^{re.escape(key)}="(.*)"\s*$', text, re.M)
+            if quoted:
+                return quoted.group(1).replace('\\"', '"')
+            plain = re.search(rf'^{re.escape(key)}=(.*)$', text, re.M)
+            return plain.group(1).strip().strip("'") if plain else ""
+
+        host = value("MAILPIT_HOST")
+        auth = value("MAILPIT_UI_AUTH")
+        user, _, password = auth.partition(":")
+        if not host or not user or not password:
+            print("::error::QA requiere MAILPIT_HOST y MAILPIT_UI_AUTH con formato usuario:contraseña.")
+            sys.exit(1)
+        print(f"Mailpit UI host: {host}")
+        PY
+
     # 📤 Upload files
     - name: Upload files
       run: |
@@ -171,6 +196,10 @@ jobs:
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
         set -e
         cd ${{ vars.BASE_DIR }}
+
+        if [ "${{ env.IMAGE_TAG }}" = "qa" ]; then
+          export COMPOSE_PROFILES=qa
+        fi
 
         echo "🔐 Login GHCR..."
         echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -199,6 +228,11 @@ jobs:
         echo "♻️ Starting worker container"
         docker compose up worker -d --remove-orphans
 
+        if [ "${{ env.IMAGE_TAG }}" = "qa" ]; then
+          echo "📬 Starting mailpit"
+          docker compose up mailpit -d
+        fi
+
         echo "🧹 Removing old images..."
         docker image prune -f
 
@@ -219,4 +253,4 @@ jobs:
       if: always()
       run: |
         ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-        "cd ${{ vars.BASE_DIR }} && docker compose logs --tail=100"
+        "cd ${{ vars.BASE_DIR }} && if [ '${{ env.IMAGE_TAG }}' = 'qa' ]; then export COMPOSE_PROFILES=qa; fi && docker compose logs --tail=100"
