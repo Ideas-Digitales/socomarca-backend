@@ -15,6 +15,8 @@ use Dedoc\Scramble\Attributes\Response;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 #[Group('Contacts', 'Contacts of a Random ERP entity, used as the contact person of a checkout.', weight: 4)]
 class ContactController extends Controller
@@ -50,18 +52,20 @@ class ContactController extends Controller
      * Saves the contact in Compra Rápida and creates or updates it in Random ERP in this same
      * request, so it can be used to check out immediately. `user_id` is optional: when omitted, the
      * contact belongs to the authenticated user. A primary branch may assign it to one of its
-     * secondary branches. The branch is not sent to Random ERP.
+     * secondary branches. The branch code is sent to Random ERP as `SUTRABCON`.
      *
      * Allowed with the `create-contacts` permission. Responds 201 with the created contact.
-     * If Random ERP rejects the contact, nothing is saved.
+     * If Random ERP rejects the contact, nothing is saved. A branch code longer than 3 characters
+     * is rejected before calling Random ERP, and nothing is saved.
      */
     #[Response(201, 'The contact was created', type: 'array{data: \App\Http\Resources\Contacts\ContactResource}')]
-    #[Response(422, 'Validation error, or the user has no Random ERP entity')]
+    #[Response(422, 'Validation error, the user has no Random ERP entity, or the branch code is longer than 3 characters')]
     #[Response(500, 'Random ERP rejected the contact; it was not saved')]
     public function store(StoreRequest $request): JsonResponse
     {
         $data = $request->validated();
         $owner = $request->owner();
+        $this->rejectOversizedBranchCode($owner);
 
         $contact = DB::transaction(function () use ($owner, $data) {
             $contact = Contact::create([
@@ -106,7 +110,10 @@ class ContactController extends Controller
      * Allowed with the `update-contacts` permission, on the contacts the user can see, or on any
      * contact when the user also has `read-all-contacts`. A primary branch can update the contacts
      * of its secondary branches. If Random ERP rejects the change, the local contact is left as it was.
+     * A branch code longer than 3 characters is rejected before calling Random ERP, and the contact
+     * is left as it was.
      */
+    #[Response(422, 'Validation error, or the branch code is longer than 3 characters')]
     #[Response(500, 'Random ERP rejected the contact; it was not updated')]
     public function update(UpdateRequest $request, Contact $contact): ContactResource
     {
@@ -114,11 +121,14 @@ class ContactController extends Controller
             ->except(['rut'])
             ->all();
 
+        $owner = $contact->user;
         if (array_key_exists('user_id', $data) && filled($data['user_id'])) {
             $owner = User::query()->findOrFail($data['user_id']);
             $data['user_id'] = $owner->id;
             $data['entity_code'] = trim((string) $owner->user_code);
         }
+
+        $this->rejectOversizedBranchCode($owner);
 
         $contact = DB::transaction(function () use ($contact, $data) {
             $contact->fill($data);
@@ -131,5 +141,31 @@ class ContactController extends Controller
         });
 
         return new ContactResource($contact->load('user'));
+    }
+
+    /**
+     * Random ERP stores `SUTRABCON` in 3 characters. A longer branch code cannot be sent.
+     */
+    private function rejectOversizedBranchCode(?User $owner): void
+    {
+        if (! $owner instanceof User) {
+            return;
+        }
+
+        $branchCode = trim((string) $owner->branch_code);
+
+        if (mb_strlen($branchCode) <= 3) {
+            return;
+        }
+
+        Log::error('La sucursal tiene un código de más de 3 caracteres.', [
+            'user_id' => $owner->id,
+            'entity_code' => trim((string) $owner->user_code),
+            'branch_code' => $branchCode,
+        ]);
+
+        throw ValidationException::withMessages([
+            'branch_code' => 'La sucursal tiene un código de más de 3 caracteres.',
+        ]);
     }
 }
