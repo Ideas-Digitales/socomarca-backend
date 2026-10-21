@@ -2,6 +2,7 @@
 
 use App\Enums\PaymentDocumentType;
 use App\Enums\PaymentStatus;
+use App\Mail\OrderCancellationMail;
 use App\Models\CreditLine;
 use App\Models\Order;
 use App\Models\Payment;
@@ -9,6 +10,7 @@ use App\Models\PaymentMethod;
 use App\Models\RandomDocument;
 use App\Models\User;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\postJson;
@@ -85,6 +87,7 @@ function actAsRole(string $role): User
 
 beforeEach(function () {
     Http::preventStrayRequests();
+    Mail::fake();
 });
 
 describe('cancel order waiting for an invoice or a receipt', function () {
@@ -118,6 +121,10 @@ describe('cancel order waiting for an invoice or a receipt', function () {
 
         Http::assertSent(fn ($request) => $request->method() === 'DELETE'
             && str_ends_with($request->url(), '/web32/documento/360'));
+
+        Mail::assertSent(OrderCancellationMail::class, fn (OrderCancellationMail $mail) => $mail->order->id === $order->id
+            && $mail->hasTo($buyer->email)
+            && $mail->hasTo(config('random.warehouse_email_recipient')));
     })->with(['superadmin', 'admin']);
 
     it('cancels a credit order waiting for a receipt', function () {
@@ -142,6 +149,8 @@ describe('cancel order waiting for an invoice or a receipt', function () {
 
         Http::assertSent(fn ($request) => $request->method() === 'DELETE'
             && str_ends_with($request->url(), '/web32/documento/360'));
+
+        Mail::assertSent(OrderCancellationMail::class, fn (OrderCancellationMail $mail) => $mail->hasTo($buyer->email));
     });
 
     it('rejects a second cancellation without calling Random again', function () {
@@ -160,6 +169,7 @@ describe('cancel order waiting for an invoice or a receipt', function () {
             ->filter(fn (array $pair) => $pair[0]->method() === 'DELETE');
 
         expect($deletes)->toHaveCount(1);
+        expect(Mail::sent(OrderCancellationMail::class))->toHaveCount(1);
     });
 
     it('does not change the order when Random ERP rejects the deletion', function () {
@@ -179,6 +189,8 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         expect($order->refresh()->status)->toBe('completed')
             ->and($payment->refresh()->status)->toBe(PaymentStatus::PROCESSING)
             ->and($creditLine->refresh()->isBlocked())->toBeTrue();
+
+        Mail::assertNothingSent();
     });
 
     it('requires both read-all-orders and cancel-orders', function (string $role) {
@@ -248,6 +260,8 @@ describe('cancel order waiting for an invoice or a receipt', function () {
             ->assertJsonPath('errors.order_number.0', $message);
 
         expect($payment->refresh()->status)->not->toBe(PaymentStatus::CANCELED);
+
+        Mail::assertNothingSent();
     })->with([
         'invoiced' => ['invoiced', 'The order cannot be canceled because it already has an invoice (FCV).'],
         'receipt issued' => ['receipt issued', 'The order cannot be canceled because it already has a receipt (BLV).'],
@@ -271,6 +285,7 @@ describe('cancel order waiting for an invoice or a receipt', function () {
             ->and($payment->refresh()->status)->toBe(PaymentStatus::PROCESSING);
 
         Http::assertNotSent(fn ($request) => $request->method() === 'DELETE');
+        Mail::assertNothingSent();
     })->with([
         'invoiced' => [['NVV', 'FCV'], 'The order cannot be canceled because it already has an invoice (FCV).'],
         'receipt issued' => [['NVV', 'BLV'], 'The order cannot be canceled because it already has a receipt (BLV).'],
@@ -308,6 +323,7 @@ describe('cancel order waiting for an invoice or a receipt', function () {
             ->and($traceCalls)->toBeGreaterThanOrEqual(3);
 
         Http::assertNotSent(fn ($request) => $request->method() === 'DELETE');
+        Mail::assertNothingSent();
     });
 
     it('rejects the order when the trace cannot be confirmed', function () {

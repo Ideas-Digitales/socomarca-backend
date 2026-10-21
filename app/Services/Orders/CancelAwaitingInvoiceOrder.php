@@ -4,6 +4,7 @@ namespace App\Services\Orders;
 
 use App\Enums\PaymentDocumentType;
 use App\Enums\PaymentStatus;
+use App\Events\OrderCanceled;
 use App\Exceptions\RandomApiServiceErrorException;
 use App\Exceptions\RandomDocumentNotDeletableException;
 use App\Models\CreditLine;
@@ -93,7 +94,11 @@ class CancelAwaitingInvoiceOrder
                 ->each(fn (CreditLine $line) => $line->unblock());
         });
 
-        return $order->refresh();
+        $order = $order->refresh();
+
+        OrderCanceled::dispatch($order);
+
+        return $order;
     }
 
     /**
