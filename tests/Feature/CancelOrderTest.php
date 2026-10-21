@@ -18,12 +18,12 @@ use function Pest\Laravel\postJson;
 /**
  * Credit order whose NVV is still waiting for an invoice (FCV) or a receipt (BLV).
  */
-function makeAwaitingInvoiceOrder(int $nvvId = 360, string $documentType = PaymentDocumentType::INVOICE): array
+function makeAwaitingInvoiceOrder(int $nvvId = 360, string $documentType = PaymentDocumentType::INVOICE, ?User $customer = null): array
 {
     $buyer = User::factory()->create();
     $order = Order::query()->create([
         'user_id' => $buyer->id,
-        'customer_id' => $buyer->id,
+        'customer_id' => ($customer ?? $buyer)->id,
         'subtotal' => 1000,
         'vat' => 19,
         'total' => 1190,
@@ -153,6 +153,50 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         Mail::assertSent(OrderCancellationMail::class, fn (OrderCancellationMail $mail) => $mail->hasTo($buyer->email));
     });
 
+    it('cancels the order for the user who placed it', function (string $role) {
+        [$buyer, $order] = makeAwaitingInvoiceOrder();
+        $buyer->assignRole($role);
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        Sanctum::actingAs($buyer, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled');
+
+        expect($order->refresh()->status)->toBe('canceled');
+
+        Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+            && str_ends_with($request->url(), '/web32/documento/360'));
+    })->with(['customer', 'supervisor', 'editor', 'developer']);
+
+    it('cancels the order for the branch it was placed for', function () {
+        $branch = User::factory()->create();
+        $branch->assignRole('customer');
+        [, $order] = makeAwaitingInvoiceOrder(customer: $branch);
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        Sanctum::actingAs($branch, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled');
+
+        expect($order->refresh()->status)->toBe('canceled');
+    });
+
+    it('lets a user with only one administrative permission cancel their own order', function (array $permissions) {
+        [$buyer, $order] = makeAwaitingInvoiceOrder();
+        $buyer->givePermissionTo($permissions);
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        Sanctum::actingAs($buyer, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled');
+    })->with([
+        'read only' => [['read-all-orders']],
+        'cancel only' => [['cancel-orders']],
+    ]);
+
     it('rejects a second cancellation without calling Random again', function () {
         [, $order] = makeAwaitingInvoiceOrder();
         fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
@@ -193,21 +237,31 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         Mail::assertNothingSent();
     });
 
-    it('requires both read-all-orders and cancel-orders', function (string $role) {
+    it('forbids canceling an order the user did not place and that was not placed for them', function (string $role) {
+        [, $order] = makeAwaitingInvoiceOrder();
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
         actAsRole($role);
 
-        postJson(route('orders.cancel'), ['order_number' => 1])
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
             ->assertForbidden()
-            ->assertJsonPath('message', 'You do not have permission.');
+            ->assertJsonPath('message', 'This action is unauthorized.');
+
+        expect($order->refresh()->status)->toBe('completed');
+        Http::assertNothingSent();
     })->with(['customer', 'supervisor', 'editor', 'developer']);
 
-    it('forbids a user that has only one of the two permissions', function (array $permissions) {
+    it('forbids a user that has only one of the two permissions from canceling another user\'s order', function (array $permissions) {
+        [, $order] = makeAwaitingInvoiceOrder();
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
         $user = createUserWithPermissions($permissions);
         Sanctum::actingAs($user, ['api-access']);
 
-        postJson(route('orders.cancel'), ['order_number' => 1])
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
             ->assertForbidden()
-            ->assertJsonPath('message', 'You do not have permission.');
+            ->assertJsonPath('message', 'This action is unauthorized.');
+
+        expect($order->refresh()->status)->toBe('completed');
+        Http::assertNothingSent();
     })->with([
         'read only' => [['read-all-orders']],
         'cancel only' => [['cancel-orders']],
