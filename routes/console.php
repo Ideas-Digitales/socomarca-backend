@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 use App\Jobs\CheckBlockedCreditLinesJob;
 use App\Jobs\SyncRandomBrands;
 use App\Jobs\SyncRandomCategories;
+use App\Jobs\SyncRandomContacts;
 use App\Jobs\SyncRandomPrices;
 use App\Jobs\SyncRandomProducts;
 use App\Jobs\SyncRandomStock;
@@ -49,5 +50,9 @@ Schedule::job(
 )->everyTwoHours();
 Schedule::job(
     job: new SyncRandomUsers,
+    queue: 'random-sync-users',
+)->everyTwoHours();
+Schedule::job(
+    job: new SyncRandomContacts,
     queue: 'random-sync-users',
 )->everyTwoHours();
