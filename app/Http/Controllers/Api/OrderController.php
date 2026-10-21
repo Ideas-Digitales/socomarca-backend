@@ -359,7 +359,9 @@ class OrderController extends Controller
      * is read again immediately before the deletion. If it already lists an invoice (FCV), a
      * receipt (BLV) or any other document, the NVV is not deleted. The order and its credit
      * payment are set to `canceled`, and the credit line is unblocked when this payment blocked
-     * it.
+     * it. A cancellation email is then queued for the branch that placed the order, for the
+     * destination branch when a primary branch ordered for a secondary one, for the contact
+     * named on the order, and for the system order inbox.
      *
      * Requires both `read-all-orders` and `cancel-orders`.
      *
