@@ -6,6 +6,7 @@ use App\Models\Contact;
 use App\Models\User;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\Sanctum;
 
 use function Pest\Laravel\assertDatabaseHas;
@@ -100,7 +101,7 @@ describe('Contacts store', function () {
 
         $user = User::factory()->create([
             'user_code' => '77722167',
-            'branch_code' => '1',
+            'branch_code' => 'L01',
             'branch_type' => BranchType::SECONDARY,
             'is_active' => true,
         ]);
@@ -139,12 +140,30 @@ describe('Contacts store', function () {
                 && $body[0]['nombreContacto'] === $draft->name
                 && $body[0]['emailContacto'] === 'salderete@ideasdigitales.cl'
                 && $body[0]['fonoContacto'] === '+5215656780748'
-                && ! array_key_exists('SUTRABCON', $body[0])
+                && $body[0]['SUTRABCON'] === 'L01'
                 && $body[0]['AUTORIZADO'] === true
                 && $body[0]['DIRECON'] === 'San Francisco 22, Los Héroes Coacalco';
         });
 
         Bus::assertNotDispatched(SyncRandomContacts::class);
+    });
+
+    it('sends an empty branch code when the branch has none', function () {
+        fakeContactUpdate();
+
+        $user = User::factory()->create([
+            'user_code' => '77722167',
+            'branch_code' => null,
+            'is_active' => true,
+        ]);
+        $user->givePermissionTo('create-contacts');
+        $draft = Contact::factory()->make();
+
+        Sanctum::actingAs($user, ['api-access']);
+
+        postJson(route('contacts.store'), contactPayload($draft))->assertCreated();
+
+        Http::assertSent(fn ($request) => $request->data()[0]['SUTRABCON'] === '');
     });
 
     it('does not save the contact when Random rejects it', function () {
@@ -232,7 +251,7 @@ describe('Contacts update', function () {
             return $request->method() === 'PUT'
                 && $body[0]['rutContacto'] === $contact->rut
                 && $body[0]['nombreContacto'] === 'Samuel Alderete Rayún'
-                && ! array_key_exists('SUTRABCON', $body[0])
+                && $body[0]['SUTRABCON'] === '1'
                 && $body[0]['DIRECON'] === 'Calle Nueva 12';
         });
 
@@ -352,8 +371,9 @@ describe('Contact branch authorization', function () {
             ->assertJsonCount(3, 'data');
     });
 
-    it('keeps the contact on the branch user when the branch code is longer than three characters', function () {
-        fakeContactUpdate();
+    it('rejects a contact for a branch whose code is longer than three characters', function () {
+        Log::spy();
+        Http::preventStrayRequests();
 
         $user = User::factory()->create([
             'user_code' => '9876543-2',
@@ -366,17 +386,98 @@ describe('Contact branch authorization', function () {
 
         Sanctum::actingAs($user, ['api-access']);
 
-        $id = postJson(route('contacts.store'), contactPayload($draft))
-            ->assertCreated()
-            ->assertJsonPath('data.user_id', $user->id)
-            ->assertJsonPath('data.branch.branch_code', 'VALPO')
-            ->json('data.id');
+        postJson(route('contacts.store'), contactPayload($draft))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('branch_code');
 
-        expect($user->can('view', Contact::find($id)))->toBeTrue();
+        assertDatabaseMissing('contacts', ['rut' => $draft->rut]);
+        Http::assertNothingSent();
 
-        Http::assertSent(function ($request) {
-            return ! array_key_exists('SUTRABCON', $request->data()[0]);
-        });
+        Log::shouldHaveReceived('error')
+            ->withArgs(function (string $message, array $context) use ($user) {
+                return $message === 'La sucursal tiene un código de más de 3 caracteres.'
+                    && $context['user_id'] === $user->id
+                    && $context['entity_code'] === '9876543-2'
+                    && $context['branch_code'] === 'VALPO';
+            })
+            ->once();
+    });
+
+    it('rejects an update when the branch code is longer than three characters', function () {
+        Log::spy();
+        Http::preventStrayRequests();
+
+        $user = User::factory()->create([
+            'user_code' => '9876543-2',
+            'branch_code' => 'VALPO',
+            'branch_type' => BranchType::SECONDARY,
+            'is_active' => true,
+        ]);
+        $user->givePermissionTo(['read-own-contacts', 'update-contacts']);
+        $contact = Contact::factory()->create([
+            'user_id' => $user->id,
+            'entity_code' => '9876543-2',
+            'name' => 'Nombre anterior',
+        ]);
+
+        Sanctum::actingAs($user, ['api-access']);
+
+        patchJson(route('contacts.update', $contact), ['name' => 'Nombre nuevo'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('branch_code');
+
+        assertDatabaseHas('contacts', [
+            'id' => $contact->id,
+            'name' => 'Nombre anterior',
+        ]);
+        Http::assertNothingSent();
+
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $message, array $context) => $message === 'La sucursal tiene un código de más de 3 caracteres.'
+                && $context['branch_code'] === 'VALPO')
+            ->once();
+    });
+
+    it('rejects moving a contact to a branch whose code is longer than three characters', function () {
+        Log::spy();
+        Http::preventStrayRequests();
+
+        $primary = User::factory()->create([
+            'user_code' => '77722167',
+            'branch_code' => 'CM',
+            'branch_type' => BranchType::PRIMARY,
+            'is_active' => true,
+        ]);
+        $long = User::factory()->create([
+            'user_code' => '77722167',
+            'branch_code' => 'VALPO',
+            'branch_type' => BranchType::SECONDARY,
+            'is_active' => true,
+        ]);
+        $primary->givePermissionTo(['read-own-contacts', 'update-contacts']);
+        $contact = Contact::factory()->create([
+            'user_id' => $primary->id,
+            'entity_code' => '77722167',
+            'name' => 'Casa matriz',
+        ]);
+
+        Sanctum::actingAs($primary, ['api-access']);
+
+        patchJson(route('contacts.update', $contact), ['user_id' => $long->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('branch_code');
+
+        assertDatabaseHas('contacts', [
+            'id' => $contact->id,
+            'user_id' => $primary->id,
+            'name' => 'Casa matriz',
+        ]);
+        Http::assertNothingSent();
+
+        Log::shouldHaveReceived('error')
+            ->withArgs(fn (string $message, array $context) => $context['user_id'] === $long->id
+                && $context['branch_code'] === 'VALPO')
+            ->once();
     });
 
     it('assigns the authenticated user when user_id is omitted', function () {
@@ -435,6 +536,9 @@ describe('Contact branch authorization', function () {
         ])->assertOk()
             ->assertJsonPath('data.user_id', $secondary->id)
             ->assertJsonPath('data.name', 'Contacto del local');
+
+        expect(Http::recorded()->map(fn (array $pair) => $pair[0]->data()[0]['SUTRABCON'])->all())
+            ->toBe(['LO', 'LO']);
     });
 
     it('rejects a secondary branch that assigns another branch', function () {

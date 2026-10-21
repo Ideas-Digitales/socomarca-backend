@@ -2,6 +2,7 @@
 
 use App\Jobs\SyncRandomBrands;
 use App\Jobs\SyncRandomCategories;
+use App\Jobs\SyncRandomContacts;
 use App\Jobs\SyncRandomPrices;
 use App\Jobs\SyncRandomProducts;
 use App\Jobs\SyncRandomStock;
@@ -24,15 +25,8 @@ it('queues the sync job on the queue processed by supervisor', function (string 
     'prices' => ['random:sync-prices', SyncRandomPrices::class, 'random-sync-products'],
     'stock' => ['random:sync-stock', SyncRandomStock::class, 'random-sync-products'],
     'users' => ['random:sync-users', SyncRandomUsers::class, 'random-sync-users'],
+    'contacts' => ['random:sync-contacts', SyncRandomContacts::class, 'random-sync-users'],
 ]);
-
-it('does not queue contact sync while it is disabled', function () {
-    Queue::fake();
-
-    $this->artisan('random:sync-contacts')->assertSuccessful();
-
-    Queue::assertNothingPushed();
-});
 
 it('queues each job of the full sync chain on the queue processed by supervisor', function () {
     Queue::fake();
@@ -49,6 +43,7 @@ it('queues each job of the full sync chain on the queue processed by supervisor'
             [SyncRandomPrices::class, 'random-sync-products'],
             [SyncRandomStock::class, 'random-sync-products'],
             [SyncRandomUsers::class, 'random-sync-users'],
+            [SyncRandomContacts::class, 'random-sync-users'],
         ];
     });
 });

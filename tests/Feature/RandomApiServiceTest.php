@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\RandomApiServiceErrorException;
+use App\Exceptions\RandomDocumentNotDeletableException;
 use App\Services\RandomApiService;
 use Illuminate\Support\Facades\Http;
 
@@ -202,13 +203,18 @@ it('throws an error when document creation fails', function () {
         ->toThrow(RandomApiServiceErrorException::class);
 });
 
-it('deletes a document in Random ERP by idmaeedo', function () {
+it('deletes a document in Random ERP by idmaeedo when the trace is only that document', function () {
     config([
         'random.url' => 'http://random.test',
         'random.token' => 'token-123',
     ]);
 
     Http::fake([
+        'http://random.test/documentos/traza/360' => Http::response([
+            'data' => [
+                ['maeedo' => ['IDMAEEDO' => 360, 'TIDO' => 'NVV']],
+            ],
+        ], 200),
         'http://random.test/web32/documento/360' => Http::response(['deleted' => true], 200),
     ]);
 
@@ -231,11 +237,55 @@ it('throws when Random ERP rejects the document deletion', function () {
     ]);
 
     Http::fake([
+        'http://random.test/documentos/traza/360' => Http::response([
+            'data' => [
+                ['maeedo' => ['IDMAEEDO' => 360, 'TIDO' => 'NVV']],
+            ],
+        ], 200),
         'http://random.test/web32/documento/360' => Http::response(['message' => 'Not Found'], 404),
     ]);
 
     expect(fn () => (new RandomApiService)->deleteDocument(360))
         ->toThrow(RandomApiServiceErrorException::class);
+});
+
+it('does not delete a document whose trace already has another document', function (string $type) {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/documentos/traza/360' => Http::response([
+            'data' => [
+                ['maeedo' => ['IDMAEEDO' => 360, 'TIDO' => 'NVV']],
+                ['maeedo' => ['IDMAEEDO' => 361, 'TIDO' => $type]],
+            ],
+        ], 200),
+        'http://random.test/web32/documento/360' => Http::response(['deleted' => true], 200),
+    ]);
+
+    expect(fn () => (new RandomApiService)->deleteDocument(360))
+        ->toThrow(RandomDocumentNotDeletableException::class);
+
+    Http::assertNotSent(fn ($request) => $request->method() === 'DELETE');
+})->with(['FCV', 'BLV', 'GDV', 'OCC']);
+
+it('does not delete a document when its trace cannot be confirmed', function () {
+    config([
+        'random.url' => 'http://random.test',
+        'random.token' => 'token-123',
+    ]);
+
+    Http::fake([
+        'http://random.test/documentos/traza/360' => Http::response(['message' => 'error'], 500),
+        'http://random.test/web32/documento/360' => Http::response(['deleted' => true], 200),
+    ]);
+
+    expect(fn () => (new RandomApiService)->deleteDocument(360))
+        ->toThrow(RandomApiServiceErrorException::class);
+
+    Http::assertNotSent(fn ($request) => $request->method() === 'DELETE');
 });
 
 it('lists the contacts of an entity', function () {

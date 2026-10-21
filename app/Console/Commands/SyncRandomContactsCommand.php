@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\SyncRandomContacts;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -9,12 +10,17 @@ class SyncRandomContactsCommand extends Command
 {
     protected $signature = 'random:sync-contacts';
 
-    protected $description = 'La sincronización de contactos está desactivada';
+    protected $description = 'Sincroniza contactos desde la API de Random';
 
     public function handle(): void
     {
-        Log::info('SyncRandomContacts skipped: contact sync is disabled');
+        $this->info('Iniciando sincronización de contactos...');
 
-        $this->warn('La sincronización de contactos está desactivada.');
+        Log::info('SyncRandomContacts started');
+
+        SyncRandomContacts::dispatch()
+            ->onQueue('random-sync-users');
+
+        $this->info('Proceso de sincronización encolado correctamente.');
     }
 }

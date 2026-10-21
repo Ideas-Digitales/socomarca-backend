@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\BranchType;
 use App\Jobs\SyncRandomContacts;
 use App\Models\Contact;
 use App\Models\User;
@@ -39,7 +40,7 @@ beforeEach(function () {
 });
 
 it('creates and updates local contacts from Random', function () {
-    User::factory()->create(['user_code' => '77722167']);
+    $branch = User::factory()->create(['user_code' => '77722167', 'branch_code' => 'L01']);
     Contact::factory()->create([
         'entity_code' => '77722167',
         'rut' => '86027191-5',
@@ -59,6 +60,7 @@ it('creates and updates local contacts from Random', function () {
     $contact = Contact::query()->where('entity_code', '77722167')->where('rut', '86027191-5')->first();
 
     expect($contact)->not->toBeNull()
+        ->and($contact->user_id)->toBe($branch->id)
         ->and($contact->name)->toBe('Samuel Alderete Rayún')
         ->and($contact->email)->toBe('salderete@ideasdigitales.cl')
         ->and($contact->phone)->toBe('+5215656780748')
@@ -134,3 +136,137 @@ it('queries each entity once', function () {
 
     (new SyncRandomContacts)->handle(app(RandomApiService::class));
 });
+
+it('assigns the contact to the branch whose code equals SUTRABCON', function () {
+    User::factory()->create([
+        'user_code' => '77722167',
+        'branch_code' => 'CM',
+        'branch_type' => BranchType::PRIMARY,
+    ]);
+    $branch = User::factory()->create([
+        'user_code' => '77722167',
+        'branch_code' => 'L01',
+        'branch_type' => BranchType::SECONDARY,
+    ]);
+
+    mockRandomContacts([
+        '77722167' => [
+            'object' => 'list',
+            'data' => [randomContactRow(['SUTRABCON' => ' L01 '])],
+        ],
+    ]);
+
+    (new SyncRandomContacts)->handle(app(RandomApiService::class));
+
+    expect(Contact::query()->where('rut', '86027191-5')->value('user_id'))->toBe($branch->id);
+});
+
+it('moves an existing contact to the branch Random reports', function () {
+    $from = User::factory()->create(['user_code' => '77722167', 'branch_code' => 'CM']);
+    $to = User::factory()->create(['user_code' => '77722167', 'branch_code' => 'L01']);
+    $contact = Contact::factory()->create([
+        'user_id' => $from->id,
+        'entity_code' => '77722167',
+        'rut' => '86027191-5',
+        'random_synced_at' => now()->subDay(),
+    ]);
+
+    mockRandomContacts([
+        '77722167' => [
+            'object' => 'list',
+            'data' => [randomContactRow()],
+        ],
+    ]);
+
+    (new SyncRandomContacts)->handle(app(RandomApiService::class));
+
+    expect($contact->fresh()->user_id)->toBe($to->id);
+});
+
+it('syncs a contact when SUTRABCON matches a branch code longer than three characters', function () {
+    $user = User::factory()->create([
+        'user_code' => '77722167',
+        'branch_code' => 'VALPO',
+    ]);
+
+    mockRandomContacts([
+        '77722167' => [
+            'object' => 'list',
+            'data' => [randomContactRow(['SUTRABCON' => 'VALPO'])],
+        ],
+    ]);
+
+    (new SyncRandomContacts)->handle(app(RandomApiService::class));
+
+    expect(Contact::query()->where('rut', '86027191-5')->value('user_id'))->toBe($user->id);
+});
+
+it('keeps syncing the other contacts when one branch code cannot be processed', function () {
+    User::factory()->create(['user_code' => '77722167', 'branch_code' => 'L01']);
+
+    mockRandomContacts([
+        '77722167' => [
+            'object' => 'list',
+            'data' => [
+                randomContactRow(['RUTCONTACT' => '11111111-1', 'SUTRABCON' => '']),
+                randomContactRow(),
+            ],
+        ],
+    ]);
+
+    (new SyncRandomContacts)->handle(app(RandomApiService::class));
+
+    expect(Contact::query()->where('rut', '11111111-1')->exists())->toBeFalse()
+        ->and(Contact::query()->where('rut', '86027191-5')->exists())->toBeTrue();
+});
+
+it('does not sync a contact whose branch code SCR cannot process', function (array $branchCodes, ?string $sutrabcon, string $reason) {
+    foreach ($branchCodes as $code) {
+        User::factory()->create([
+            'user_code' => '77722167',
+            'branch_code' => $code,
+        ]);
+    }
+
+    $local = Contact::factory()->create([
+        'entity_code' => '77722167',
+        'rut' => '86027191-5',
+        'name' => 'Nombre local',
+        'random_synced_at' => now()->subDay(),
+    ]);
+    $stale = Contact::factory()->create([
+        'entity_code' => '77722167',
+        'random_synced_at' => now()->subDay(),
+    ]);
+
+    mockRandomContacts([
+        '77722167' => [
+            'object' => 'list',
+            'data' => [randomContactRow(['SUTRABCON' => $sutrabcon])],
+        ],
+    ]);
+
+    (new SyncRandomContacts)->handle(app(RandomApiService::class));
+
+    $contact = Contact::query()->where('rut', '86027191-5')->first();
+
+    expect($contact)->not->toBeNull()
+        ->and($contact->id)->toBe($local->id)
+        ->and($contact->name)->toBe('Nombre local')
+        ->and(Contact::query()->whereKey($stale->id)->exists())->toBeFalse();
+
+    Log::shouldHaveReceived('error')
+        ->withArgs(function (string $message, array $context) use ($reason, $sutrabcon) {
+            return $message === 'El contacto no trae un código de sucursal que SCR pueda procesar.'
+                && $context['entity_code'] === '77722167'
+                && $context['rut'] === '86027191-5'
+                && $context['branch_code'] === trim((string) $sutrabcon)
+                && $context['reason'] === $reason;
+        })
+        ->once();
+})->with([
+    'missing' => [['L01'], null, 'missing'],
+    'unknown' => [['L01'], 'ZZZ', 'no_match'],
+    'ambiguous' => [['L01', 'L01'], 'L01', 'ambiguous'],
+    'truncated longer code' => [['VALPO'], 'VAL', 'no_match'],
+]);

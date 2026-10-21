@@ -187,6 +187,12 @@ class OrderController extends Controller
                 'address' => $address ? $address->toArray() : null,
             ];
 
+            // The buyer is billed. When the order ships to another branch, keep the
+            // buyer's address apart from the shipping address frozen above.
+            if (! $user->is($customer)) {
+                $order_meta['billing_address'] = $user->branchAddress()?->toArray();
+            }
+
             if ($contact) {
                 $order_meta['contact'] = $contact->only([
                     'id',
@@ -355,9 +361,13 @@ class OrderController extends Controller
      * Cancel an order waiting for an invoice or a receipt
      *
      * Deletes the Random ERP sales note (NVV) of an order that is still waiting for an invoice
-     * (FCV) or a receipt (BLV): it has not been documented, charged or dispatched. The order and
-     * its credit payment are set to `canceled`, and the credit line is unblocked when this
-     * payment blocked it.
+     * (FCV) or a receipt (BLV): it has not been documented, charged or dispatched. The NVV trace
+     * is read again immediately before the deletion. If it already lists an invoice (FCV), a
+     * receipt (BLV) or any other document, the NVV is not deleted. The order and its credit
+     * payment are set to `canceled`, and the credit line is unblocked when this payment blocked
+     * it. A cancellation email is then queued for the branch that placed the order, for the
+     * destination branch when a primary branch ordered for a secondary one, for the contact
+     * named on the order, and for the system order inbox.
      *
      * Requires both `read-all-orders` and `cancel-orders`.
      *

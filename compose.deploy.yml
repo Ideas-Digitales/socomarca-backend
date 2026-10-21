@@ -61,6 +61,41 @@ services:
       - log_storage:/app/storage/logs
       - ./supervisord.conf:/app/supervisord.conf:ro
 
+  # QA only. Production never enables the "qa" profile, so this service is not started there.
+  mailpit:
+    profiles: ["qa"]
+    image: axllent/mailpit:v1.31.6
+    container_name: mailpit
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1025:1025"
+    environment:
+      MP_UI_AUTH: ${MAILPIT_UI_AUTH:-}
+      MP_ALLOWED_HOSTS: ${MAILPIT_HOST:-}
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "5000"
+      # Laravel may send MAIL_USERNAME / MAIL_PASSWORD over plaintext SMTP.
+      # The port is limited to the internal network and 127.0.0.1.
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-public"
+      - "traefik.http.routers.mailpit.rule=Host(`${MAILPIT_HOST:-}`)"
+      - "traefik.http.routers.mailpit.entrypoints=websecure"
+      - "traefik.http.routers.mailpit.tls.certresolver=myresolver"
+      - "traefik.http.services.mailpit.loadbalancer.server.port=8025"
+    networks:
+      - traefik-public
+      - internal
+    volumes:
+      - mailpit_data:/data
+
 networks:
   traefik-public:
     external: true
@@ -73,3 +108,5 @@ volumes:
     name: firebase_credentials_${IMAGE_TAG}
   log_storage:
     name: socomarca_logs_${IMAGE_TAG}
+  mailpit_data:
+    name: mailpit_data_qa
