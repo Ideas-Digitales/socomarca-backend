@@ -15,11 +15,10 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Copies the contacts of every Random entity that has a user in Compra Rápida.
+ * Copies each Random contact onto the branch user whose code equals `SUTRABCON`.
  *
- * Contact sync is disabled: nothing schedules or dispatches this job. The class stays so the
- * pull can be turned back on. New contacts are attached to the primary branch user of the
- * entity. The branch is not read from Random.
+ * A contact whose branch code SCR cannot resolve is left untouched and reported. Contacts that
+ * Random no longer returns are deleted, except those skipped in the same run.
  */
 class SyncRandomContacts implements ShouldBeUnique, ShouldQueue
 {
@@ -71,6 +70,13 @@ class SyncRandomContacts implements ShouldBeUnique, ShouldQueue
             return;
         }
 
+        $branches = User::query()
+            ->where('user_code', $entityCode)
+            ->get()
+            ->groupBy(fn (User $user): string => trim((string) $user->branch_code));
+
+        $skippedRuts = [];
+
         foreach ($response['data'] as $row) {
             if (! is_array($row)) {
                 continue;
@@ -86,29 +92,27 @@ class SyncRandomContacts implements ShouldBeUnique, ShouldQueue
                 continue;
             }
 
-            $existing = Contact::query()
-                ->where('entity_code', $attributes['entity_code'])
-                ->where('rut', $attributes['rut'])
-                ->first();
+            $branchCode = trim((string) ($row['SUTRABCON'] ?? ''));
+            $owners = $branches->get($branchCode, collect());
+            $owner = $branchCode !== '' && $owners->count() === 1 ? $owners->first() : null;
 
-            if ($existing === null) {
-                $owner = User::query()
-                    ->where('user_code', $entityCode)
-                    ->orderByRaw("case when branch_type = 'P' then 0 else 1 end")
-                    ->orderBy('id')
-                    ->first();
+            if (! $owner instanceof User) {
+                Log::error('El contacto no trae un código de sucursal que SCR pueda procesar.', [
+                    'entity_code' => $entityCode,
+                    'rut' => $attributes['rut'],
+                    'branch_code' => $branchCode,
+                    'reason' => match (true) {
+                        $branchCode === '' => 'missing',
+                        $owners->count() > 1 => 'ambiguous',
+                        default => 'no_match',
+                    },
+                ]);
+                $skippedRuts[] = $attributes['rut'];
 
-                if ($owner === null) {
-                    Log::warning('SyncRandomContacts skipped contact without a branch user', [
-                        'entity_code' => $entityCode,
-                        'rut' => $attributes['rut'],
-                    ]);
-
-                    continue;
-                }
-
-                $attributes['user_id'] = $owner->id;
+                continue;
             }
+
+            $attributes['user_id'] = $owner->id;
 
             Contact::updateOrCreate(
                 [
@@ -125,6 +129,10 @@ class SyncRandomContacts implements ShouldBeUnique, ShouldQueue
                 $query->whereNull('random_synced_at')
                     ->orWhere('random_synced_at', '<', $startedAt);
             })
+            ->when(
+                $skippedRuts !== [],
+                fn ($query) => $query->whereNotIn('rut', $skippedRuts),
+            )
             ->delete();
     }
 }

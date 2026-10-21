@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\SyncRandomBrands;
 use App\Jobs\SyncRandomCategories;
+use App\Jobs\SyncRandomContacts;
 use App\Jobs\SyncRandomPrices;
 use App\Jobs\SyncRandomProducts;
 use App\Jobs\SyncRandomStock;
@@ -33,6 +34,7 @@ class SyncAllRandomDataCommand extends Command
                 (new SyncRandomPrices)->onQueue('random-sync-products'),
                 (new SyncRandomStock)->onQueue('random-sync-products'),
                 (new SyncRandomUsers)->onQueue('random-sync-users'),
+                (new SyncRandomContacts)->onQueue('random-sync-users'),
             ])->dispatch();
 
             $this->info('Proceso de sincronización encolado correctamente.');
