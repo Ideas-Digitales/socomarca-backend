@@ -25,8 +25,8 @@ class OrderPolicy
     }
 
     /**
-     * The user placed the order or the order was placed for them (`Order::visibleTo`).
-     * `read-all-orders` together with `cancel-orders` cancels any order.
+     * The user placed the order (`orders.user_id`). The branch it was placed for cannot
+     * cancel it. `read-all-orders` together with `cancel-orders` cancels any order.
      */
     public function cancel(User $user, Order $order): bool
     {
@@ -34,6 +34,6 @@ class OrderPolicy
             return true;
         }
 
-        return Order::query()->visibleTo($user)->whereKey($order->id)->exists();
+        return (int) $order->user_id === (int) $user->id;
     }
 }

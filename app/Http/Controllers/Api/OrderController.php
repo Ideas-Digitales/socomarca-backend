@@ -369,9 +369,9 @@ class OrderController extends Controller
      * destination branch when a primary branch ordered for a secondary one, for the contact
      * named on the order, and for the system order inbox.
      *
-     * Any authenticated user can cancel an order they placed or that was placed for them.
-     * Canceling an order that belongs to someone else requires both `read-all-orders` and
-     * `cancel-orders`.
+     * Any authenticated user can cancel an order they placed. The branch an order was
+     * placed for cannot cancel it. Canceling someone else's order requires both
+     * `read-all-orders` and `cancel-orders`.
      *
      * @return OrderResource
      */
