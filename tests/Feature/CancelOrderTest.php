@@ -269,12 +269,46 @@ describe('cancel order waiting for an invoice or a receipt', function () {
 
         expect($order->refresh()->status)->toBe('completed')
             ->and($payment->refresh()->status)->toBe(PaymentStatus::PROCESSING);
+
+        Http::assertNotSent(fn ($request) => $request->method() === 'DELETE');
     })->with([
         'invoiced' => [['NVV', 'FCV'], 'The order cannot be canceled because it already has an invoice (FCV).'],
         'receipt issued' => [['NVV', 'BLV'], 'The order cannot be canceled because it already has a receipt (BLV).'],
         'dispatched' => [['NVV', 'GDV'], 'The order cannot be canceled because it has already been dispatched.'],
         'other document' => [['NVV', 'OCC'], 'Only orders waiting for a Random document (receipt or invoice) can be canceled.'],
     ]);
+
+    it('does not delete the NVV when an invoice appears in the trace after the first check', function () {
+        [, $order, $payment] = makeAwaitingInvoiceOrder();
+        $traceCalls = 0;
+        Http::fake(function ($request) use (&$traceCalls) {
+            if (str_contains($request->url(), '/documentos/traza/')) {
+                $traceCalls++;
+                $documents = [
+                    ['maeedo' => ['IDMAEEDO' => 360, 'TIDO' => 'NVV']],
+                ];
+
+                if ($traceCalls >= 3) {
+                    $documents[] = ['maeedo' => ['IDMAEEDO' => 361, 'TIDO' => 'FCV']];
+                }
+
+                return Http::response(['data' => $documents], 200);
+            }
+
+            return Http::response(['deleted' => true], 200);
+        });
+        actAsRole('admin');
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.order_number.0', 'The order cannot be canceled because it already has an invoice (FCV).');
+
+        expect($order->refresh()->status)->toBe('completed')
+            ->and($payment->refresh()->status)->toBe(PaymentStatus::PROCESSING)
+            ->and($traceCalls)->toBeGreaterThanOrEqual(3);
+
+        Http::assertNotSent(fn ($request) => $request->method() === 'DELETE');
+    });
 
     it('rejects the order when the trace cannot be confirmed', function () {
         [, $order] = makeAwaitingInvoiceOrder();

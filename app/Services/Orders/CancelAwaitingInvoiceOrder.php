@@ -5,11 +5,14 @@ namespace App\Services\Orders;
 use App\Enums\PaymentDocumentType;
 use App\Enums\PaymentStatus;
 use App\Exceptions\RandomApiServiceErrorException;
+use App\Exceptions\RandomDocumentNotDeletableException;
 use App\Models\CreditLine;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\Random\DocumentTrace;
 use App\Services\RandomApiService;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -68,7 +71,16 @@ class CancelAwaitingInvoiceOrder
         }
 
         $nvv = $order->randomDocuments->firstWhere('type', 'NVV');
-        $this->randomApi->deleteDocument((int) $nvv->idmaeedo);
+
+        try {
+            $this->randomApi->deleteDocument((int) $nvv->idmaeedo);
+        } catch (RandomDocumentNotDeletableException $e) {
+            $reason = $this->associatedDocumentRejection(collect($e->associated)) ?? 'not_awaiting_invoice';
+
+            throw ValidationException::withMessages([
+                'order_number' => [__('validation.custom.order_number.'.$reason)],
+            ]);
+        }
 
         DB::transaction(function () use ($order) {
             $payment = $this->awaitingInvoicePayment($order);
@@ -203,10 +215,25 @@ class CancelAwaitingInvoiceOrder
             return 'unverified';
         }
 
-        $types = collect($response->json('data') ?? [])
-            ->map(fn ($item) => $item['maeedo']['TIDO'] ?? null)
-            ->filter()
-            ->unique();
+        return $this->associatedDocumentRejection(
+            DocumentTrace::fromResponse($response)->associatedWith((int) $nvv->idmaeedo)
+        );
+    }
+
+    /**
+     * Rejection key for documents linked to the NVV in its Random ERP trace.
+     *
+     * @param Collection<int, array{type: string}> $associated
+     *
+     * @return string|null
+     */
+    private function associatedDocumentRejection(Collection $associated): ?string
+    {
+        if ($associated->isEmpty()) {
+            return null;
+        }
+
+        $types = $associated->pluck('type');
 
         if ($reason = $this->issuedDocumentRejection($types)) {
             return $reason;
@@ -216,10 +243,6 @@ class CancelAwaitingInvoiceOrder
             return 'dispatched';
         }
 
-        if ($types->contains(fn (string $type) => $type !== 'NVV')) {
-            return 'not_awaiting_invoice';
-        }
-
-        return null;
+        return 'not_awaiting_invoice';
     }
 }
