@@ -187,6 +187,12 @@ class OrderController extends Controller
                 'address' => $address ? $address->toArray() : null,
             ];
 
+            // The buyer is billed. When the order ships to another branch, keep the
+            // buyer's address apart from the shipping address frozen above.
+            if (! $user->is($customer)) {
+                $order_meta['billing_address'] = $user->branchAddress()?->toArray();
+            }
+
             if ($contact) {
                 $order_meta['contact'] = $contact->only([
                     'id',

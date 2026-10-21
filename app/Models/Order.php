@@ -76,6 +76,94 @@ class Order extends Model
     }
 
     /**
+     * Billing and shipping blocks of the order notification emails.
+     *
+     * Both blocks are the branch the order ships to, so they match when a branch
+     * buys for itself. When a primary branch buys for a secondary one, billing is
+     * the primary branch and shipping stays the secondary branch.
+     *
+     * @return array{
+     *     billing: array{name: string, address: array<string, mixed>, phone: string|null, email: string|null},
+     *     shipping: array{name: string, address: array<string, mixed>, phone: string|null, email: string|null}
+     * }
+     */
+    public function notificationAddresses(): array
+    {
+        $buyer = $this->user;
+        $customer = $this->customer ?? $buyer;
+        $shippingAddress = $this->storedAddress('address');
+        $shipping = $this->addressBlock($customer, $shippingAddress);
+        $forAnotherBranch = $buyer !== null
+            && $customer !== null
+            && ! $buyer->is($customer);
+
+        if (! $forAnotherBranch) {
+            return [
+                'billing' => $shipping,
+                'shipping' => $shipping,
+            ];
+        }
+
+        return [
+            'billing' => $this->addressBlock($buyer, $this->billingAddress($buyer)),
+            'shipping' => $shipping,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function billingAddress(User $buyer): array
+    {
+        $meta = $this->orderMeta();
+
+        if (array_key_exists('billing_address', $meta)) {
+            return is_array($meta['billing_address']) ? $meta['billing_address'] : [];
+        }
+
+        return $buyer->branchAddress()?->toArray() ?? [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function storedAddress(string $key): array
+    {
+        $address = $this->orderMeta()[$key] ?? null;
+
+        return is_array($address) ? $address : [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function orderMeta(): array
+    {
+        $meta = $this->order_meta;
+
+        if (is_string($meta)) {
+            $decoded = json_decode($meta, true);
+            $meta = is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($meta) ? $meta : [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $address
+     * @return array{name: string, address: array<string, mixed>, phone: string|null, email: string|null}
+     */
+    private function addressBlock(?User $party, array $address): array
+    {
+        return [
+            'name' => $party?->name ?? 'Cliente',
+            'address' => $address,
+            'phone' => $party?->phone,
+            'email' => $party?->email,
+        ];
+    }
+
+    /**
      * Orders placed by the user or for the user.
      */
     #[Scope]

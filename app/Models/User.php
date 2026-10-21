@@ -242,6 +242,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Address of this branch: the one synced from Random ERP, otherwise the default
+     * shipping address, otherwise the oldest address it has.
+     */
+    public function branchAddress(): ?Address
+    {
+        $synced = $this->addresses()->where('is_synced', true)->first();
+
+        if ($synced !== null) {
+            return $synced;
+        }
+
+        return $this->default_shipping_address()->first()
+            ?? $this->addresses()->orderBy('id')->first();
+    }
+
+    /**
      * Contacts that belong to this branch user.
      */
     public function contacts(): HasMany
