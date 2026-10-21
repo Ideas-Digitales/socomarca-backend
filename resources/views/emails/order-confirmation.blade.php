@@ -247,8 +247,6 @@
         $customer = $order->customer ?? $buyer;
         $customerName = $customer?->name ?? 'Cliente';
         $audience = $audience ?? \App\Mail\OrderConfirmationMail::AUDIENCE_SELF;
-        $billingAddress = $order->order_meta['address'] ?? [];
-        $shippingAddress = $order->order_meta['address'] ?? [];
         $payment = $order->payments->first();
         $paymentMethodLabel = $payment?->paymentMethod?->name ?? 'No especificado';
         $shippingMethodLabel = ($order->shipping_cost > 0) ? 'Despacho a domicilio' : 'Retiro en tienda';
@@ -380,32 +378,7 @@
             </tr>
         </table>
 
-        <table class="addresses-table" cellpadding="0" cellspacing="0">
-            <tr>
-                <th>Direcci&oacute;n de facturaci&oacute;n</th>
-                <th>Direcci&oacute;n de env&iacute;o</th>
-            </tr>
-            <tr>
-                <td>
-                    {{ $customerName }}<br />
-                    @if (! empty($billingAddress['address_line1']))
-                        {{ $billingAddress['address_line1'] }}@if (! empty($billingAddress['address_line2'])), {{ $billingAddress['address_line2'] }}@endif<br />
-                    @endif
-                    @if (! empty($billingAddress['postal_code'])) {{ $billingAddress['postal_code'] }}<br /> @endif
-                    @if (! empty($customer?->phone)) {{ $customer->phone }}<br /> @endif
-                    {{ $customer?->email }}
-                </td>
-                <td>
-                    {{ $customerName }}<br />
-                    @if (! empty($shippingAddress['address_line1']))
-                        {{ $shippingAddress['address_line1'] }}@if (! empty($shippingAddress['address_line2'])), {{ $shippingAddress['address_line2'] }}@endif<br />
-                    @endif
-                    @if (! empty($shippingAddress['postal_code'])) {{ $shippingAddress['postal_code'] }}<br /> @endif
-                    @if (! empty($customer?->phone)) {{ $customer->phone }}<br /> @endif
-                    {{ $customer?->email }}
-                </td>
-            </tr>
-        </table>
+        @include('emails.partials.order-addresses', ['order' => $order])
 
         <div class="footer">
             <div class="tagline">Socomarca Compra Rápida</div>

@@ -439,6 +439,8 @@ describe('OrderController', function () {
                 'user_id' => $scenario->user->id,
                 'customer_id' => $scenario->user->id,
             ]);
+
+            expect(Order::first()->order_meta)->not->toHaveKey('billing_address');
         });
 
         it('places the order for a secondary branch of the same entity', function () {
@@ -477,6 +479,53 @@ describe('OrderController', function () {
             expect($order->user_id)->toBe($scenario->user->id)
                 ->and($order->customer_id)->toBe($branch->id)
                 ->and($order->order_meta['address']['id'])->toBe($address->id);
+        });
+
+        it('stores the primary branch address as billing when the order ships to a secondary branch', function () {
+            $scenario = OrderScenario::make();
+            Sanctum::actingAs($scenario->user, ['api-access']);
+            $scenario->addProductToCart();
+            Address::factory()->create([
+                'user_id' => $scenario->user->id,
+                'is_synced' => false,
+                'address_line1' => 'Otra calle 1',
+                'type' => 'shipping',
+            ]);
+            $billing = Address::factory()->create([
+                'user_id' => $scenario->user->id,
+                'is_synced' => true,
+                'address_line1' => 'Casa Matriz 100',
+                'type' => 'shipping',
+            ]);
+            $branch = $scenario->makeSecondaryBranch();
+            $shipping = Address::factory()->create([
+                'user_id' => $branch->id,
+                'address_line1' => 'Local Norte 200',
+                'type' => 'shipping',
+            ]);
+
+            mock(WebpayService::class, function ($mock) {
+                $mock->shouldReceive('createTransaction')
+                    ->once()
+                    ->andReturn([
+                        'url' => 'https://webpay.test/init',
+                        'token' => 'test-token-123',
+                    ]);
+            });
+
+            postJson(route('orders.pay'), [
+                'customer_id' => $branch->id,
+                'address_id' => $shipping->id,
+                'contact_id' => checkoutContact($scenario->user)->id,
+                'payment_method' => 'transbank',
+                'payment_document_type' => PaymentDocumentType::RECEIPT,
+            ])->assertOk();
+
+            $order = Order::first();
+            expect($order->order_meta['address']['id'])->toBe($shipping->id)
+                ->and($order->order_meta['address']['address_line1'])->toBe('Local Norte 200')
+                ->and($order->order_meta['billing_address']['id'])->toBe($billing->id)
+                ->and($order->order_meta['billing_address']['address_line1'])->toBe('Casa Matriz 100');
         });
     });
 
