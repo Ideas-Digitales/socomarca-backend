@@ -280,6 +280,8 @@
             @if ($orderDate) - {{ $orderDate }} @endif
         </p>
 
+        @include('emails.partials.random-order-number', ['order' => $order, 'class' => 'order-summary'])
+
         <h3 class="section-title">Detalle de la compra</h3>
 
         @foreach ($order->orderDetails as $item)
