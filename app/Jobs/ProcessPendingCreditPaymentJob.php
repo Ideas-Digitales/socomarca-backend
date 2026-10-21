@@ -6,6 +6,7 @@ use App\Exceptions\RandomApiServiceErrorException;
 use App\Models\CreditLine;
 use App\Models\Payment;
 use App\Models\RandomDocument;
+use App\Services\Random\DocumentTrace;
 use App\Services\RandomApiService;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,14 +18,9 @@ use Illuminate\Support\Facades\Log;
 /**
  * Unblocks a credit line once Random ERP invoices the NVV of the payment that blocked it.
  */
-class ProcessPendingCreditPaymentJob implements ShouldQueue, ShouldBeUnique
+class ProcessPendingCreditPaymentJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
-
-    /**
-     * Invoice document types that settle the NVV of a credit payment.
-     */
-    private const INVOICE_TYPES = ['FCV', 'BLV'];
 
     /**
      * Seconds the unique lock is kept if the job never finishes (e.g. the worker dies),
@@ -43,15 +39,16 @@ class ProcessPendingCreditPaymentJob implements ShouldQueue, ShouldBeUnique
 
     public function handle(RandomApiService $randomApi): void
     {
-        if (!$this->creditLine->isBlocked()) {
+        if (! $this->creditLine->isBlocked()) {
             return;
         }
 
         $payment = $this->blockingPayment();
 
-        if (!$payment) {
+        if (! $payment) {
             Log::warning('Credit line blocked without a processing credit payment, unblocking it', $this->logContext());
             $this->creditLine->unblock();
+
             return;
         }
 
@@ -60,14 +57,16 @@ class ProcessPendingCreditPaymentJob implements ShouldQueue, ShouldBeUnique
                 'payment_status' => $payment->status,
             ]));
             $this->creditLine->unblock();
+
             return;
         }
 
         $order = $payment->order;
         $nvvDocument = $order?->randomDocuments()->where('type', 'NVV')->first();
 
-        if (!$nvvDocument) {
+        if (! $nvvDocument) {
             Log::warning('Credit payment that blocked the line has no NVV, the line stays blocked', $this->logContext($payment));
+
             return;
         }
 
@@ -78,20 +77,20 @@ class ProcessPendingCreditPaymentJob implements ShouldQueue, ShouldBeUnique
                 'idmaeedo' => $nvvDocument->idmaeedo,
                 'message' => $e->getMessage(),
             ]));
+
             return;
         }
 
-        $invoice = collect($traceResponse->json('data') ?? [])
-            ->first(fn ($traceItem) => in_array($traceItem['maeedo']['TIDO'] ?? null, self::INVOICE_TYPES, true));
+        $invoice = DocumentTrace::fromResponse($traceResponse)->firstSettlingDocument();
 
-        if (!$invoice) {
+        if (! $invoice) {
             return;
         }
 
         $invoiceDocument = RandomDocument::updateOrCreate(
-            ['idmaeedo' => $invoice['maeedo']['IDMAEEDO']],
+            ['idmaeedo' => $invoice['idmaeedo']],
             [
-                'type' => $invoice['maeedo']['TIDO'],
+                'type' => $invoice['type'],
                 'document' => $invoice['maeedo'],
             ]
         );

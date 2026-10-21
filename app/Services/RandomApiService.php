@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Exceptions\RandomApiServiceErrorException;
+use App\Exceptions\RandomDocumentNotDeletableException;
+use App\Services\Random\DocumentTrace;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -427,10 +429,25 @@ class RandomApiService
      *
      * `$idmaeedo` is the document id stored in `random_documents.idmaeedo`.
      *
+     * Random only allows the deletion once every reference is gone (another document, a payment,
+     * accounting or an electronic tax document). The trace is read first, with the same rule
+     * `ProcessPendingCreditPaymentJob` uses to detect an invoice or a receipt. If it lists any
+     * document other than this one, the DELETE is not sent.
+     *
      * @see DELETE /web32/documento/{idmaeedo}
+     *
+     * @throws RandomDocumentNotDeletableException
+     * @throws RandomApiServiceErrorException
      */
     public function deleteDocument(int $idmaeedo): \Illuminate\Http\Client\Response
     {
+        $associated = DocumentTrace::fromResponse($this->getDocumentTrace($idmaeedo))
+            ->associatedWith($idmaeedo);
+
+        if ($associated->isNotEmpty()) {
+            throw new RandomDocumentNotDeletableException($idmaeedo, $associated->all());
+        }
+
         $endpoint = "/web32/documento/{$idmaeedo}";
 
         if (! empty(config('random.token'))) {
