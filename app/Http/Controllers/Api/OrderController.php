@@ -369,13 +369,14 @@ class OrderController extends Controller
      * destination branch when a primary branch ordered for a secondary one, for the contact
      * named on the order, and for the system order inbox.
      *
-     * Requires both `read-all-orders` and `cancel-orders`.
-     *
+     * Any authenticated user can cancel an order they placed or that was placed for them.
+     * Canceling an order that belongs to someone else requires both `read-all-orders` and
+     * `cancel-orders`.
      *
      * @return OrderResource
      */
     #[Response(200, 'The order was canceled')]
-    #[Response(403, 'The user lacks `read-all-orders` or `cancel-orders`')]
+    #[Response(403, 'The user cannot cancel this order')]
     #[Response(422, 'The order number is missing or the order is not waiting for a Random document (invoice or receipt)')]
     #[Response(500, 'Random ERP rejected the deletion; the order, the payment and the credit line were not changed')]
     public function cancel(CancelOrderRequest $request, CancelAwaitingInvoiceOrder $cancellation)
