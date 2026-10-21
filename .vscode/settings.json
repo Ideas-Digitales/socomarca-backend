@@ -61,5 +61,6 @@
     "webpay",
     "Webpay"
   ],
-  "vscodeTodo.showTags": true
+  "vscodeTodo.showTags": true,
+  "vscodeTodo.mcp.enabled": true
 }
