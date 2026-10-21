@@ -37,7 +37,7 @@ class SendOrderCancellationEmail implements ShouldQueue
      */
     public function handle(OrderCanceled $event): void
     {
-        $event->order->loadMissing(['user', 'customer', 'contact']);
+        $event->order->loadMissing(['user', 'customer', 'contact', 'randomDocuments']);
 
         $order = $event->order;
         $recipients = $this->emailAddresses($order->user);

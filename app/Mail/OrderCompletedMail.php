@@ -16,7 +16,7 @@ class OrderCompletedMail extends Mailable
     public function __construct(
         public Order $order
     ) {
-        $this->order->loadMissing(['user', 'customer', 'orderDetails.product', 'payments.paymentMethod']);
+        $this->order->loadMissing(['user', 'customer', 'orderDetails.product', 'payments.paymentMethod', 'randomDocuments']);
     }
 
     public function envelope(): Envelope

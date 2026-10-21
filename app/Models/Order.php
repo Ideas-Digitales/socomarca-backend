@@ -376,4 +376,17 @@ class Order extends Model
     {
         return $this->morphToMany(RandomDocument::class, 'documentable', 'random_documentables', 'documentable_id', 'random_document_id');
     }
+
+    /**
+     * Random ERP id (`IDMAEEDO`) shown on order emails. The sales note (NVV) is the
+     * order number; another linked document is used only when there is no NVV.
+     */
+    public function randomOrderNumber(): ?int
+    {
+        $documents = $this->randomDocuments;
+        $document = $documents->firstWhere('type', 'NVV') ?? $documents->first();
+        $id = $document?->idmaeedo;
+
+        return $id === null ? null : (int) $id;
+    }
 }

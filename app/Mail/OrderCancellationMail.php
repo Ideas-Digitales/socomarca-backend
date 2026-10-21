@@ -21,6 +21,7 @@ class OrderCancellationMail extends Mailable
             'customer',
             'contact',
             'orderDetails.product',
+            'randomDocuments',
         ]);
     }
 
