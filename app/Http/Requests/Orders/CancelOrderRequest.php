@@ -10,8 +10,8 @@ class CancelOrderRequest extends FormRequest
 {
     /**
      * Missing or unknown order numbers are left to validation. An existing order
-     * can be canceled by whoever placed it, by the branch it was placed for, or
-     * by a user with both `read-all-orders` and `cancel-orders`.
+     * can be canceled by whoever placed it, or by a user with both `read-all-orders`
+     * and `cancel-orders`. The branch the order was placed for cannot cancel it.
      */
     public function authorize(): bool
     {

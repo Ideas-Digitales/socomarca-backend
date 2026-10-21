@@ -169,12 +169,22 @@ describe('cancel order waiting for an invoice or a receipt', function () {
             && str_ends_with($request->url(), '/web32/documento/360'));
     })->with(['customer', 'supervisor', 'editor', 'developer']);
 
-    it('cancels the order for the branch it was placed for', function () {
+    it('forbids the destination branch from canceling an order placed for it', function () {
         $branch = User::factory()->create();
         $branch->assignRole('customer');
-        [, $order] = makeAwaitingInvoiceOrder(customer: $branch);
+        [$buyer, $order] = makeAwaitingInvoiceOrder(customer: $branch);
+        $buyer->assignRole('customer');
         fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
         Sanctum::actingAs($branch, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'This action is unauthorized.');
+
+        expect($order->refresh()->status)->toBe('completed');
+        Http::assertNothingSent();
+
+        Sanctum::actingAs($buyer, ['api-access']);
 
         postJson(route('orders.cancel'), ['order_number' => $order->id])
             ->assertOk()
@@ -237,7 +247,7 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         Mail::assertNothingSent();
     });
 
-    it('forbids canceling an order the user did not place and that was not placed for them', function (string $role) {
+    it('forbids canceling an order the user did not place', function (string $role) {
         [, $order] = makeAwaitingInvoiceOrder();
         fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
         actAsRole($role);
