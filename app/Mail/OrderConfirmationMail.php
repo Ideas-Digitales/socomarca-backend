@@ -35,7 +35,6 @@ class OrderConfirmationMail extends Mailable
             'contact',
             'orderDetails.product',
             'payments.paymentMethod',
-            'randomDocuments',
         ]);
     }
 
