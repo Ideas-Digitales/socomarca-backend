@@ -23,40 +23,35 @@ function renderedOrderNotificationEmails(Order $order): array
     ];
 }
 
-function attachRandomDocument(Order $order, int $idmaeedo, string $type): void
-{
+it('shows the Random folio with its leading zeros on the three order emails', function () {
+    $order = Order::factory()->create([
+        'random_document_number' => '0000140684',
+    ]);
     $document = RandomDocument::query()->create([
-        'idmaeedo' => $idmaeedo,
-        'type' => $type,
-        'document' => ['TIDO' => $type],
+        'idmaeedo' => 360,
+        'type' => 'NVV',
+        'document' => ['TIDO' => 'NVV', 'NUDO' => '0000140684'],
     ]);
     $order->randomDocuments()->attach($document->idmaeedo);
-}
-
-it('shows the Random sales note number on the three order emails', function () {
-    $order = Order::factory()->create();
-    attachRandomDocument($order, 360, 'NVV');
-    attachRandomDocument($order, 361, 'FCV');
 
     foreach (renderedOrderNotificationEmails($order->fresh()) as $body) {
-        expect($body)->toContain('Número de pedido Random: <strong>360</strong>')
-            ->and($body)->not->toContain('Número de pedido Random: <strong>361</strong>');
+        expect($body)->toContain('Número de pedido Random: <strong>0000140684</strong>')
+            ->and($body)->not->toContain('Número de pedido Random: <strong>360</strong>');
     }
 });
 
-it('uses another Random document when the order has no sales note', function () {
-    $order = Order::factory()->create();
-    attachRandomDocument($order, 361, 'FCV');
+it('omits the Random order number when the order has no folio', function () {
+    $order = Order::factory()->create([
+        'random_document_number' => null,
+    ]);
+    $document = RandomDocument::query()->create([
+        'idmaeedo' => 360,
+        'type' => 'NVV',
+        'document' => ['TIDO' => 'NVV'],
+    ]);
+    $order->randomDocuments()->attach($document->idmaeedo);
 
     foreach (renderedOrderNotificationEmails($order->fresh()) as $body) {
-        expect($body)->toContain('Número de pedido Random: <strong>361</strong>');
-    }
-});
-
-it('omits the Random order number when the order has no Random document', function () {
-    $order = Order::factory()->create();
-
-    foreach (renderedOrderNotificationEmails($order) as $body) {
         expect($body)->not->toContain('Número de pedido Random:');
     }
 });

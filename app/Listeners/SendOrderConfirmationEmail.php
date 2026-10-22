@@ -55,7 +55,6 @@ class SendOrderConfirmationEmail implements ShouldQueue
             'contact',
             'orderDetails.product',
             'payments.paymentMethod',
-            'randomDocuments',
         ]);
 
         $order = $event->order;

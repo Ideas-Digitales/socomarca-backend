@@ -378,15 +378,17 @@ class Order extends Model
     }
 
     /**
-     * Random ERP id (`IDMAEEDO`) shown on order emails. The sales note (NVV) is the
-     * order number; another linked document is used only when there is no NVV.
+     * Folio (`NUDO`) of the Random sales note, shown on order emails.
+     * Stored as `numero` in `random_document_number`, including leading zeros.
      */
-    public function randomOrderNumber(): ?int
+    public function randomDocumentFolio(): ?string
     {
-        $documents = $this->randomDocuments;
-        $document = $documents->firstWhere('type', 'NVV') ?? $documents->first();
-        $id = $document?->idmaeedo;
+        $folio = $this->random_document_number;
 
-        return $id === null ? null : (int) $id;
+        if (! is_string($folio) || trim($folio) === '') {
+            return null;
+        }
+
+        return $folio;
     }
 }
