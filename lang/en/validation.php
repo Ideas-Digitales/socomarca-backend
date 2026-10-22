@@ -189,6 +189,7 @@ return [
             'dispatched' => 'The order cannot be canceled because it has already been dispatched.',
             'not_awaiting_invoice' => 'Only orders waiting for a Random document (receipt or invoice) can be canceled.',
             'already_canceled' => 'The order is already canceled.',
+            'cancellation_window_expired' => 'The order can no longer be canceled because the cancellation window has elapsed.',
             'unverified' => 'The order could not be canceled because its status in Random ERP could not be confirmed.',
         ],
     ],
