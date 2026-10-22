@@ -29,7 +29,7 @@ class AwaitingInvoiceOrder implements ValidationRule
             return;
         }
 
-        $reason = app(CancelAwaitingInvoiceOrder::class)->rejection($order);
+        $reason = app(CancelAwaitingInvoiceOrder::class)->rejection($order, request()->user());
 
         if ($reason !== null) {
             $fail('validation.custom.order_number.'.$reason)->translate();

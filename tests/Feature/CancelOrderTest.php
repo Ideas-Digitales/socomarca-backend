@@ -9,10 +9,12 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\RandomDocument;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 
+use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
 /**
@@ -206,6 +208,106 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         'read only' => [['read-all-orders']],
         'cancel only' => [['cancel-orders']],
     ]);
+
+    it('tells the buyer how long they have left to cancel', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [$buyer, $order, $payment] = makeAwaitingInvoiceOrder();
+            $buyer->assignRole('customer');
+            Sanctum::actingAs($buyer, ['api-access']);
+
+            $deadline = Carbon::parse($payment->fresh()->paid_at)->addMinutes(60);
+
+            getJson(route('orders.index'))
+                ->assertOk()
+                ->assertJsonPath('data.0.id', $order->id)
+                ->assertJsonPath('data.0.cancelable_until', $deadline->toIso8601String())
+                ->assertJsonPath('data.0.cancel_seconds_remaining', $deadline->getTimestamp() - $now->getTimestamp());
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
+    it('hides the cancellation window from the branch the order was placed for', function () {
+        $branch = User::factory()->create();
+        $branch->assignRole('customer');
+        [, $order] = makeAwaitingInvoiceOrder(customer: $branch);
+        Sanctum::actingAs($branch, ['api-access']);
+
+        getJson(route('orders.index'))
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $order->id)
+            ->assertJsonPath('data.0.cancelable_until', null)
+            ->assertJsonPath('data.0.cancel_seconds_remaining', null);
+    });
+
+    it('rejects a buyer after the cancellation window without calling Random', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [$buyer, $order] = makeAwaitingInvoiceOrder();
+            $buyer->assignRole('customer');
+            config(['orders.cancellation_window_minutes' => 10]);
+            Carbon::setTestNow($now->copy()->addMinutes(10));
+            fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+            Sanctum::actingAs($buyer, ['api-access']);
+
+            postJson(route('orders.cancel'), ['order_number' => $order->id])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.order_number.0', 'The order can no longer be canceled because the cancellation window has elapsed.');
+
+            expect($order->refresh()->status)->toBe('completed');
+            Http::assertNothingSent();
+
+            getJson(route('orders.index'))
+                ->assertOk()
+                ->assertJsonPath('data.0.cancel_seconds_remaining', 0);
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
+    it('returns the expired window message in Spanish', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [$buyer, $order] = makeAwaitingInvoiceOrder();
+            $buyer->assignRole('customer');
+            Carbon::setTestNow($now->copy()->addHour());
+            app()->setLocale('es');
+            Sanctum::actingAs($buyer, ['api-access']);
+
+            postJson(route('orders.cancel'), ['order_number' => $order->id])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.order_number.0', 'La orden ya no se puede cancelar porque venció el plazo.');
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
+    it('lets an administrator cancel after the buyer window has elapsed', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [, $order] = makeAwaitingInvoiceOrder();
+            Carbon::setTestNow($now->copy()->addHours(2));
+            fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+            actAsRole('admin');
+
+            postJson(route('orders.cancel'), ['order_number' => $order->id])
+                ->assertOk()
+                ->assertJsonPath('data.status', 'canceled');
+
+            expect($order->refresh()->status)->toBe('canceled');
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
 
     it('rejects a second cancellation without calling Random again', function () {
         [, $order] = makeAwaitingInvoiceOrder();

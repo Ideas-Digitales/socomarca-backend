@@ -10,9 +10,11 @@ use App\Exceptions\RandomDocumentNotDeletableException;
 use App\Models\CreditLine;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\User;
 use App\Services\Random\DocumentTrace;
 use App\Services\RandomApiService;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -43,29 +45,55 @@ class CancelAwaitingInvoiceOrder
     /**
      * Reason the order cannot be canceled, as a key of `validation.custom.order_number`.
      *
-     * @param Order $order
-     *
-     * @return string|null
+     * A user with both `read-all-orders` and `cancel-orders` is not limited by the
+     * cancellation window. Everyone else is.
      */
-    public function rejection(Order $order): ?string
+    public function rejection(Order $order, ?User $actor = null): ?string
     {
         $order->loadMissing(['payments.paymentMethod', 'randomDocuments']);
 
-        return $this->localRejection($order) ?? $this->traceRejection($order);
+        return $this->localRejection($order, $actor) ?? $this->traceRejection($order);
+    }
+
+    /**
+     * Deadline and remaining seconds for the buyer, when this order is still waiting
+     * for a Random document. Null when `$user` did not place the order, or when a
+     * local rule other than the window already forbids cancellation.
+     *
+     * @return array{cancelable_until: string, cancel_seconds_remaining: int}|null
+     */
+    public function countdown(Order $order, ?User $user): ?array
+    {
+        if ($user === null || (int) $order->user_id !== (int) $user->id) {
+            return null;
+        }
+
+        $order->loadMissing(['payments.paymentMethod', 'randomDocuments']);
+
+        if ($this->localRejectionIgnoringWindow($order) !== null) {
+            return null;
+        }
+
+        $deadline = $this->cancellationDeadline($order);
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        return [
+            'cancelable_until' => $deadline->toIso8601String(),
+            'cancel_seconds_remaining' => max(0, $deadline->getTimestamp() - now()->getTimestamp()),
+        ];
     }
 
     /**
      * Delete the NVV in Random ERP and mark the order and its credit payment as canceled.
-     *
-     * @param Order $order
-     *
-     * @return Order
      */
-    public function cancel(Order $order): Order
+    public function cancel(Order $order, ?User $actor = null): Order
     {
         $order->load(['payments.paymentMethod', 'randomDocuments']);
 
-        if ($reason = $this->rejection($order)) {
+        if ($reason = $this->rejection($order, $actor)) {
             throw ValidationException::withMessages([
                 'order_number' => [__('validation.custom.order_number.'.$reason)],
             ]);
@@ -103,12 +131,24 @@ class CancelAwaitingInvoiceOrder
 
     /**
      * Local reason the order cannot be canceled, before asking Random ERP for the NVV trace.
-     *
-     * @param Order $order
-     *
-     * @return string|null
      */
-    private function localRejection(Order $order): ?string
+    private function localRejection(Order $order, ?User $actor = null): ?string
+    {
+        if ($reason = $this->localRejectionIgnoringWindow($order)) {
+            return $reason;
+        }
+
+        if (! $this->bypassesCancellationWindow($actor) && $this->cancellationWindowExpired($order)) {
+            return 'cancellation_window_expired';
+        }
+
+        return null;
+    }
+
+    /**
+     * Local reason other than the cancellation window.
+     */
+    private function localRejectionIgnoringWindow(Order $order): ?string
     {
         if ($order->status === 'canceled') {
             return 'already_canceled';
@@ -135,6 +175,33 @@ class CancelAwaitingInvoiceOrder
         }
 
         return null;
+    }
+
+    private function bypassesCancellationWindow(?User $actor): bool
+    {
+        return $actor?->hasAllPermissions(['read-all-orders', 'cancel-orders']) ?? false;
+    }
+
+    /**
+     * End of the buyer's cancellation window: `paid_at` of the credit payment plus
+     * `orders.cancellation_window_minutes`.
+     */
+    private function cancellationDeadline(Order $order): ?Carbon
+    {
+        $paidAt = $this->awaitingInvoicePayment($order)?->paid_at;
+
+        if ($paidAt === null) {
+            return null;
+        }
+
+        return Carbon::parse($paidAt)->addMinutes(max(0, (int) config('orders.cancellation_window_minutes')));
+    }
+
+    private function cancellationWindowExpired(Order $order): bool
+    {
+        $deadline = $this->cancellationDeadline($order);
+
+        return $deadline === null || now()->greaterThanOrEqualTo($deadline);
     }
 
     /**
