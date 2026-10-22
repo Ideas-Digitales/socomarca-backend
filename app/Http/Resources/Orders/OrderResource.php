@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Orders;
 
 use App\Http\Resources\PaymentResource;
+use App\Services\Orders\CancelAwaitingInvoiceOrder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -15,6 +16,11 @@ class OrderResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $countdown = app(CancelAwaitingInvoiceOrder::class)->countdown(
+            $this->resource,
+            $request->user(),
+        );
+
         return [
             'id' => $this->id,
             /** User who placed the order. */
@@ -85,6 +91,22 @@ class OrderResource extends JsonResource
             /** Number of the sales note (NVV) created in Random ERP; `null` until it is created. */
             'random_document_number' => $this->random_document_number,
             'notes' => $this->notes,
+            /**
+             * Moment until which the buyer can cancel this order, ISO 8601.
+             * Null when the authenticated user cannot cancel it.
+             *
+             * @var string|null
+             *
+             * @format date-time
+             */
+            'cancelable_until' => $countdown['cancelable_until'] ?? null,
+            /**
+             * Seconds left in that window when this response was built.
+             * Zero once the window has elapsed. Null when the authenticated user cannot cancel it.
+             *
+             * @var int|null
+             */
+            'cancel_seconds_remaining' => $countdown['cancel_seconds_remaining'] ?? null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -9,21 +9,23 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\RandomDocument;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Sanctum\Sanctum;
 
+use function Pest\Laravel\getJson;
 use function Pest\Laravel\postJson;
 
 /**
  * Credit order whose NVV is still waiting for an invoice (FCV) or a receipt (BLV).
  */
-function makeAwaitingInvoiceOrder(int $nvvId = 360, string $documentType = PaymentDocumentType::INVOICE): array
+function makeAwaitingInvoiceOrder(int $nvvId = 360, string $documentType = PaymentDocumentType::INVOICE, ?User $customer = null): array
 {
     $buyer = User::factory()->create();
     $order = Order::query()->create([
         'user_id' => $buyer->id,
-        'customer_id' => $buyer->id,
+        'customer_id' => ($customer ?? $buyer)->id,
         'subtotal' => 1000,
         'vat' => 19,
         'total' => 1190,
@@ -153,6 +155,160 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         Mail::assertSent(OrderCancellationMail::class, fn (OrderCancellationMail $mail) => $mail->hasTo($buyer->email));
     });
 
+    it('cancels the order for the user who placed it', function (string $role) {
+        [$buyer, $order] = makeAwaitingInvoiceOrder();
+        $buyer->assignRole($role);
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        Sanctum::actingAs($buyer, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled');
+
+        expect($order->refresh()->status)->toBe('canceled');
+
+        Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+            && str_ends_with($request->url(), '/web32/documento/360'));
+    })->with(['customer', 'supervisor', 'editor', 'developer']);
+
+    it('forbids the destination branch from canceling an order placed for it', function () {
+        $branch = User::factory()->create();
+        $branch->assignRole('customer');
+        [$buyer, $order] = makeAwaitingInvoiceOrder(customer: $branch);
+        $buyer->assignRole('customer');
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        Sanctum::actingAs($branch, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'This action is unauthorized.');
+
+        expect($order->refresh()->status)->toBe('completed');
+        Http::assertNothingSent();
+
+        Sanctum::actingAs($buyer, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled');
+
+        expect($order->refresh()->status)->toBe('canceled');
+    });
+
+    it('lets a user with only one administrative permission cancel their own order', function (array $permissions) {
+        [$buyer, $order] = makeAwaitingInvoiceOrder();
+        $buyer->givePermissionTo($permissions);
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+        Sanctum::actingAs($buyer, ['api-access']);
+
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'canceled');
+    })->with([
+        'read only' => [['read-all-orders']],
+        'cancel only' => [['cancel-orders']],
+    ]);
+
+    it('tells the buyer how long they have left to cancel', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [$buyer, $order, $payment] = makeAwaitingInvoiceOrder();
+            $buyer->assignRole('customer');
+            Sanctum::actingAs($buyer, ['api-access']);
+
+            $deadline = Carbon::parse($payment->fresh()->paid_at)->addMinutes(60);
+
+            getJson(route('orders.index'))
+                ->assertOk()
+                ->assertJsonPath('data.0.id', $order->id)
+                ->assertJsonPath('data.0.cancelable_until', $deadline->toIso8601String())
+                ->assertJsonPath('data.0.cancel_seconds_remaining', $deadline->getTimestamp() - $now->getTimestamp());
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
+    it('hides the cancellation window from the branch the order was placed for', function () {
+        $branch = User::factory()->create();
+        $branch->assignRole('customer');
+        [, $order] = makeAwaitingInvoiceOrder(customer: $branch);
+        Sanctum::actingAs($branch, ['api-access']);
+
+        getJson(route('orders.index'))
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $order->id)
+            ->assertJsonPath('data.0.cancelable_until', null)
+            ->assertJsonPath('data.0.cancel_seconds_remaining', null);
+    });
+
+    it('rejects a buyer after the cancellation window without calling Random', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [$buyer, $order] = makeAwaitingInvoiceOrder();
+            $buyer->assignRole('customer');
+            config(['orders.cancellation_window_minutes' => 10]);
+            Carbon::setTestNow($now->copy()->addMinutes(10));
+            fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+            Sanctum::actingAs($buyer, ['api-access']);
+
+            postJson(route('orders.cancel'), ['order_number' => $order->id])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.order_number.0', 'The order can no longer be canceled because the cancellation window has elapsed.');
+
+            expect($order->refresh()->status)->toBe('completed');
+            Http::assertNothingSent();
+
+            getJson(route('orders.index'))
+                ->assertOk()
+                ->assertJsonPath('data.0.cancel_seconds_remaining', 0);
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
+    it('returns the expired window message in Spanish', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [$buyer, $order] = makeAwaitingInvoiceOrder();
+            $buyer->assignRole('customer');
+            Carbon::setTestNow($now->copy()->addHour());
+            app()->setLocale('es');
+            Sanctum::actingAs($buyer, ['api-access']);
+
+            postJson(route('orders.cancel'), ['order_number' => $order->id])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.order_number.0', 'La orden ya no se puede cancelar porque venció el plazo.');
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
+    it('lets an administrator cancel after the buyer window has elapsed', function () {
+        $now = Carbon::parse('2026-10-22 12:00:00');
+        Carbon::setTestNow($now);
+
+        try {
+            [, $order] = makeAwaitingInvoiceOrder();
+            Carbon::setTestNow($now->copy()->addHours(2));
+            fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
+            actAsRole('admin');
+
+            postJson(route('orders.cancel'), ['order_number' => $order->id])
+                ->assertOk()
+                ->assertJsonPath('data.status', 'canceled');
+
+            expect($order->refresh()->status)->toBe('canceled');
+        } finally {
+            Carbon::setTestNow();
+        }
+    });
+
     it('rejects a second cancellation without calling Random again', function () {
         [, $order] = makeAwaitingInvoiceOrder();
         fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
@@ -193,21 +349,31 @@ describe('cancel order waiting for an invoice or a receipt', function () {
         Mail::assertNothingSent();
     });
 
-    it('requires both read-all-orders and cancel-orders', function (string $role) {
+    it('forbids canceling an order the user did not place', function (string $role) {
+        [, $order] = makeAwaitingInvoiceOrder();
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
         actAsRole($role);
 
-        postJson(route('orders.cancel'), ['order_number' => 1])
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
             ->assertForbidden()
-            ->assertJsonPath('message', 'You do not have permission.');
+            ->assertJsonPath('message', 'This action is unauthorized.');
+
+        expect($order->refresh()->status)->toBe('completed');
+        Http::assertNothingSent();
     })->with(['customer', 'supervisor', 'editor', 'developer']);
 
-    it('forbids a user that has only one of the two permissions', function (array $permissions) {
+    it('forbids a user that has only one of the two permissions from canceling another user\'s order', function (array $permissions) {
+        [, $order] = makeAwaitingInvoiceOrder();
+        fakeAwaitingInvoiceRandom(360, ['NVV'], 200);
         $user = createUserWithPermissions($permissions);
         Sanctum::actingAs($user, ['api-access']);
 
-        postJson(route('orders.cancel'), ['order_number' => 1])
+        postJson(route('orders.cancel'), ['order_number' => $order->id])
             ->assertForbidden()
-            ->assertJsonPath('message', 'You do not have permission.');
+            ->assertJsonPath('message', 'This action is unauthorized.');
+
+        expect($order->refresh()->status)->toBe('completed');
+        Http::assertNothingSent();
     })->with([
         'read only' => [['read-all-orders']],
         'cancel only' => [['cancel-orders']],

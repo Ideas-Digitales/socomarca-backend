@@ -376,4 +376,19 @@ class Order extends Model
     {
         return $this->morphToMany(RandomDocument::class, 'documentable', 'random_documentables', 'documentable_id', 'random_document_id');
     }
+
+    /**
+     * Folio (`NUDO`) of the Random sales note, shown on order emails.
+     * Stored as `numero` in `random_document_number`, including leading zeros.
+     */
+    public function randomDocumentFolio(): ?string
+    {
+        $folio = $this->random_document_number;
+
+        if (! is_string($folio) || trim($folio) === '') {
+            return null;
+        }
+
+        return $folio;
+    }
 }

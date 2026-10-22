@@ -84,6 +84,8 @@
             El pedido <strong>N&deg;{{ $order->id }}</strong> de <strong>{{ $buyerName }}</strong> fue cancelado.
         </p>
 
+        @include('emails.partials.random-order-number', ['order' => $order])
+
         @if ($forAnotherBranch)
             <p class="detail">La compra era para la sucursal <strong>{{ $customerName }}</strong>.</p>
         @endif

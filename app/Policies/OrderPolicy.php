@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\BranchType;
+use App\Models\Order;
 use App\Models\User;
 
 class OrderPolicy
@@ -21,5 +22,18 @@ class OrderPolicy
             && $buyer->branch_type === BranchType::PRIMARY
             && $buyer->user_code === $customer->user_code
             && $customer->branch_type === BranchType::SECONDARY;
+    }
+
+    /**
+     * The user placed the order (`orders.user_id`). The branch it was placed for cannot
+     * cancel it. `read-all-orders` together with `cancel-orders` cancels any order.
+     */
+    public function cancel(User $user, Order $order): bool
+    {
+        if ($user->hasAllPermissions(['read-all-orders', 'cancel-orders'])) {
+            return true;
+        }
+
+        return (int) $order->user_id === (int) $user->id;
     }
 }

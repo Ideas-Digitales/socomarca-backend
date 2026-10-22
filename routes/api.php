@@ -201,7 +201,6 @@ Route::middleware(['auth:sanctum', 'abilities:api-access'])->group(function () {
     Route::get('/orders', [OrderController::class, 'index'])->middleware('permission:read-own-orders')->name('orders.index');
     Route::post('/orders/pay', [OrderController::class, 'payOrder'])->middleware('permission:update-orders')->name('orders.pay');
     Route::post('/orders/cancel', [OrderController::class, 'cancel'])
-        ->middleware(['permission:read-all-orders', 'permission:cancel-orders'])
         ->name('orders.cancel');
 
     Route::middleware(['auth:sanctum', 'permission:read-all-reports'])->group(function () {

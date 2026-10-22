@@ -183,6 +183,7 @@ return [
             'dispatched' => 'La orden no se puede cancelar porque ya fue despachada.',
             'not_awaiting_invoice' => 'Solo se pueden cancelar órdenes en espera de un documento de Random (boleta o factura).',
             'already_canceled' => 'La orden ya está cancelada.',
+            'cancellation_window_expired' => 'La orden ya no se puede cancelar porque venció el plazo.',
             'unverified' => 'La orden no se pudo cancelar porque no se pudo confirmar su estado en Random ERP.',
         ],
     ],
