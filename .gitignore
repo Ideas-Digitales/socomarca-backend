@@ -25,3 +25,4 @@ yarn-error.log
 /compose.override.yml
 /--coverage-report
 /httpyac
+.cursor/mcp.json
