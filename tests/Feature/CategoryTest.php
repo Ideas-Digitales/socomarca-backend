@@ -315,10 +315,11 @@ describe("Category API", function () {
                 "status" => true,
             ]);
         }
-        // Products on cat2 (via category_id)
+        // Products on cat2, filed in super1 so they keep that branch.
         for ($i = 0; $i < 2; $i++) {
             createProductWithPrice([
                 "name" => "Product Cat2 {$i}",
+                "supercategory_id" => $super1->id,
                 "category_id" => $cat2->id,
                 "sku" => "SKU-CAT2-{$i}",
                 "status" => true,
@@ -406,7 +407,7 @@ describe("Category API", function () {
         // Validate Super1
         expect($supers->get($super1->name)["id"])->toBe($super1->id);
         expect($supers->get($super1->name)["level"])->toBe(1);
-        expect($supers->get($super1->name)["products_count"])->toBe(3);
+        expect($supers->get($super1->name)["products_count"])->toBe(5);
 
         $super1Cats = collect($supers->get($super1->name)["categories"])->keyBy(
             "name",
@@ -535,11 +536,11 @@ describe("Category API", function () {
         );
         expect($super1Cats->get($cat1->name)["id"])->toBe($cat1->id);
         expect($super1Cats->get($cat1->name)["level"])->toBe(2);
-        expect($super1Cats->get($cat1->name)["products_count"])->toBe(4);
+        expect($super1Cats->get($cat1->name)["products_count"])->toBe(2);
 
         expect($super1Cats->get($cat2->name)["id"])->toBe($cat2->id);
         expect($super1Cats->get($cat2->name)["level"])->toBe(2);
-        expect($super1Cats->get($cat2->name)["products_count"])->toBe(4);
+        expect($super1Cats->get($cat2->name)["products_count"])->toBe(2);
 
         // Validate Super2 hierarchy
         expect($supers->get($super2->name)["id"])->toBe($super2->id);
@@ -551,11 +552,11 @@ describe("Category API", function () {
         );
         expect($super2Cats->get($cat3->name)["id"])->toBe($cat3->id);
         expect($super2Cats->get($cat3->name)["level"])->toBe(2);
-        expect($super2Cats->get($cat3->name)["products_count"])->toBe(4);
+        expect($super2Cats->get($cat3->name)["products_count"])->toBe(2);
 
         expect($super2Cats->get($cat4->name)["id"])->toBe($cat4->id);
         expect($super2Cats->get($cat4->name)["level"])->toBe(2);
-        expect($super2Cats->get($cat4->name)["products_count"])->toBe(4);
+        expect($super2Cats->get($cat4->name)["products_count"])->toBe(2);
     });
 
     it("should filter categories by name", function () {
@@ -1035,7 +1036,8 @@ describe("Category price list visibility", function () {
                 "enabled" => true,
             ]);
 
-            // Two products per level, each in a different price list: both must be counted.
+            // Two products on the supercategory, each in a different price list, plus one
+            // filed in the child category. All three must be counted for the supercategory.
             createProductWithPrice([
                 "name" => "Product Super A",
                 "supercategory_id" => $super->id,
@@ -1052,6 +1054,7 @@ describe("Category price list visibility", function () {
             ]);
             createProductWithPrice([
                 "name" => "Product Category",
+                "supercategory_id" => $super->id,
                 "category_id" => $category->id,
                 "sku" => "SKU-ALL-CAT",
                 "status" => true,
@@ -1063,7 +1066,7 @@ describe("Category price list visibility", function () {
             $data = $response->json();
             expect($data)->toHaveCount(1);
             expect($data[0]["id"])->toBe($super->id);
-            expect($data[0]["products_count"])->toBe(2);
+            expect($data[0]["products_count"])->toBe(3);
             expect($data[0]["categories"])->toHaveCount(1);
             expect($data[0]["categories"][0]["products_count"])->toBe(1);
         },
@@ -1241,15 +1244,17 @@ describe("Category product status filter", function () {
                 "status" => false,
             ]);
 
-            // B: un producto activo y uno deshabilitado.
+            // B: un producto activo y uno deshabilitado, ambos en la supercategoría A.
             createProductWithPrice([
                 "name" => "Product B On",
+                "supercategory_id" => $superA->id,
                 "category_id" => $catB->id,
                 "sku" => "SKU-B-ON",
                 "status" => true,
             ]);
             createProductWithPrice([
                 "name" => "Product B Off",
+                "supercategory_id" => $superA->id,
                 "category_id" => $catB->id,
                 "sku" => "SKU-B-OFF",
                 "status" => false,
@@ -1258,26 +1263,32 @@ describe("Category product status filter", function () {
             // C: sólo productos deshabilitados.
             createProductWithPrice([
                 "name" => "Product C Off 1",
+                "supercategory_id" => $superA->id,
                 "category_id" => $catC->id,
                 "sku" => "SKU-C-OFF-1",
                 "status" => false,
             ]);
             createProductWithPrice([
                 "name" => "Product C Off 2",
+                "supercategory_id" => $superA->id,
                 "category_id" => $catC->id,
                 "sku" => "SKU-C-OFF-2",
                 "status" => false,
             ]);
 
-            // D: un producto activo y uno deshabilitado.
+            // D: un producto activo y uno deshabilitado, archivados en B y A.
             createProductWithPrice([
                 "name" => "Product D On",
+                "supercategory_id" => $superA->id,
+                "category_id" => $catB->id,
                 "subcategory_id" => $subD->id,
                 "sku" => "SKU-D-ON",
                 "status" => true,
             ]);
             createProductWithPrice([
                 "name" => "Product D Off",
+                "supercategory_id" => $superA->id,
+                "category_id" => $catB->id,
                 "subcategory_id" => $subD->id,
                 "sku" => "SKU-D-OFF",
                 "status" => false,
@@ -1286,18 +1297,22 @@ describe("Category product status filter", function () {
             // E: sólo productos deshabilitados.
             createProductWithPrice([
                 "name" => "Product E Off 1",
+                "supercategory_id" => $superA->id,
+                "category_id" => $catB->id,
                 "subcategory_id" => $subE->id,
                 "sku" => "SKU-E-OFF-1",
                 "status" => false,
             ]);
             createProductWithPrice([
                 "name" => "Product E Off 2",
+                "supercategory_id" => $superA->id,
+                "category_id" => $catB->id,
                 "subcategory_id" => $subE->id,
                 "sku" => "SKU-E-OFF-2",
                 "status" => false,
             ]);
 
-            // F: un producto activo, pero cuelga de C, que queda fuera del listado.
+            // F: producto activo, pero sin category_id de C, así que no mantiene esa rama.
             createProductWithPrice([
                 "name" => "Product F On",
                 "subcategory_id" => $subF->id,
@@ -1326,6 +1341,82 @@ describe("Category product status filter", function () {
                 ->flatMap(fn ($category) => array_column($category["subcategories"], "name"))
                 ->all();
             expect($allSubcategoryNames)->not->toContain("Sub F");
+        },
+    );
+});
+
+describe("Category branch alignment", function () {
+    it(
+        "should hide a category whose visible products belong to another supercategory",
+        function () {
+            // HOGAR cuelga de SECOS, pero el único producto visible con category_id
+            // de HOGAR está archivado en REFRIGERADOS. La búsqueda por ambas ids
+            // queda vacía, así que HOGAR no puede aparecer bajo SECOS.
+            $scenario = CategoryScenario::make();
+            Sanctum::actingAs($scenario->user, ["api-access"]);
+
+            $secos = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+                "name" => "SECOS",
+            ]);
+            $refrigerados = Category::factory()->create([
+                "level" => 1,
+                "enabled" => true,
+                "name" => "REFRIGERADOS",
+            ]);
+            $hogar = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $secos->id,
+                "enabled" => true,
+                "name" => "HOGAR",
+            ]);
+            $despensa = Category::factory()->create([
+                "level" => 2,
+                "parent_category_id" => $secos->id,
+                "enabled" => true,
+                "name" => "DESPENSA",
+            ]);
+            $iluminacion = Category::factory()->create([
+                "level" => 3,
+                "parent_category_id" => $hogar->id,
+                "enabled" => true,
+                "name" => "ILUMINACION",
+            ]);
+
+            createProductWithPrice([
+                "name" => "Cebolla frita",
+                "supercategory_id" => $refrigerados->id,
+                "category_id" => $hogar->id,
+                "subcategory_id" => $iluminacion->id,
+                "sku" => "SKU-MISPLACED",
+                "status" => true,
+                "stock" => 47,
+            ]);
+            createProductWithPrice([
+                "name" => "Fosforo",
+                "supercategory_id" => $secos->id,
+                "category_id" => $hogar->id,
+                "sku" => "SKU-OUT-OF-STOCK",
+                "status" => true,
+                "stock" => 0,
+            ]);
+            createProductWithPrice([
+                "name" => "Arroz",
+                "supercategory_id" => $secos->id,
+                "category_id" => $despensa->id,
+                "sku" => "SKU-DESPENSA",
+                "status" => true,
+                "stock" => 10,
+            ]);
+
+            $response = getJson(route("categories.index"))->assertOk();
+            $tree = collect($response->json())->keyBy("name");
+
+            expect($tree->has("SECOS"))->toBeTrue();
+            expect(array_column($tree->get("SECOS")["categories"], "name"))->toBe(["DESPENSA"]);
+            expect($tree->has("REFRIGERADOS"))->toBeTrue();
+            expect($tree->get("REFRIGERADOS")["categories"])->toBeEmpty();
         },
     );
 });

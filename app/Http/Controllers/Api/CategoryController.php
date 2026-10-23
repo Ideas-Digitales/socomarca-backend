@@ -21,9 +21,9 @@ class CategoryController extends Controller
      * Build the constraint keeping only categories that hold at least one active product
      * with a price visible to the current user.
      *
-     * Reused at every level of the category tree (supercategory, category, subcategory).
      * A disabled product is not on offer, so it must not keep its branch of the tree
-     * alive either; the brand listing applies the same rule.
+     * alive either; the brand listing applies the same rule. The relation already
+     * limits the product to this node (supercategory_id, category_id or subcategory_id).
      *
      * @see \App\Models\Price::visibleTo()
      * @see \App\Http\Controllers\Api\BrandController::index()
@@ -36,11 +36,75 @@ class CategoryController extends Controller
     }
 
     /**
+     * Keep a category under its parent supercategory only when a visible product
+     * is filed in both. Product search applies the two ids together, so a product
+     * that merely shares category_id must not keep the category in another branch.
+     *
+     * @return \Closure A closure receiving the products query builder and constraining it
+     */
+    private function hasVisiblePricesInSupercategory(): \Closure
+    {
+        return fn ($query) => $query
+            ->whereColumn('products.supercategory_id', 'categories.parent_category_id')
+            ->where('status', true)
+            ->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
+    }
+
+    /**
+     * Keep a subcategory under its category only when a visible product is filed
+     * in that subcategory, the parent category and the supercategory above it.
+     *
+     * @return \Closure A closure receiving the products query builder and constraining it
+     */
+    private function hasVisiblePricesInCategory(): \Closure
+    {
+        return function ($query) {
+            $query->where('status', true)
+                ->whereColumn('products.category_id', 'categories.parent_category_id')
+                ->whereIn('products.supercategory_id', function ($subquery) {
+                    $subquery->select('parent.parent_category_id')
+                        ->from('categories as parent')
+                        ->whereColumn('parent.id', 'categories.parent_category_id');
+                })
+                ->whereHas('prices', fn ($priceQuery) => $priceQuery->visibleTo());
+        };
+    }
+
+    /**
+     * Eager-load the child categories and subcategories that still have a visible
+     * product in that branch.
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query Children query (level 2)
+     * @param bool $withProductCounts Whether to attach products_count on each node
+     */
+    private function withVisibleDescendants($query, bool $withProductCounts): void
+    {
+        $inSupercategory = $this->hasVisiblePricesInSupercategory();
+        $inCategory = $this->hasVisiblePricesInCategory();
+
+        $query->where('enabled', true)
+            ->whereHas('products', $inSupercategory)
+            ->with(['children' => function ($query) use ($inCategory, $withProductCounts) {
+                $query->where('enabled', true)
+                    ->whereHas('productsBySubcategory', $inCategory);
+
+                if ($withProductCounts) {
+                    $query->withCount(['productsBySubcategory' => $inCategory]);
+                }
+            }]);
+
+        if ($withProductCounts) {
+            $query->withCount(['products' => $inSupercategory]);
+        }
+    }
+
+    /**
      * List categories
      *
      * With `structure=nested` (the default) returns the storefront tree: the enabled supercategories that
      * have active products with a price visible to the user (customers only see their price lists), each
-     * with its categories and subcategories filtered the same way, and the count of those products.
+     * with the categories and subcategories that have a visible product filed in that same branch, and the
+     * count of those products.
      *
      * With `structure=flat` returns every category of the three levels as its own row, including disabled
      * ones and those without products, for the administration. It also requires the `read-all-reports`
@@ -67,15 +131,7 @@ class CategoryController extends Controller
             ->whereHas('productsBySupercategory', $this->hasVisiblePrices())
             ->withCount(['productsBySupercategory' => $this->hasVisiblePrices()])
             ->with(['children' => function ($query) {
-                $query->where('enabled', true)
-                    ->whereHas('products', $this->hasVisiblePrices())
-                    ->withCount(['products' => $this->hasVisiblePrices()])
-                    ->with(['children' => function ($query) {
-                        $query
-                            ->where('enabled', true)
-                            ->whereHas('productsBySubcategory', $this->hasVisiblePrices())
-                            ->withCount(['productsBySubcategory' => $this->hasVisiblePrices()]);
-                    }]);
+                $this->withVisibleDescendants($query, true);
             }])
             ->filter([], $sort, $sortDirection)
             ->get();
@@ -174,12 +230,7 @@ class CategoryController extends Controller
             ->where('enabled', true)
             ->whereHas('productsBySupercategory', $this->hasVisiblePrices())
             ->with(['children' => function ($query) {
-                $query->where('enabled', true)
-                    ->whereHas('products', $this->hasVisiblePrices())
-                    ->with(['children' => function ($query) {
-                        $query->where('enabled', true)
-                            ->whereHas('productsBySubcategory', $this->hasVisiblePrices());
-                    }]);
+                $this->withVisibleDescendants($query, false);
             }])
             ->filter($filters, $sort, $sortDirection)
             ->get();
