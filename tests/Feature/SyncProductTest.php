@@ -38,14 +38,14 @@ describe('Product Sync Basic', function () {
             'name' => 'Super Categoría Test',
             'code' => 'CAT001',
             'level' => 1,
-            'key' => 'CAT1'
+            'key' => 'CAT001'
         ]);
 
         $category = Category::create([
             'name' => 'Categoría Test',
             'code' => 'SUBCAT001',
             'level' => 2,
-            'key' => 'CAT1/SUB1',
+            'key' => 'CAT001/SUBCAT001',
             'parent_category_id' => $supercategory->id
         ]);
 
@@ -94,6 +94,69 @@ describe('Product Sync Basic', function () {
         expect($product2->supercategory_id)->toBe($supercategory->id);
         expect($product2->category_id)->toBeNull();
         expect($product2->subcategory_id)->toBeNull();
+    });
+
+    it('assigns the subcategory whose key matches the family path when codes repeat', function () {
+        $secos = Category::create([
+            'name' => 'SECOS',
+            'code' => '0003',
+            'level' => 1,
+            'key' => '0003',
+        ]);
+        $despensa = Category::create([
+            'name' => 'DESPENSA',
+            'code' => '0004',
+            'level' => 2,
+            'key' => '0003/0004',
+            'parent_category_id' => $secos->id,
+        ]);
+        $panaderia = Category::create([
+            'name' => 'PANADERIA Y PASTELERIA',
+            'code' => '0010',
+            'level' => 2,
+            'key' => '0003/0010',
+            'parent_category_id' => $secos->id,
+        ]);
+        $pasteleria = Category::create([
+            'name' => 'PASTELERIA ENVASADA',
+            'code' => '0002',
+            'level' => 3,
+            'key' => '0003/0010/0002',
+            'parent_category_id' => $panaderia->id,
+        ]);
+        $aderezos = Category::create([
+            'name' => 'ADEREZOS Y SALSAS',
+            'code' => '0002',
+            'level' => 3,
+            'key' => '0003/0004/0002',
+            'parent_category_id' => $despensa->id,
+        ]);
+
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn([
+                'data' => [
+                    [
+                        'KOPR' => 'MOSTAZA',
+                        'NOKOPR' => 'MOSTAZA HEINZ FS (1 KG)',
+                        'FMPR' => '0003',
+                        'PFPR' => '0004',
+                        'HFPR' => '0002',
+                    ],
+                ],
+            ]);
+
+        Log::shouldReceive('info')->twice();
+
+        (new SyncRandomProducts())->handle($mockApiService);
+
+        $product = Product::where('random_product_id', 'MOSTAZA')->first();
+
+        expect($product->supercategory_id)->toBe($secos->id);
+        expect($product->category_id)->toBe($despensa->id);
+        expect($product->subcategory_id)->toBe($aderezos->id);
+        expect($product->subcategory_id)->not->toBe($pasteleria->id);
     });
 
     it('updates existing products instead of duplicating them', function () {
@@ -334,7 +397,7 @@ describe('Product Sync Basic', function () {
             'name' => 'Super Categoría Test',
             'code' => 'CAT001',
             'level' => 1,
-            'key' => 'CAT1'
+            'key' => 'CAT001'
         ]);
 
         $mockApiService = Mockery::mock(RandomApiService::class);
@@ -458,5 +521,182 @@ describe('Product Sync Basic', function () {
         // 4. Verify results
         expect(Product::where('random_product_id', 'PROD_STAY')->first()->status)->toBe(true);
         expect(Product::where('random_product_id', 'PROD_GONE')->first()->status)->toBe(false);
+    });
+
+    it('does not deactivate products when the api returns no rows', function () {
+        Product::create([
+            'random_product_id' => 'PROD_KEEP',
+            'sku' => 'PROD_KEEP',
+            'name' => 'Producto activo',
+            'status' => true,
+        ]);
+
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn(['data' => []]);
+
+        Log::shouldReceive('info')->once();
+        Log::shouldReceive('error')->once();
+
+        (new SyncRandomProducts())->handle($mockApiService);
+
+        expect(Product::where('random_product_id', 'PROD_KEEP')->first()->status)->toBeTrue();
+    });
+
+    it('keeps the previous category when the family key is missing', function () {
+        $supercategory = Category::create([
+            'name' => 'SECOS',
+            'code' => '0003',
+            'level' => 1,
+            'key' => '0003',
+        ]);
+        $category = Category::create([
+            'name' => 'DESPENSA',
+            'code' => '0004',
+            'level' => 2,
+            'key' => '0003/0004',
+            'parent_category_id' => $supercategory->id,
+        ]);
+        $subcategory = Category::create([
+            'name' => 'ADEREZOS Y SALSAS',
+            'code' => '0002',
+            'level' => 3,
+            'key' => '0003/0004/0002',
+            'parent_category_id' => $category->id,
+        ]);
+        Product::create([
+            'random_product_id' => 'MOSTAZA',
+            'sku' => 'MOSTAZA',
+            'name' => 'Nombre anterior',
+            'supercategory_id' => $supercategory->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'status' => true,
+        ]);
+
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn([
+                'data' => [
+                    [
+                        'KOPR' => 'MOSTAZA',
+                        'NOKOPR' => 'MOSTAZA HEINZ FS (1 KG)',
+                        'FMPR' => '9999',
+                        'PFPR' => '9999',
+                        'HFPR' => '9999',
+                    ],
+                ],
+            ]);
+
+        Log::shouldReceive('info')->twice();
+        Log::shouldReceive('warning')->times(3);
+
+        (new SyncRandomProducts())->handle($mockApiService);
+
+        $product = Product::where('random_product_id', 'MOSTAZA')->first();
+
+        expect($product->name)->toBe('MOSTAZA HEINZ FS (1 KG)');
+        expect($product->supercategory_id)->toBe($supercategory->id);
+        expect($product->category_id)->toBe($category->id);
+        expect($product->subcategory_id)->toBe($subcategory->id);
+    });
+
+    it('clears category ids when the api sends empty family codes', function () {
+        $supercategory = Category::create([
+            'name' => 'SECOS',
+            'code' => '0003',
+            'level' => 1,
+            'key' => '0003',
+        ]);
+        $category = Category::create([
+            'name' => 'DESPENSA',
+            'code' => '0004',
+            'level' => 2,
+            'key' => '0003/0004',
+            'parent_category_id' => $supercategory->id,
+        ]);
+        $subcategory = Category::create([
+            'name' => 'ADEREZOS Y SALSAS',
+            'code' => '0002',
+            'level' => 3,
+            'key' => '0003/0004/0002',
+            'parent_category_id' => $category->id,
+        ]);
+        Product::create([
+            'random_product_id' => 'MOSTAZA',
+            'sku' => 'MOSTAZA',
+            'name' => 'Nombre anterior',
+            'supercategory_id' => $supercategory->id,
+            'category_id' => $category->id,
+            'subcategory_id' => $subcategory->id,
+            'status' => true,
+        ]);
+
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn([
+                'data' => [
+                    [
+                        'KOPR' => 'MOSTAZA',
+                        'NOKOPR' => 'MOSTAZA HEINZ FS (1 KG)',
+                        'FMPR' => '',
+                        'PFPR' => '',
+                        'HFPR' => '',
+                    ],
+                ],
+            ]);
+
+        Log::shouldReceive('info')->twice();
+
+        (new SyncRandomProducts())->handle($mockApiService);
+
+        $product = Product::where('random_product_id', 'MOSTAZA')->first();
+
+        expect($product->supercategory_id)->toBeNull();
+        expect($product->category_id)->toBeNull();
+        expect($product->subcategory_id)->toBeNull();
+    });
+
+    it('rolls back product updates when a later row fails', function () {
+        Product::create([
+            'random_product_id' => 'PROD001',
+            'sku' => 'PROD001',
+            'name' => 'Original',
+            'status' => true,
+        ]);
+
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn([
+                'data' => [
+                    [
+                        'KOPR' => 'PROD001',
+                        'NOKOPR' => 'Actualizado',
+                        'FMPR' => '',
+                        'PFPR' => '',
+                        'HFPR' => '',
+                    ],
+                    [
+                        'KOPR' => 'PROD002',
+                        'NOKOPR' => str_repeat('A', 300),
+                        'FMPR' => '',
+                        'PFPR' => '',
+                        'HFPR' => '',
+                    ],
+                ],
+            ]);
+
+        Log::shouldReceive('info')->once();
+        Log::shouldReceive('error')->once();
+
+        expect(fn () => (new SyncRandomProducts())->handle($mockApiService))
+            ->toThrow(Exception::class);
+
+        expect(Product::where('random_product_id', 'PROD001')->first()->name)->toBe('Original');
+        expect(Product::where('random_product_id', 'PROD002')->exists())->toBeFalse();
     });
 });
