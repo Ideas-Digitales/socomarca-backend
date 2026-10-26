@@ -250,7 +250,7 @@ describe('Product Sync Integration', function () {
             'name' => 'Super Categoría Existente',
             'code' => 'CAT001',
             'level' => 1,
-            'key' => 'CAT1'
+            'key' => 'CAT001'
         ]);
 
         $brand = Brand::create([
@@ -300,7 +300,7 @@ describe('Product Sync Integration', function () {
             'name' => 'Alimentación',
             'code' => 'CAT001',
             'level' => 1,
-            'key' => 'CAT1'
+            'key' => 'CAT001'
         ]);
 
         $apiResponse = [
@@ -347,5 +347,82 @@ describe('Product Sync Integration', function () {
         expect($product->random_product_id)->not->toBeEmpty();
         expect($product->sku)->not->toBeEmpty();
         expect($product->status)->toBe(true);
+    });
+
+    it('assigns the category branch whose key matches the product family path when codes repeat', function () {
+        $secos = Category::create([
+            'name' => 'SECOS',
+            'code' => '0003',
+            'level' => 1,
+            'key' => '0003',
+        ]);
+        $other = Category::create([
+            'name' => 'CONGELADOS',
+            'code' => '0001',
+            'level' => 1,
+            'key' => '0001',
+        ]);
+        $wrongCategory = Category::create([
+            'name' => 'DESPENSA AJENA',
+            'code' => '0004',
+            'level' => 2,
+            'key' => '0001/0004',
+            'parent_category_id' => $other->id,
+        ]);
+        $despensa = Category::create([
+            'name' => 'DESPENSA',
+            'code' => '0004',
+            'level' => 2,
+            'key' => '0003/0004',
+            'parent_category_id' => $secos->id,
+        ]);
+        $panaderia = Category::create([
+            'name' => 'PANADERIA Y PASTELERIA',
+            'code' => '0010',
+            'level' => 2,
+            'key' => '0003/0010',
+            'parent_category_id' => $secos->id,
+        ]);
+        $pasteleria = Category::create([
+            'name' => 'PASTELERIA ENVASADA',
+            'code' => '0002',
+            'level' => 3,
+            'key' => '0003/0010/0002',
+            'parent_category_id' => $panaderia->id,
+        ]);
+        $aderezos = Category::create([
+            'name' => 'ADEREZOS Y SALSAS',
+            'code' => '0002',
+            'level' => 3,
+            'key' => '0003/0004/0002',
+            'parent_category_id' => $despensa->id,
+        ]);
+
+        $mockApiService = Mockery::mock(RandomApiService::class);
+        $mockApiService->shouldReceive('getProducts')
+            ->once()
+            ->andReturn([
+                'data' => [
+                    [
+                        'KOPR' => 'MOSTAZA',
+                        'NOKOPR' => 'MOSTAZA HEINZ FS (1 KG)',
+                        'FMPR' => '0003',
+                        'PFPR' => '0004',
+                        'HFPR' => '0002',
+                    ],
+                ],
+            ]);
+
+        Log::shouldReceive('info')->twice();
+
+        (new SyncRandomProducts())->handle($mockApiService);
+
+        $product = Product::where('random_product_id', 'MOSTAZA')->first();
+
+        expect($product->supercategory_id)->toBe($secos->id);
+        expect($product->category_id)->toBe($despensa->id);
+        expect($product->category_id)->not->toBe($wrongCategory->id);
+        expect($product->subcategory_id)->toBe($aderezos->id);
+        expect($product->subcategory_id)->not->toBe($pasteleria->id);
     });
 });
